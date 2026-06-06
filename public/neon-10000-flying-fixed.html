@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON 10,000 // FLYING TRAFFIC PROTOCOL v2</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap');
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0a001f;
+            color: #00ffea;
+            font-family: 'VT323', monospace;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        .bg {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(10,0,35,0.88), rgba(25,0,55,0.94)),
+                        url('https://picsum.photos/id/1015/1920/1080') center/cover;
+            z-index: -5;
+            animation: city-pulse 12s ease-in-out infinite;
+        }
+
+        .rain {
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent 0px, rgba(0,255,234,0.18) 2px, transparent 6px);
+            z-index: -4;
+            animation: rain-fall 0.45s linear infinite;
+        }
+
+        .scanlines {
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(to bottom, transparent 0px, rgba(255,0,255,0.12) 2px, transparent 5px);
+            z-index: -3;
+            animation: scan-move 3.5s linear infinite;
+            mix-blend-mode: overlay;
+        }
+
+        /* === FLYING TRAFFIC - MORE VISIBLE === */
+        .traffic {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .car {
+            position: absolute;
+            height: 22px;
+            width: 62px;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffff00);
+            box-shadow: 
+                0 0 18px #ff00ff,
+                0 0 36px #00ffff,
+                0 0 50px #ffff00;
+            border-radius: 4px;
+            animation: fly linear infinite;
+            opacity: 0.95;
+        }
+
+        .car::after {
+            content: '▶';
+            position: absolute;
+            right: -12px;
+            top: 2px;
+            color: #ffff00;
+            font-size: 18px;
+            text-shadow: 0 0 12px #ffff00;
+            animation: thrust 0.2s infinite alternate;
+        }
+
+        @keyframes fly {
+            from { transform: translateX(-150px); }
+            to { transform: translateX(calc(100vw + 200px)); }
+        }
+
+        @keyframes thrust {
+            from { opacity: 0.6; }
+            to { opacity: 1; }
+        }
+
+        /* Multiple layers with different speeds and heights */
+        .layer1 { z-index: -2.1; }
+        .layer1 .car { animation-duration: 2.8s; top: 12%; }
+        .layer2 .car { animation-duration: 4.2s; top: 24%; height: 18px; width: 52px; }
+        .layer3 .car { animation-duration: 2.4s; top: 38%; }
+        .layer4 .car { animation-duration: 7s; top: 52%; opacity: 0.8; height: 26px; width: 68px; }
+
+        @keyframes city-pulse {
+            0%, 100% { filter: brightness(1) hue-rotate(0deg); }
+            50% { filter: brightness(1.35) hue-rotate(10deg); }
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 30px auto;
+            padding: 30px;
+            background: rgba(12, 2, 35, 0.94);
+            border: 5px solid #ff00ff;
+            box-shadow: 0 0 40px #00ffff, 0 0 90px #ff00ff, 0 0 140px rgba(255,0,255,0.8);
+            position: relative;
+            z-index: 10;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 5.4rem;
+            text-shadow: 0 0 25px #ff00ff, 0 0 50px #00ffff, 0 0 70px #ffff00;
+            letter-spacing: 16px;
+            animation: glitch 0.6s infinite alternate;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            30% { transform: translate(-6px, 4px); }
+            60% { transform: translate(6px, -4px); }
+        }
+
+        /* Table and rules styling (condensed for brevity but full strength) */
+        table { width: 100%; border-collapse: collapse; margin: 25px 0; background: rgba(0,0,0,0.8); }
+        th, td { border: 3px solid #ff00ff; padding: 15px; text-align: center; font-size: 1.6rem; }
+        th { background: linear-gradient(#2a0055, #1a0033); color: #ffff00; }
+        input { background: transparent; border: 2px solid #00ffea; color: #fff; font-size: 1.7rem; width: 100%; text-align: center; padding: 6px; }
+        .rules { column-count: 2; column-gap: 50px; background: rgba(25,0,50,0.9); padding: 25px; border: 3px dashed #ffff00; font-size: 1.4rem; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; font-size: 1.5rem; color: #ff00ff; text-shadow: 0 0 15px #ff00ff; }
+    </style>
+</head>
+<body>
+    <div class="bg"></div>
+    <div class="rain"></div>
+    <div class="scanlines"></div>
+    
+    <!-- Flying Traffic Layers -->
+    <div class="traffic layer1"></div>
+    <div class="traffic layer2"></div>
+    <div class="traffic layer3"></div>
+    <div class="traffic layer4"></div>
+
+    <div class="container">
+        <h1>NEON 10,000</h1>
+        <p style="text-align:center; font-size:2.5rem; color:#ffff00; margin:10px;">NIGHT CITY AIR TRAFFIC • ROLL OR GET LEFT BEHIND</p>
+        
+        <!-- Score Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th>RUNNER / PLAYER</th>
+                    <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+                    <th>6</th><th>7</th><th>8</th><th>9</th><th>10</th>
+                    <th>TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="text" value="RUNNER 01"></td>
+                    <td><input type="text"></td><td><input type="text"></td><td><input type="text"></td>
+                    <td><input type="text"></td><td><input type="text"></td><td><input type="text"></td>
+                    <td><input type="text"></td><td><input type="text"></td><td><input type="text"></td>
+                    <td style="background:#220022; font-weight:bold; color:#ffff00;">0</td>
+                </tr>
+                <tr>
+                    <td><input type="text" value="RUNNER 02"></td>
+                    <td><input type="text"></td><td><input type="text"></td><td><input type="text"></td>
+                    <td><input type="text"></td><td><input type="text"></td><td><input type="text"></td>
+                    <td><input type="text"></td><td><input type="text"></td><td><input type="text"></td>
+                    <td style="background:#220022; font-weight:bold; color:#ffff00;">0</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="rules">
+            <h2 style="color:#ff00ff;">SCORING RULES</h2>
+            <ul>
+                <li><strong>1</strong> = 100 pts • <strong>5</strong> = 50 pts</li>
+                <li>3-of-a-kind: 1s=1000, 2-6 = 200-600</li>
+                <li>4+ dice = double score</li>
+                <li>Straight / 3 pairs = 1000-1500 bonus</li>
+                <li>Clear all dice = Hot Dice (roll again)</li>
+            </ul>
+            <p><strong>First to 10,000 wins.</strong> Final round: one last turn for everyone.</p>
+        </div>
+
+        <div class="footer">
+            F11 FOR FULL IMMERSION • PRINT WITH BACKGROUND GRAPHICS ENABLED
+        </div>
+    </div>
+
+    <script>
+        // Robust flying car generator
+        function spawnTraffic() {
+            const layers = document.querySelectorAll('.traffic');
+            layers.forEach((layer, idx) => {
+                for (let i = 0; i < 8; i++) { // More cars for density
+                    const car = document.createElement('div');
+                    car.className = 'car';
+                    
+                    // Randomize per layer
+                    const baseTop = 12 + (idx * 12);
+                    car.style.top = `${baseTop + Math.random() * 18}%`;
+                    car.style.animationDuration = `${2.2 + Math.random() * 6}s`;
+                    car.style.animationDelay = `-${Math.random() * 12}s`;
+                    car.style.opacity = 0.75 + Math.random() * 0.25;
+                    car.style.width = `${50 + Math.random() * 35}px`;
+                    car.style.height = `${18 + Math.random() * 12}px`;
+                    
+                    layer.appendChild(car);
+                }
+            });
+        }
+        
+        // Run immediately and again after full load
+        window.addEventListener('load', spawnTraffic);
+        spawnTraffic(); // Immediate call
+    </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+---
+description: NEON 10,000 project layout and stack
+alwaysApply: true
+---
+
+# Project Structure
+
+Standalone Vite + React 18 dice game. No backend, no auth, no Base44.
+
+| Area | Location |
+|------|----------|
+| Game logic | `src/lib/gameLogic.js`, `scoring.js`, `powers.js` |
+| Local save (coins, XP, skins) | `src/lib/localProfile.js`, `src/hooks/useCosmetics.js` |
+| Shop catalog | `src/lib/shopCatalog.js`, `progression.js`, `mysteryBoxes.js` |
+| Pages | `src/pages/` |
+| UI components | `src/components/` |
+| Static assets | `public/assets/` |
+| iOS wrapper | `ios/` (Capacitor) |
+
+Stack: React Router, TanStack Query, Tailwind, Radix UI, Framer Motion, Three.js (3D dice).
+
+Run: `npm run dev` · Build: `npm run build` · iOS: `npm run ios:sync && npm run ios:open`

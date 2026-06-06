@@ -1,0 +1,14 @@
+---
+description: React and UI conventions for this codebase
+globs: src/**/*.{jsx,js}
+alwaysApply: false
+---
+
+# React UI Patterns
+
+- Functional components + hooks; match existing file style in the same folder.
+- Path alias `@/` maps to `src/`.
+- Cosmetics/progression: use `useCosmetics()` — never reintroduce remote auth or cloud user APIs.
+- Prefer existing shadcn/ui components in `src/components/ui/`.
+- Neon/cyber aesthetic: cyan `#00ffc8`, magenta `#ff00ea`, dark `#020408` backgrounds.
+- Keep diffs minimal; do not refactor unrelated code.

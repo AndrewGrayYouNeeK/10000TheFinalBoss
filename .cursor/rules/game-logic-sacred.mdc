@@ -1,0 +1,17 @@
+---
+description: Never modify core dice game mechanics unless explicitly requested
+alwaysApply: true
+---
+
+# Sacred Game Logic — Do Not Touch
+
+These files implement dice rolling, scoring, turns, and rules. **Never modify, refactor, or delete them** unless the user explicitly asks for a gameplay change:
+
+- `src/lib/gameLogic.js` — turn state, roll/hold/bank/pass
+- `src/lib/scoring.js` — point calculations
+- `src/lib/powers.js` — power definitions and effects
+- `src/lib/aiOpponent.js` — story-mode AI decisions
+
+Safe to change: UI components, shop/cosmetics, routing, styling, local profile storage, platform/infrastructure.
+
+When fixing bugs, confirm the bug is in platform/UI code before editing anything in the list above.
