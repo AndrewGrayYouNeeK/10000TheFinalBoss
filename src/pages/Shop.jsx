@@ -13,6 +13,8 @@ import DicePreview from "@/components/shop/DicePreview";
 import FeltPreview from "@/components/shop/FeltPreview";
 import MysteryBoxesTab from "@/components/shop/MysteryBoxesTab";
 import BuyCoinsDialog from "@/components/shop/BuyCoinsDialog";
+import DevPreviewBanner from "@/components/dev/DevPreviewBanner";
+import { isPreviewTierUnlocked } from "@/lib/devPreview";
 
 
 export default function Shop() {
@@ -43,6 +45,7 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-950 via-slate-950 to-black text-white">
+      <DevPreviewBanner />
       <div className="sticky top-0 z-10 backdrop-blur bg-slate-950/80 border-b border-white/10 p-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
@@ -111,8 +114,8 @@ export default function Shop() {
                   return getSkinEffectivePrice(a) - getSkinEffectivePrice(b);
                 });
                 return sortedSkins.map(skin => {
-                  const tierLocked = !checkUnlocked(skin.id, xp);
-                  const achievementOnly = isSkinAchievementOnly(skin.id, xp);
+                  const tierLocked = !isPreviewTierUnlocked() && !checkUnlocked(skin.id, xp);
+                  const achievementOnly = !isPreviewTierUnlocked() && isSkinAchievementOnly(skin.id, xp);
                   const effectivePrice = getSkinEffectivePrice(skin);
                   return (
                     <ShopItemCard

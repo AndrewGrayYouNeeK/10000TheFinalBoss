@@ -1,15 +1,15 @@
-# AGENTS.md — NEON 10,000 (The Final Boss)
+# AGENTS.md — YouNeeK 10,000 (The Final Boss)
 
 Instructions for AI coding agents working in this repository.
 
 ## What This Is
 
-A browser-first 10,000 dice game with local multiplayer, story mode, shop/cosmetics, and mystery boxes. Runs fully offline. Player progress is stored in `localStorage` via `src/lib/localProfile.js`.
+YouNeeK 10,000 — The Ultimate Roll. A browser-first dice game with local multiplayer, story mode, shop/cosmetics, and mystery boxes. Runs fully offline. Player progress is stored in `localStorage` via `src/lib/localProfile.js`.
 
 ## Hard Rules
 
 1. **Do not modify game logic** unless the user explicitly requests a gameplay change. Sacred files: `src/lib/gameLogic.js`, `src/lib/scoring.js`, `src/lib/powers.js`, `src/lib/aiOpponent.js`.
-2. **No Base44** — do not reintroduce `@base44/sdk`, cloud auth, subscription checks, or `media.base44.com` URLs.
+2. **No Base44** — do not reintroduce `@base44/sdk`, cloud auth, subscription checks, or external platform CDNs.
 3. **Minimal diffs** — match existing conventions; don't refactor unrelated code.
 
 ## Commands
@@ -31,7 +31,7 @@ src/
   pages/         route-level screens (Home, Game, Shop, Story, …)
   components/    UI (game/, shop/, story/, ui/)
   hooks/         useCosmetics, useMysteryBox
-public/assets/   self-hosted images and videos (formerly Base44 CDN)
+public/assets/   self-hosted images and videos
 ios/             Capacitor native iOS project (generated)
 ```
 
@@ -44,7 +44,7 @@ ios/             Capacitor native iOS project (generated)
 
 ## Cursor Rules
 
-Project rules live in `.cursor/rules/*.mdc`. Project skill: `.cursor/skills/neon-10000-dev/SKILL.md`.
+Project rules live in `.cursor/rules/*.mdc`. Project skill: `.cursor/skills/yourneek-10000-dev/SKILL.md`.
 
 ## iOS / Xcode
 

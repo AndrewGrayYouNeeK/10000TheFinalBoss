@@ -1,4 +1,4 @@
-// NEON 10,000 — Powers System
+// YouNeeK 10,000 — Powers System
 // Players equip up to 3 powers before a match. Power fills as they roll/score.
 // Each ability costs Power to fire. Sabotage abilities target the opponent and
 // persist UNTIL THAT OPPONENT BUSTS (farkles).

@@ -8,6 +8,12 @@ import {
   isSkinUnlockedByTier,
   isSkinAchievementOnly,
 } from "@/lib/progression";
+import {
+  getPreviewCoins,
+  getPreviewOwnedFelts,
+  getPreviewOwnedSkins,
+  isPreviewTierUnlocked,
+} from "@/lib/devPreview";
 
 export function useCosmetics() {
   const queryClient = useQueryClient();
@@ -25,14 +31,14 @@ export function useCosmetics() {
     },
   });
 
-  const coins = user?.coins ?? 0;
+  const coins = getPreviewCoins(user?.coins ?? 0);
   const xp = user?.xp ?? 0;
   const currentTier = getTierForXp(xp);
   const nextTier = getNextTier(xp);
   const introSeen = user?.intro_seen ?? false;
-  const ownedSkins = user?.owned_skins ?? ["classic_white"];
+  const ownedSkins = getPreviewOwnedSkins(user?.owned_skins ?? ["classic_white"]);
   const ownedBadges = user?.owned_badges ?? [];
-  const ownedFelts = user?.owned_felts ?? ["classic_green"];
+  const ownedFelts = getPreviewOwnedFelts(user?.owned_felts ?? ["classic_green"]);
   const equippedSkinId = user?.equipped_skin || "classic_white";
   const equippedBadgeId = user?.equipped_badge || "";
   const equippedFeltId = user?.equipped_felt || "classic_green";
@@ -126,7 +132,7 @@ export function useCosmetics() {
     equipItem,
     grantReward,
     getSkinEffectivePrice: (skin) => getSkinEffectivePrice(skin, xp),
-    isSkinUnlockedByTier: (skinId) => isSkinUnlockedByTier(skinId, xp),
+    isSkinUnlockedByTier: (skinId) => isPreviewTierUnlocked() || isSkinUnlockedByTier(skinId, xp),
     isSkinAchievementOnly: (skinId) => isSkinAchievementOnly(skinId, xp),
   };
 }

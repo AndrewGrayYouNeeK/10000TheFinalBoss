@@ -232,7 +232,7 @@ export default function Game() {
         <RulesSheet />
       </div>
 
-      {/* Neon 10000 sign banner */}
+      {/* YouNeeK 10000 sign banner */}
       <div className="px-3 pt-3">
         <div
           className="rounded-2xl overflow-hidden border-2"
@@ -243,7 +243,7 @@ export default function Game() {
         >
           <GlitchNeonBanner
             src="/assets/354eae8fe_generated_image.png"
-            alt="Neon 10000 sign"
+            alt="YouNeeK 10000 sign"
             objectPosition="center 30%"
           />
         </div>

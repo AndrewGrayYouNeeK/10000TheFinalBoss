@@ -1,6 +1,6 @@
-# NEON 10,000 — Dice Hack Protocol
+# YouNeeK 10,000 — The Ultimate Roll
 
-A neon-styled 10,000 dice game with local multiplayer, story mode, shop, and progression. Runs entirely in the browser with no external account or backend required.
+A YouNeeK-styled 10,000 dice game with local multiplayer, story mode, shop, and progression. Runs entirely in the browser with no external account or backend required.
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Not included in this standalone build. `/online` shows an unavailable page until
 
 - **Agent instructions:** `AGENTS.md`
 - **Cursor rules:** `.cursor/rules/`
-- **Project skill:** `.cursor/skills/neon-10000-dev/SKILL.md`
+- **Project skill:** `.cursor/skills/yourneek-10000-dev/SKILL.md`
 
 ## Project Structure
 

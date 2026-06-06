@@ -6,6 +6,7 @@ import { Dices, Users, BookOpen, Sparkles, Coins, Zap, Wifi, Swords } from "luci
 import RulesSheet from "@/components/game/RulesSheet";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
+import DevPreviewBanner from "@/components/dev/DevPreviewBanner";
 import DiamondShowcase from "@/components/home/DiamondShowcase";
 
 export default function Home() {
@@ -16,6 +17,7 @@ export default function Home() {
       className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-20 overflow-hidden relative"
       style={{ background: "#020408" }}
     >
+      <DevPreviewBanner />
       {/* Matrix dice rain */}
       <DiceRain />
 
