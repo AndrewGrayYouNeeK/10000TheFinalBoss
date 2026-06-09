@@ -15,8 +15,6 @@
     "ios:run": "npm run ios:sync && npx cap run ios"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.31",
-    "@base44/vite-plugin": "^1.0.21",
     "@capacitor/core": "^7.2.0",
     "@capacitor/ios": "^7.2.0",
     "@emotion/is-prop-valid": "^1.4.0",
