@@ -1,7 +1,9 @@
 // Static catalog of all purchasable cosmetics.
 // Skins describe the die body. Pips describe the dots. Badges describe an animated player badge.
 
-export const DICE_SKINS = [
+import { EXPERIMENTAL_DICE } from "./experimentalDice";
+
+export const PRODUCTION_DICE_SKINS = [
   {
     id: "classic_white",
     name: "Classic White",
@@ -159,18 +161,6 @@ export const DICE_SKINS = [
     spriteUrl: "/assets/ea849396a_4grOkW27dXAMMIWio02qb_XCcgJ8xy.png",
   },
   {
-    id: "leather",
-    name: "Football",
-    price: 300,
-    gradient: "from-amber-700 via-amber-800 to-amber-950",
-    border: "border-amber-950",
-    pipColor: "bg-slate-900",
-    glow: "shadow-amber-800/60",
-    description: "Pigskin pebble grain.",
-    realistic: true,
-    spriteUrl: "/assets/03c2e4f1a_AzvRcAkUw9IT-b9d3ZtZt_z3T9De5r.png",
-  },
-  {
     id: "fluorite",
     name: "Alexandrite",
     price: 550,
@@ -231,30 +221,6 @@ export const DICE_SKINS = [
     spriteUrl: "/assets/738791fb4_O3cR7UnvvpKR87_KhcSDr_5BxDZrw1.png",
   },
   {
-    id: "yellow_felt",
-    name: "Tennis Ball",
-    price: 200,
-    gradient: "from-yellow-200 via-yellow-300 to-yellow-400",
-    border: "border-yellow-500",
-    pipColor: "bg-slate-900",
-    glow: "shadow-yellow-300/60",
-    description: "Fuzzy fresh from the can.",
-    realistic: true,
-    spriteUrl: "/assets/665828088_KkOdrHpwX5jkGjo3GQkfZ_eWYF4Kqn.png",
-  },
-  {
-    id: "bullet_holes",
-    name: "Bullet Holes",
-    price: 600,
-    gradient: "from-stone-100 via-white to-stone-200",
-    border: "border-stone-400",
-    pipColor: "bg-slate-900",
-    glow: "shadow-stone-400/60",
-    description: "Shot to pieces.",
-    realistic: true,
-    spriteUrl: "/assets/1513405c6_K2AuwW4Nme8GseI-EOXNE_4IoWBfjG.png",
-  },
-  {
     id: "pride",
     name: "Pride",
     price: 500,
@@ -265,18 +231,6 @@ export const DICE_SKINS = [
     description: "Roll with pride.",
     realistic: true,
     spriteUrl: "/assets/20ba5f935_W1EDolVpb0uw1QghqIvI0_o4ooSDC4.png",
-  },
-  {
-    id: "cash",
-    name: "Cold Hard Cash",
-    price: 1000,
-    gradient: "from-green-200 via-emerald-300 to-green-500",
-    border: "border-emerald-700",
-    pipColor: "bg-slate-900",
-    glow: "shadow-emerald-500/60",
-    description: "Wrapped in Benjamins.",
-    realistic: true,
-    spriteUrl: "/assets/2bded6a5f_r-btxXaUgq6OkKt8myt-N_9U67NIGb.png",
   },
   {
     id: "ruby",
@@ -375,18 +329,6 @@ export const DICE_SKINS = [
     spriteUrl: "/assets/73270979c_AEVwA3ZnKA53oXNB1kVpd_lBugstGt.png",
   },
   {
-    id: "bloodstone",
-    name: "Bloodstone",
-    price: 800,
-    gradient: "from-emerald-900 via-slate-800 to-red-900",
-    border: "border-red-900",
-    pipColor: "bg-slate-900",
-    glow: "shadow-red-700/60",
-    description: "Faceted dark gem flecked with blood.",
-    realistic: true,
-    spriteUrl: "/assets/ea4a61f14_cGa91qezQEHM31296oIcO_BrdhSvyo.png",
-  },
-  {
     id: "matrix",
     name: "Matrix",
     price: 1200,
@@ -436,15 +378,61 @@ export const DICE_SKINS = [
   },
 ];
 
+/** Shop dice sections */
+export const SHOP_DICE_CATEGORIES = [
+  { id: "gemstone", label: "Gemstones", blurb: "Classic, gold, chrome & prison dice" },
+  { id: "exotic", label: "Exotic", blurb: "Cosmic, tech, themed & wild" },
+  { id: "regular", label: "Regular", blurb: "Gems, materials & standard sets" },
+];
+
+const GEMSTONE_SKIN_IDS = new Set([
+  "classic_white",
+  "gold",
+  "silver",
+  "paper",
+]);
+
+const EXOTIC_SKIN_IDS = new Set([
+  "amber_wasp",
+  "galaxy",
+  "dragon_scale",
+  "lava",
+  "tesla",
+  "neon_grid",
+  "circuit_board",
+  "toxic_plasma_v2",
+  "matrix",
+  "plasma",
+  "blue_gel",
+  "snow_globe",
+]);
+
+export function getSkinShopCategory(skinId) {
+  if (GEMSTONE_SKIN_IDS.has(skinId)) return "gemstone";
+  if (EXOTIC_SKIN_IDS.has(skinId)) return "exotic";
+  return "regular";
+}
+
+/** Production shop skins + experimental custom dice (mystery box / preview lab). */
+export const DICE_SKINS = [...PRODUCTION_DICE_SKINS, ...EXPERIMENTAL_DICE];
+
+export const PRODUCTION_DICE_IDS = PRODUCTION_DICE_SKINS.map((s) => s.id);
+
+/** Granted on a Perfect 10,000 (six-of-a-kind @ 1:10,000 odds). */
+export const PERFECT_TENK_REWARD = {
+  skinId: "crystal_cut",
+  badgeId: "level_50",
+};
+
 // Coin packs — direct-buy alternative for players who don't want to grind.
 // 100 Gray Quarters (GQ) = $1. Larger packs include bonus GQs.
 export const COIN_PACKS = [
-  { id: "pack_5",    name: "$5",    dollars: 5,    coins: 400,    emoji: "🎲" },
-  { id: "pack_10",   name: "$10",   dollars: 10,   coins: 1100,   emoji: "💰", popular: true },
-  { id: "pack_20",   name: "$20",   dollars: 20,   coins: 2500,   emoji: "💎" },
-  { id: "pack_50",   name: "$50",   dollars: 50,   coins: 6000,   emoji: "👑" },
-  { id: "pack_100",  name: "$100",  dollars: 100,  coins: 15000,  emoji: "🏆" },
-  { id: "pack_1000", name: "$1000", dollars: 1000, coins: 175000, emoji: "🌟" },
+  { id: "pack_starter", name: "Starter", coins: 400, emoji: "🎲" },
+  { id: "pack_boost", name: "Boost", coins: 1100, emoji: "💰", popular: true },
+  { id: "pack_mega", name: "Mega", coins: 2500, emoji: "💎" },
+  { id: "pack_ultra", name: "Ultra", coins: 6000, emoji: "👑" },
+  { id: "pack_epic", name: "Epic", coins: 15000, emoji: "🏆" },
+  { id: "pack_legend", name: "Legend", coins: 175000, emoji: "🌟" },
 ];
 
 // Table felt colors. `inner`, `mid`, `outer` define the radial gradient stops.

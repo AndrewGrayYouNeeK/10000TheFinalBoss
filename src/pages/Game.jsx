@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Dices, PiggyBank, ChevronRight } from "lucide-react";
+import { Dices, PiggyBank, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   createInitialState,
@@ -15,14 +15,13 @@ import {
   ENTRY_THRESHOLD,
 } from "@/lib/gameLogic";
 import DiceTray from "@/components/game/DiceTray";
-import Die from "@/components/game/Die";
 import ScorePanel from "@/components/game/ScorePanel";
 import TurnBanner from "@/components/game/TurnBanner";
 import GameOverDialog from "@/components/game/GameOverDialog";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import RulesSheet from "@/components/game/RulesSheet";
 import BigPopup from "@/components/game/BigPopup";
 import CyberBackground from "@/components/game/CyberBackground";
-import NeonTitle from "@/components/game/NeonTitle";
 import GlitchNeonBanner from "@/components/game/GlitchNeonBanner";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { XP_REWARDS } from "@/lib/progression";
@@ -210,6 +209,7 @@ export default function Game() {
   const wouldOvershoot = currentPlayer.score + potentialTotal > 10000;
   const canBank = state.hasRolled && !state.farkle && info.valid && info.score > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
+  const scoreFill = Math.min(1, (currentPlayer.score + state.turnScore) / 10000);
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-6 relative">
@@ -217,18 +217,20 @@ export default function Game() {
       <div className="relative z-10 flex flex-col flex-1">
       {/* Header */}
       <div
-        className="flex items-center justify-between p-3 border-b"
+        className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
         style={{
+          ...PAGE_HEADER_SAFE_STYLE,
           borderColor: "rgba(0,255,200,0.25)",
-          background: "rgba(3,4,10,0.6)",
-          backdropFilter: "blur(6px)",
+          background: "rgba(3,4,10,0.85)",
+          backdropFilter: "blur(8px)",
           boxShadow: "0 1px 0 rgba(255,0,170,0.25), 0 8px 24px rgba(0,255,200,0.08)",
         }}
       >
-        <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
-          <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
-        <div />
+        <BackButton
+          to="/"
+          label="Back"
+          confirmMessage={state.winner ? undefined : "Leave this game and go home?"}
+        />
         <RulesSheet />
       </div>
 
@@ -333,6 +335,7 @@ export default function Game() {
             disabled={!state.hasRolled || state.farkle || !!state.winner}
             skinId={equippedSkinId}
             feltId={equippedFeltId}
+            scoreFill={scoreFill}
           />
           {info.held.length > 0 && (
             <div className="mt-2 text-center text-sm">

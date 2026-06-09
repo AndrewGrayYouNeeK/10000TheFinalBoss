@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Project Structure
 
-Standalone Vite + React 18 dice game. No backend, no auth, no Base44.
+Standalone Vite + React 18 dice game. No backend, no auth, no external platform dependencies.
 
 | Area | Location |
 |------|----------|

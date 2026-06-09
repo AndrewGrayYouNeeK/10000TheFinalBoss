@@ -1,8 +1,8 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Swords } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Swords } from "lucide-react";
 import { motion } from "framer-motion";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { BOSSES, isBossUnlocked, isBossDefeated } from "@/lib/storyBosses";
 import BossCard from "@/components/story/BossCard";
@@ -20,16 +20,15 @@ export default function Story() {
       <div className="relative z-10">
         {/* Header */}
         <div
-          className="flex items-center justify-between p-3 border-b sticky top-0 z-20"
+          className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
           style={{
+            ...PAGE_HEADER_SAFE_STYLE,
             borderColor: "rgba(0,255,200,0.25)",
             background: "rgba(3,4,10,0.85)",
             backdropFilter: "blur(8px)",
           }}
         >
-          <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
-            <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-          </Button>
+          <BackButton to="/" label="Back" />
           <div
             className="font-pixel text-xs flex items-center gap-2 neon-glitch"
             style={{
@@ -41,7 +40,7 @@ export default function Story() {
             <Swords className="w-4 h-4" style={{ filter: "drop-shadow(0 0 6px #ff00ea)" }} />
             STORY MODE
           </div>
-          <div className="w-9" />
+          <div className="w-[72px]" />
         </div>
 
         <div className="max-w-md mx-auto px-4 pt-6">

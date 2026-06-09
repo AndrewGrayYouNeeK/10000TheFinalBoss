@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
 import { motion } from "framer-motion";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import NightCityBackground from "@/components/online/NightCityBackground";
 
 export default function OnlineUnavailable() {
@@ -10,10 +11,11 @@ export default function OnlineUnavailable() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative text-white" style={{ background: "#020408" }}>
       <NightCityBackground />
 
-      <div className="absolute top-4 left-4 z-10">
-        <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
-          <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
+      <div
+        className="absolute top-0 left-0 right-0 z-10 px-4 pb-3"
+        style={PAGE_HEADER_SAFE_STYLE}
+      >
+        <BackButton to="/" label="Back" />
       </div>
 
       <motion.div

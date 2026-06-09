@@ -1,16 +1,18 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Mail, Twitter, MessageSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Mail, Twitter, MessageSquare } from "lucide-react";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 
 export default function Contact() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6 pb-16">
-      <div className="max-w-2xl mx-auto">
-        <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10 mb-6">
-          <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
-
+    <div className="min-h-screen bg-slate-950 text-white pb-16">
+      <div
+        className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur px-4 pb-3"
+        style={PAGE_HEADER_SAFE_STYLE}
+      >
+        <BackButton to="/" label="Back" />
+      </div>
+      <div className="max-w-2xl mx-auto p-6">
         <h1 className="text-3xl font-black mb-2 text-amber-400">Contact Us</h1>
         <p className="text-slate-400 mb-10">Have feedback, a bug report, or just want to say hi? We'd love to hear from you.</p>
 

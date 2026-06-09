@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isLowPowerDevice } from "@/lib/platform";
 
 const FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
@@ -44,7 +45,7 @@ export default function DiceRain() {
     const obsInterval = setInterval(updateObstacles, 500);
     window.addEventListener("scroll", updateObstacles, { passive: true });
 
-    const COUNT = 70;
+    const COUNT = isLowPowerDevice() ? 18 : 70;
     const SIZE = 32;
     const GRAVITY = 0.08;
     const BOUNCE = 0.55;

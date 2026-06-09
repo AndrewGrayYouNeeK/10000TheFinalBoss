@@ -1,12 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Dices, Users, BookOpen, Sparkles, Coins, Zap, Wifi, Swords } from "lucide-react";
+import { Users, BookOpen, Sparkles, Coins, Zap, Wifi, Swords } from "lucide-react";
 import RulesSheet from "@/components/game/RulesSheet";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
-import DevPreviewBanner from "@/components/dev/DevPreviewBanner";
 import DiamondShowcase from "@/components/home/DiamondShowcase";
 
 export default function Home() {
@@ -17,7 +15,6 @@ export default function Home() {
       className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-20 overflow-hidden relative"
       style={{ background: "#020408" }}
     >
-      <DevPreviewBanner />
       {/* Matrix dice rain */}
       <DiceRain />
 
@@ -214,8 +211,8 @@ export default function Home() {
             >
               <Wifi className="w-5 h-5" />
               PLAY ONLINE
-              <span className="text-[10px] font-bold ml-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                1.5×
+              <span className="text-[10px] font-bold ml-1 px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-300 border border-slate-500/40">
+                Soon
               </span>
             </Link>
           </motion.div>
@@ -263,6 +260,7 @@ export default function Home() {
           style={{ color: "rgba(0,255,200,0.25)" }}>
           <Link to="/about" className="hover:opacity-70 transition-opacity">About</Link>
           <Link to="/contact" className="hover:opacity-70 transition-opacity">Contact</Link>
+          <Link to="/privacy" className="hover:opacity-70 transition-opacity">Privacy</Link>
         </div>
       </motion.div>
 

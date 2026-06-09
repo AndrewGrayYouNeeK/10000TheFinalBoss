@@ -1,5 +1,5 @@
-// Mystery Boxes — premium gambling-style loot boxes.
-// Each box contains a weighted reward pool of skins, felts, and coin prizes.
+// Mystery Boxes — custom portfolio dice only (see experimentalDice.js).
+// Production sprite dice are earned by playing — XP tiers, story bosses, achievements.
 //
 // Reward types:
 //   - { type: "skin", pool: "common"|"rare"|"legendary", weight }
@@ -8,6 +8,8 @@
 //
 // When a player owns every item in a rolled pool, fallback = coin payout.
 
+import { EXPERIMENTAL_DICE } from "./experimentalDice";
+
 export const MYSTERY_BOXES = [
   {
     id: "box_bronze",
@@ -15,7 +17,7 @@ export const MYSTERY_BOXES = [
     price: 500,
     tagline: "Entry-level mystery",
     description:
-      "A starter cache. Mostly coins, with a chance at a common skin or standard felt.",
+      "A starter cache. Mostly coins, with a chance at a spectral clear or basic custom effect die.",
     accent: "#c87a3a",
     accent2: "#7a3d18",
     glow: "rgba(200,122,58,0.55)",
@@ -24,7 +26,7 @@ export const MYSTERY_BOXES = [
       { type: "coins", amount: 100, weight: 35, label: "100 Coins" },
       { type: "coins", amount: 250, weight: 25, label: "250 Coins" },
       { type: "coins", amount: 500, weight: 15, label: "500 Coins" },
-      { type: "skin", pool: "common", weight: 15, label: "Common Skin" },
+      { type: "skin", pool: "common", weight: 15, label: "Common Custom Die" },
       { type: "felt", pool: "standard", weight: 10, label: "Standard Felt" },
     ],
   },
@@ -34,7 +36,7 @@ export const MYSTERY_BOXES = [
     price: 1000,
     tagline: "Where the action gets real",
     description:
-      "Bigger payouts. Better skins. Premium felts in the mix. The sweet spot.",
+      "Better custom effects. Premium felts in the mix. No shop sprite dice — custom lab only.",
     accent: "#22d3ee",
     accent2: "#0e7490",
     glow: "rgba(34,211,238,0.55)",
@@ -44,8 +46,8 @@ export const MYSTERY_BOXES = [
       { type: "coins", amount: 250, weight: 25, label: "250 Coins" },
       { type: "coins", amount: 750, weight: 20, label: "750 Coins" },
       { type: "coins", amount: 1500, weight: 10, label: "1,500 Coins" },
-      { type: "skin", pool: "common", weight: 15, label: "Common Skin" },
-      { type: "skin", pool: "rare", weight: 15, label: "Rare Skin" },
+      { type: "skin", pool: "common", weight: 12, label: "Common Custom Die" },
+      { type: "skin", pool: "rare", weight: 18, label: "Rare Custom Die" },
       { type: "felt", pool: "standard", weight: 8, label: "Standard Felt" },
       { type: "felt", pool: "premium", weight: 7, label: "Premium Felt" },
     ],
@@ -56,7 +58,7 @@ export const MYSTERY_BOXES = [
     price: 2000,
     tagline: "For the truly bold",
     description:
-      "Legendary skins. Premium felts. Jackpot coin prizes. The highest of stakes.",
+      "Legendary custom effects — Matrix Storm, Core Burst, Bug Zapper, and more.",
     accent: "#a855f7",
     accent2: "#4c1d95",
     glow: "rgba(168,85,247,0.55)",
@@ -65,28 +67,47 @@ export const MYSTERY_BOXES = [
       { type: "coins", amount: 500, weight: 18, label: "500 Coins" },
       { type: "coins", amount: 2000, weight: 15, label: "2,000 Coins" },
       { type: "coins", amount: 5000, weight: 7, label: "5,000 Coins (Jackpot)" },
-      { type: "skin", pool: "rare", weight: 25, label: "Rare Skin" },
-      { type: "skin", pool: "legendary", weight: 15, label: "Legendary Skin" },
+      { type: "skin", pool: "rare", weight: 22, label: "Rare Custom Die" },
+      { type: "skin", pool: "legendary", weight: 18, label: "Legendary Custom Die" },
       { type: "felt", pool: "premium", weight: 20, label: "Premium Felt" },
     ],
   },
 ];
 
-// Price thresholds that segment skin/felt pools by rarity.
-const SKIN_POOL_RULES = {
-  common:    (s) => (s.price ?? 0) > 0 && (s.price ?? 0) <= 400,
-  rare:      (s) => (s.price ?? 0) > 400 && (s.price ?? 0) <= 900,
-  legendary: (s) => (s.price ?? 0) > 900,
+/** Custom lab dice only — never production shop sprites. */
+const MYSTERY_SKIN_IDS = {
+  common: [
+    "ghost",
+    "clear_void",
+    "ethereal_mist",
+    "zen",
+    "pf_rainfall",
+    "pf_tornado",
+    "pf_binary_storm",
+  ],
+  rare: [
+    "pf_radar_sweep",
+    "pf_score_meter",
+    "pf_radar_blips",
+    "pf_soundwave",
+    "pf_plasma_cut",
+    "pf_xray",
+  ],
+  legendary: [
+    "pf_matrix_storm",
+    "pf_core_burst",
+    "pf_bug_zapper",
+  ],
 };
 
 const FELT_POOL_RULES = {
   standard: (f) => !f.premium && (f.price ?? 0) > 0,
-  premium:  (f) => !!f.premium,
+  premium: (f) => !!f.premium,
 };
 
-export function getSkinPool(allSkins, pool) {
-  const rule = SKIN_POOL_RULES[pool];
-  return rule ? allSkins.filter(rule) : [];
+export function getSkinPool(_allSkins, pool) {
+  const ids = MYSTERY_SKIN_IDS[pool] || [];
+  return EXPERIMENTAL_DICE.filter((s) => ids.includes(s.id));
 }
 
 export function getFeltPool(allFelts, pool) {

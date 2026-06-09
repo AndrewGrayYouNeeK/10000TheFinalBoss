@@ -1,19 +1,18 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 
 export default function Rules() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4">
-      <div className="flex items-center gap-2 mb-4 max-w-lg mx-auto">
-        <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
-          <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div
+        className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur px-4 pb-3 flex items-center gap-3"
+        style={PAGE_HEADER_SAFE_STYLE}
+      >
+        <BackButton to="/" label="Back" />
         <h1 className="text-xl font-bold">How to Play</h1>
       </div>
 
-      <div className="max-w-lg mx-auto space-y-6 pb-10">
+      <div className="p-4 max-w-lg mx-auto space-y-6 pb-10">
         <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
           <h2 className="text-lg font-bold text-amber-400 mb-2">🎯 Goal</h2>
           <p className="text-slate-300 text-sm">First player to reach <b className="text-white">10,000 points</b> wins the game.</p>
@@ -61,7 +60,7 @@ export default function Rules() {
               ["Small Straight (1-2-3-4-5 or 2-3-4-5-6)", "1,000"],
               ["Large Straight (1-2-3-4-5-6)", "1,500"],
               ["Three Pairs", "1,500"],
-              ["Six of a kind", "INSTANT WIN 🎉"],
+              ["Six of a kind", "INSTANT WIN 🎉 (1 in 10,000)"],
             ].map(([label, val]) => (
               <div key={label} className="flex justify-between border-b border-slate-800 pb-1">
                 <span className="text-slate-300">{label}</span>

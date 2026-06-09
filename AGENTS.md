@@ -9,7 +9,7 @@ YouNeeK 10,000 — The Ultimate Roll. A browser-first dice game with local multi
 ## Hard Rules
 
 1. **Do not modify game logic** unless the user explicitly requests a gameplay change. Sacred files: `src/lib/gameLogic.js`, `src/lib/scoring.js`, `src/lib/powers.js`, `src/lib/aiOpponent.js`.
-2. **No Base44** — do not reintroduce `@base44/sdk`, cloud auth, subscription checks, or external platform CDNs.
+2. **Standalone only** — do not reintroduce external platform SDKs, cloud auth, subscription checks, or third-party platform CDNs.
 3. **Minimal diffs** — match existing conventions; don't refactor unrelated code.
 
 ## Commands

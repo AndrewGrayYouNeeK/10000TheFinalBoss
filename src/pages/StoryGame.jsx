@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Dices, PiggyBank, ChevronRight, Swords } from "lucide-react";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
+import { Dices, PiggyBank, ChevronRight, Swords } from "lucide-react";
 import { toast } from "sonner";
 import {
   createInitialState,
@@ -16,7 +17,6 @@ import {
   TARGET_SCORE,
   ENTRY_THRESHOLD,
 } from "@/lib/gameLogic";
-import { scoreSelection } from "@/lib/scoring";
 import { getBoss, getStoryPlayerSkin } from "@/lib/storyBosses";
 import { chooseDiceToHold, chooseBankOrRoll } from "@/lib/aiOpponent";
 import { useCosmetics } from "@/hooks/useCosmetics";
@@ -317,27 +317,21 @@ export default function StoryGame() {
       <div className="relative z-10 flex-1 flex flex-col">
         {/* Header */}
         <div
-          className="flex items-center justify-between p-3 border-b"
+          className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
           style={{
+            ...PAGE_HEADER_SAFE_STYLE,
             borderColor: "rgba(0,255,200,0.25)",
-            background: "rgba(3,4,10,0.7)",
+            background: "rgba(3,4,10,0.85)",
             backdropFilter: "blur(8px)",
           }}
         >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/10"
-            onClick={() => {
-              if (game.winner || dialogue) {
-                navigate("/story");
-              } else if (window.confirm("Forfeit this fight?")) {
-                navigate("/story");
-              }
-            }}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+          <BackButton
+            label="Back"
+            onClick={() => navigate("/story")}
+            confirmMessage={
+              game.winner || dialogue ? undefined : "Forfeit this fight and return to the ladder?"
+            }
+          />
           <div className="flex items-center gap-2 font-pixel text-[10px] tracking-widest"
             style={{ color: "#fff", textShadow: "0 0 6px #ff00ea, 0 0 16px #00ffea" }}
           >

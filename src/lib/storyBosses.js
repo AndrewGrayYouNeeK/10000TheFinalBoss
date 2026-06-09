@@ -45,7 +45,7 @@ export const BOSSES = [
     intro: "Quick game before my match? Loser buys gatorade.",
     winLine: "Good game. Net's that way if you wanna play for real.",
     loseLine: "Ace! Best two of three?",
-    coins: 120, xp: 180, skin: "yellow_felt",
+    coins: 120, xp: 180, skin: "gold",
   }),
   fight({
     id: "convict", name: "Cellblock Sammy", title: "Just Got Out",
@@ -63,7 +63,7 @@ export const BOSSES = [
     intro: "Listen kid, I've been workin' these dice longer than you've been breathin'.",
     winLine: "Eh, anyone can have a bad night. Don't get used to it.",
     loseLine: "That's how a real hustler plays. Pay up.",
-    coins: 200, xp: 280, skin: "leather",
+    coins: 200, xp: 280, skin: "obsidian",
   }),
   fight({
     id: "footballer", name: "Coach Brick", title: "Locker Room Legend",
@@ -219,7 +219,7 @@ export const BOSSES = [
     intro: "Every drop tells me your fate. Drop a die — drop a vein.",
     winLine: "...the stones lied today.",
     loseLine: "Just as the blood foretold.",
-    coins: 820, xp: 960, skin: "bloodstone",
+    coins: 820, xp: 960, skin: "ruby",
   }),
 
   // ── Tier 5: Bosses ─────────────────────────────────────────────────────
@@ -342,7 +342,7 @@ export const BOSSES = [
     intro: "Six shooter. Six dice. Same difference.",
     winLine: "Quick draw. Quicker dice.",
     loseLine: "Yeehaw! Hand over the buckle.",
-    coins: 2700, xp: 2900, skin: "bullet_holes",
+    coins: 2700, xp: 2900, skin: "obsidian",
   }),
   fight({
     id: "lover", name: "Aphrodite Prism", title: "Heart of the Rainbow",
@@ -366,7 +366,7 @@ export const BOSSES = [
     intro: "Cash rules everything around me. C.R.E.A.M.",
     winLine: "Take the bag. Earned it.",
     loseLine: "Cha-ching! Pay up, partner.",
-    coins: 3200, xp: 3400, skin: "cash",
+    coins: 3200, xp: 3400, skin: "gold",
   }),
   fight({
     id: "plasmaqueen", name: "Plasma Queen Zara", title: "Pink Storm",
@@ -408,7 +408,7 @@ export const BOSSES = [
     intro: "Broken. Still here. Still winning.",
     winLine: "Another crack in the crown. Fine.",
     loseLine: "Pieces. All of you. Pieces.",
-    coins: 4200, xp: 4600, skin: "bullet_holes",
+    coins: 4200, xp: 4600, skin: "labradorite",
   }),
   fight({
     id: "diamond_cut", name: "Vitrea", title: "The Diamond Sister",

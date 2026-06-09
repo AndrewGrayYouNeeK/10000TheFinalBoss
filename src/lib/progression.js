@@ -18,8 +18,6 @@ export const SKIN_TIERS = {
   // Bronze (tier 0) — starter / cheap
   classic_white: 0,
   paper: 0,
-  yellow_felt: 0,
-  leather: 0,
   wood: 0,
 
   // Silver (tier 1)
@@ -37,14 +35,11 @@ export const SKIN_TIERS = {
   silver: 2,
   lava: 2,
   fluorite: 2,
-  bullet_holes: 2,
-  bloodstone: 2,
   labradorite: 2,
   labradorite_polished: 2,
 
   // Diamond (tier 3)
   ruby: 3,
-  cash: 3,
   neon_grid: 3,
   plasma: 3,
 
@@ -144,5 +139,5 @@ export const XP_REWARDS = {
   firstWin: 250,      // achievement: first win ever
   tenWins: 500,       // achievement: 10 wins
   noFarkleGame: 75,   // achievement: finish a game with 0 farkles
-  perfectTenK: 2500,  // ultra-rare: reached exactly 10,000 using all 6 dice in one bank
+  perfectTenK: 2500,  // six-of-a-kind instant win (1 in 10,000 per full roll)
 };

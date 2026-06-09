@@ -8,7 +8,7 @@ import FeltSurface from "@/components/shop/FeltSurface";
  * Visual tray for the 6 dice. Rendered on a felt surface whose color is controlled by `feltId`.
  * dice: array of { id, value, used (banked), held (in active selection) }
  */
-export default function DiceTray({ dice, rolling, onToggle, disabled, skinId, feltId = "classic_green" }) {
+export default function DiceTray({ dice, rolling, onToggle, disabled, skinId, feltId = "classic_green", scoreFill = 0.5 }) {
   const felt = getFelt(feltId);
   return (
     <div
@@ -37,6 +37,7 @@ export default function DiceTray({ dice, rolling, onToggle, disabled, skinId, fe
               onClick={() => !disabled && !d.used && onToggle && onToggle(d.id)}
               size={100}
               skinId={skinId}
+              scoreFill={scoreFill}
               bigFishVariantIndex={[7, 1, 6, 3, 1, 4][idx]}
               bigFishExtraScale={idx === 0 ? 2.1 : idx === 4 ? 2.0 : 1.15}
             />

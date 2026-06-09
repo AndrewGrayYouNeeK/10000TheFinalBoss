@@ -38,6 +38,6 @@ npm run lint && npm run build
 
 ## Do Not
 
-- Re-add Base44 SDK, auth gates, or cloud matchmaking without explicit request
+- Re-add external platform SDKs, auth gates, or cloud matchmaking without explicit request
 - Refactor dice rolling, scoring, or turn rules "while you're in there"
 - Commit `.env` files with secrets

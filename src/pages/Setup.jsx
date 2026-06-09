@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Plus, X, Play } from "lucide-react";
+import { Plus, X, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CyberBackground from "@/components/game/CyberBackground";
 import NeonTitle from "@/components/game/NeonTitle";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 
 export default function Setup() {
   const [players, setPlayers] = useState(["Player 1", "Player 2"]);
@@ -35,19 +36,18 @@ export default function Setup() {
       <div className="relative z-10 flex flex-col flex-1">
         {/* Header */}
         <div
-          className="flex items-center justify-between p-3 border-b"
+          className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
           style={{
+            ...PAGE_HEADER_SAFE_STYLE,
             borderColor: "rgba(0,255,200,0.25)",
-            background: "rgba(3,4,10,0.6)",
-            backdropFilter: "blur(6px)",
+            background: "rgba(3,4,10,0.85)",
+            backdropFilter: "blur(8px)",
             boxShadow: "0 1px 0 rgba(255,0,170,0.25), 0 8px 24px rgba(0,255,200,0.08)",
           }}
         >
-          <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
-            <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-          </Button>
+          <BackButton to="/" label="Back" />
           <NeonTitle dieSize={32} />
-          <div className="w-9" />
+          <div className="w-[72px]" />
         </div>
 
         {/* Tagline */}

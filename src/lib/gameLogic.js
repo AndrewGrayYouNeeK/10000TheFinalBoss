@@ -3,6 +3,8 @@ import { scoreSelection, hasAnyScore } from "./scoring";
 
 export const TARGET_SCORE = 10000;
 export const ENTRY_THRESHOLD = 1000;
+/** Six-of-a-kind instant win — tuned to 1 in 10,000 per full 6-die roll. */
+export const PERFECT_TENK_ODDS = 1 / 10000;
 
 // Bust words — alternated on each bust for variety.
 const BUST_WORDS = ["YEEET!", "SKEERT!"];
@@ -36,11 +38,23 @@ function makeFreshDice() {
   }));
 }
 
+function rollDieValues(count) {
+  if (count === 6 && Math.random() < PERFECT_TENK_ODDS) {
+    const face = Math.floor(Math.random() * 6) + 1;
+    return Array(6).fill(face);
+  }
+  return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1);
+}
+
 // Perform a dice roll — only on dice that are not `used`
 export function rollDice(state) {
-  const newDice = state.dice.map(d => {
+  const rolling = state.dice.filter((d) => !d.used);
+  const values = rollDieValues(rolling.length);
+  let vi = 0;
+  const newDice = state.dice.map((d) => {
     if (d.used) return d;
-    return { ...d, value: Math.floor(Math.random() * 6) + 1, held: false };
+    const value = values[vi++];
+    return { ...d, value, held: false };
   });
   return { ...state, dice: newDice, hasRolled: true };
 }
@@ -141,9 +155,12 @@ export function confirmAndReroll(state) {
   }
 
   // Re-roll the un-used dice
-  newDice = newDice.map(d => {
+  const rerolling = newDice.filter((d) => !d.used);
+  const values = rollDieValues(rerolling.length);
+  let vi = 0;
+  newDice = newDice.map((d) => {
     if (d.used) return d;
-    return { ...d, value: Math.floor(Math.random() * 6) + 1, held: false };
+    return { ...d, value: values[vi++], held: false };
   });
 
   // Check for farkle on re-roll

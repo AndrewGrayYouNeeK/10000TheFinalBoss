@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Coins, Sparkles } from "lucide-react";
+import { Coins, Sparkles } from "lucide-react";
+import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import { toast } from "sonner";
-import { DICE_SKINS, FELT_COLORS, getFelt } from "@/lib/shopCatalog";
+import { DICE_SKINS, FELT_COLORS, SHOP_DICE_CATEGORIES, getSkinShopCategory } from "@/lib/shopCatalog";
 import { getDuplicateGroups } from "@/lib/duplicateSkins";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { isSkinUnlockedByTier as checkUnlocked, isSkinAchievementOnly } from "@/lib/progression";
@@ -13,8 +14,10 @@ import DicePreview from "@/components/shop/DicePreview";
 import FeltPreview from "@/components/shop/FeltPreview";
 import MysteryBoxesTab from "@/components/shop/MysteryBoxesTab";
 import BuyCoinsDialog from "@/components/shop/BuyCoinsDialog";
-import DevPreviewBanner from "@/components/dev/DevPreviewBanner";
-import { isPreviewTierUnlocked } from "@/lib/devPreview";
+import { isPreviewSkin } from "@/lib/previewSkins";
+import { isDevUnlockAll } from "@/lib/devUnlock";
+
+const showPreviewLab = !import.meta.env.PROD || isDevUnlockAll();
 
 
 export default function Shop() {
@@ -23,7 +26,7 @@ export default function Shop() {
     coins, xp, isLoading,
     ownedSkins, ownedBadges, ownedFelts,
     equippedSkinId, equippedBadgeId, equippedFeltId,
-    buyItem, equipItem, getSkinEffectivePrice, addCoins,
+    buyItem, equipItem, getSkinEffectivePrice, addCoins, isDevUnlockAll,
   } = useCosmetics();
   const [tab, setTab] = useState("skins");
 
@@ -33,6 +36,7 @@ export default function Shop() {
       if (res.reason === "insufficient") toast.error("Not enough coins!");
       else if (res.reason === "already_owned") toast.info("Already owned.");
       else if (res.reason === "achievement_only") toast.error("These dice are earned by playing — no shortcut.");
+      else if (res.reason === "mystery_box_only") toast.error("Custom dice unlock from Mystery Boxes only.");
       return;
     }
     toast.success(`Unlocked ${item.name}!`);
@@ -45,17 +49,15 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-950 via-slate-950 to-black text-white">
-      <DevPreviewBanner />
-      <div className="sticky top-0 z-10 backdrop-blur bg-slate-950/80 border-b border-white/10 p-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="icon" className="text-white hover:bg-white/10">
-            <Link to="/"><ArrowLeft className="w-5 h-5" /></Link>
-          </Button>
-          <h1 className="text-xl font-black flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" /> Shop
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
+      <div
+        className="sticky top-0 z-20 backdrop-blur bg-slate-950/90 border-b border-white/10 px-3 pb-3 flex items-center justify-between gap-2"
+        style={PAGE_HEADER_SAFE_STYLE}
+      >
+        <BackButton to="/" label="Back" />
+        <h1 className="text-lg font-black flex items-center gap-2 truncate">
+          <Sparkles className="w-5 h-5 text-amber-400 shrink-0" /> Shop
+        </h1>
+        <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 rounded-full px-3 py-1.5">
             <Coins className="w-4 h-4 text-amber-400" />
             <span className="font-black tabular-nums text-amber-300">
@@ -87,16 +89,42 @@ export default function Shop() {
           </TabsList>
 
           <TabsContent value="skins" className="mt-4">
-            <div className="grid grid-cols-2 gap-3">
-              {(() => {
-                const dupes = getDuplicateGroups(DICE_SKINS);
-                // Pinned to the top (in order)
-                const PINNED_FIRST = ["pride", "ruby"];
-                // Pinned to the bottom (in order — snow_globe & blue_gel stay dead last)
-                const PINNED_LAST = ["gold", "lava", "dragon_scale", "circuit_board", "galaxy", "snow_globe", "blue_gel"];
-                const firstRank = (id) => PINNED_FIRST.indexOf(id);
-                const lastRank = (id) => PINNED_LAST.indexOf(id);
-                const sortedSkins = [...DICE_SKINS].sort((a, b) => {
+            {isDevUnlockAll && (
+              <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-center">
+                <p className="text-xs font-bold text-emerald-300">Dev unlock — all dice owned & equippable</p>
+              </div>
+            )}
+
+            {showPreviewLab && (
+            <div className="mb-4 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 to-indigo-950/30 p-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Preview Lab</p>
+                  <p className="text-sm text-slate-300">12 custom effects + spectral clears</p>
+                </div>
+                <Button asChild size="sm" className="shrink-0 bg-cyan-600 hover:bg-cyan-500">
+                  <Link to="/preview-dice">Custom Lab</Link>
+                </Button>
+              </div>
+              <div className="flex justify-center gap-3 py-2 flex-wrap">
+                {["pf_radar_sweep", "pf_score_meter", "pf_tornado", "ghost"].map((id) => (
+                  <DicePreview key={id} skinId={id} value={5} />
+                ))}
+              </div>
+            </div>
+            )}
+
+            {(() => {
+              const dupes = getDuplicateGroups(DICE_SKINS);
+              const PINNED_FIRST = ["pride", "ruby"];
+              const PINNED_LAST = ["gold", "lava", "dragon_scale", "circuit_board", "galaxy", "snow_globe", "blue_gel"];
+              const firstRank = (id) => PINNED_FIRST.indexOf(id);
+              const lastRank = (id) => PINNED_LAST.indexOf(id);
+
+              return SHOP_DICE_CATEGORIES.map((cat) => {
+              const sortedSkins = [...DICE_SKINS]
+                .filter((s) => !s.preview && getSkinShopCategory(s.id) === cat.id)
+                .sort((a, b) => {
                   const aFirst = firstRank(a.id);
                   const bFirst = firstRank(b.id);
                   if (aFirst !== -1 || bFirst !== -1) {
@@ -113,29 +141,43 @@ export default function Shop() {
                   }
                   return getSkinEffectivePrice(a) - getSkinEffectivePrice(b);
                 });
-                return sortedSkins.map(skin => {
-                  const tierLocked = !isPreviewTierUnlocked() && !checkUnlocked(skin.id, xp);
-                  const achievementOnly = !isPreviewTierUnlocked() && isSkinAchievementOnly(skin.id, xp);
-                  const effectivePrice = getSkinEffectivePrice(skin);
-                  return (
-                    <ShopItemCard
-                      key={skin.id}
-                      item={skin}
-                      owned={ownedSkins.includes(skin.id)}
-                      equipped={equippedSkinId === skin.id}
-                      canAfford={coins >= effectivePrice}
-                      onBuy={() => handleBuy("skin", skin)}
-                      onEquip={() => handleEquip("skin", skin)}
-                      preview={<DicePreview skinId={skin.id} />}
-                      duplicateTag={dupes[skin.id]}
-                      tierLocked={tierLocked}
-                      achievementOnly={achievementOnly}
-                      effectivePrice={effectivePrice}
-                    />
-                  );
-                });
-              })()}
-            </div>
+
+              if (!sortedSkins.length) return null;
+
+              return (
+                <section key={cat.id} className="mb-6">
+                  <div className="mb-3">
+                    <h2 className="text-sm font-black uppercase tracking-wider text-amber-200">{cat.label}</h2>
+                    <p className="text-[10px] text-slate-500">{cat.blurb}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {sortedSkins.map((skin) => {
+                      const tierLocked = !isDevUnlockAll && !isPreviewSkin(skin.id) && !checkUnlocked(skin.id, xp);
+                      const achievementOnly = !isDevUnlockAll && !isPreviewSkin(skin.id) && isSkinAchievementOnly(skin.id, xp);
+                      const effectivePrice = getSkinEffectivePrice(skin);
+                      return (
+                        <ShopItemCard
+                          key={skin.id}
+                          item={skin}
+                          owned={ownedSkins.includes(skin.id)}
+                          equipped={equippedSkinId === skin.id}
+                          canAfford={coins >= effectivePrice}
+                          onBuy={() => handleBuy("skin", skin)}
+                          onEquip={() => handleEquip("skin", skin)}
+                          preview={<DicePreview skinId={skin.id} />}
+                          duplicateTag={dupes[skin.id]}
+                          tierLocked={tierLocked}
+                          achievementOnly={achievementOnly}
+                          effectivePrice={effectivePrice}
+                          hideLockedAction={false}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            });
+            })()}
           </TabsContent>
 
           <TabsContent value="felts" className="mt-4">
@@ -161,7 +203,7 @@ export default function Shop() {
         </Tabs>
 
         <p className="text-center text-xs text-slate-500 mt-6 pb-10">
-          Earn coins by banking points & winning games. Earn <b className="text-amber-300">XP</b> by finishing games, winning, and hitting milestones — level up to unlock rarer dice. Locked dice can be bought at a 10× shortcut price; the rarest dice can only be earned by playing.
+          Earn coins by banking points & winning games. Earn <b className="text-amber-300">XP</b> by playing to unlock shop dice tiers. <b className="text-cyan-300">Custom effect dice</b> come from Mystery Boxes only. Mythic dice are achievement-only.
         </p>
       </div>
     </div>

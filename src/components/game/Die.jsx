@@ -1,45 +1,13 @@
-import React, { useRef } from "react";
-import { motion } from "framer-motion";
+import React from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getSkin } from "@/lib/shopCatalog";
+import { layoutGrid } from "@/lib/diceAssets";
+import { useXrayMorphLayout } from "@/hooks/useXrayMorphLayout";
 import Pip from "./Pip";
-import LightningOverlay from "./LightningOverlay";
 import FishOverlay from "./FishOverlay";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
-
-// Pip grid positions for each face value.
-// Grid is 3x3. 1 = pip present, 0 = empty.
-const PIP_LAYOUTS = {
-  1: [
-  [0, 0, 0],
-  [0, 1, 0],
-  [0, 0, 0]],
-
-  2: [
-  [1, 0, 0],
-  [0, 0, 0],
-  [0, 0, 1]],
-
-  3: [
-  [1, 0, 0],
-  [0, 1, 0],
-  [0, 0, 1]],
-
-  4: [
-  [1, 0, 1],
-  [0, 0, 0],
-  [1, 0, 1]],
-
-  5: [
-  [1, 0, 1],
-  [0, 1, 0],
-  [1, 0, 1]],
-
-  6: [
-  [1, 0, 1],
-  [1, 0, 1],
-  [1, 0, 1]]
-
-};
+import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
+import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
 
 function useRollVariants() {
   const ref = React.useRef(null);
@@ -57,7 +25,7 @@ function useRollVariants() {
   return ref.current;
 }
 
-export default function Die({
+function Die({
   value = 1,
   held = false,
   selected = false,
@@ -67,10 +35,13 @@ export default function Die({
   size = 64,
   skinId = "classic_white",
   bigFishVariantIndex = 0,
-  bigFishExtraScale = 1
+  bigFishExtraScale = 1,
+  scoreFill = 0.5,
 }) {
-  const layout = PIP_LAYOUTS[value] || PIP_LAYOUTS[1];
   const skin = getSkin(skinId);
+  const isXray = skin.id === "pf_xray";
+  const { displayLayout: xrayLayout } = useXrayMorphLayout(value, rolling, isXray);
+  const layout = isXray ? xrayLayout : layoutGrid(value);
   const rollVariants = useRollVariants();
 
   const rollKey = React.useRef(0);
@@ -132,10 +103,109 @@ export default function Die({
   const padding = Math.round(size * 0.13);
 
   const buildShadow = () => {
+    if (skin.experimental) {
+      return getExperimentalShadow(skin.style, size, { used, held, selected });
+    }
     if (used) return "none";
     if (held) return `0 0 0 ${Math.round(size * 0.07)}px #fcd34d`;
     if (selected) return `0 0 0 ${Math.round(size * 0.05)}px rgba(52,211,153,0.6)`;
     return "none";
+  };
+
+  const isClearBody =
+    skin.id === "classic_white" ||
+    skin.videoUrl ||
+    isExperimentalClearBody(skin) ||
+    (skin.experimental && (skin.style?.kind === "clear" || skin.style?.kind === "glass"));
+
+  const isPortfolioFx = skin.experimental && skin.style?.effectId;
+
+  const renderPipGrid = () => {
+    const flat = layout.flat();
+    const pipEffect = skin.experimental ? skin.style?.pipEffect : null;
+
+    if (isXray) {
+      return (
+        <div
+          className="absolute grid grid-cols-3 grid-rows-3"
+          style={{ inset: padding, gap: Math.round(size * 0.045) }}
+        >
+          {flat.map((p, i) => {
+            const pipCol = i % 3;
+            const pipRow = Math.floor(i / 3);
+            return (
+              <div key={i} className="flex items-center justify-center">
+                <AnimatePresence mode="popLayout">
+                  {p === 1 && (
+                    <motion.div
+                      key={`xray-pip-${i}`}
+                      initial={{ scale: 0.15, opacity: 0, filter: "brightness(2.4)" }}
+                      animate={{ scale: 1, opacity: 1, filter: "brightness(1)" }}
+                      exit={{ scale: 0.1, opacity: 0, filter: "brightness(2.8)" }}
+                      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <Pip
+                        size={pipSize}
+                        colorClass={skin.pipColor}
+                        inset={false}
+                        animationEffect={pipEffect}
+                        pipCol={pipCol}
+                        pipRow={pipRow}
+                        scoreFill={scoreFill}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+    <div
+      className="absolute grid grid-cols-3 grid-rows-3"
+      style={{ inset: padding, gap: Math.round(size * 0.045) }}
+    >
+      {flat.map((p, i) => {
+        if (p !== 1) {
+          return <div key={i} className="flex items-center justify-center" />;
+        }
+        const pipCol = i % 3;
+        const pipRow = Math.floor(i / 3);
+        const style = skin.style;
+        if (skin.experimental && style?.pipMode === "center_burst" && i !== 4) {
+          return <div key={i} className="flex items-center justify-center" />;
+        }
+        if (skin.experimental && style?.pipMode === "hidden") {
+          return <div key={i} className="flex items-center justify-center" />;
+        }
+        const diamondEffects = ["glow", "shinyStar", "blackHole"];
+        let effect = null;
+        if (skin.id === "toxic_plasma_v2") {
+          effect = "radiationPulse";
+        } else if (skin.experimental) {
+          effect = style?.pipEffect;
+        } else if (skin.id === "diamond") {
+          effect = diamondEffects[i % 3];
+        }
+        return (
+          <div key={i} className="flex items-center justify-center">
+            <Pip
+              size={pipSize}
+              colorClass={skin.pipColor}
+              inset={skin.realistic && !skin.experimental}
+              animationEffect={effect}
+              pipCol={pipCol}
+              pipRow={pipRow}
+              scoreFill={scoreFill}
+            />
+          </div>
+        );
+      })}
+    </div>
+    );
   };
 
   return (
@@ -163,16 +233,17 @@ export default function Die({
       whileTap={!used && !rolling ? { scale: 0.92 } : {}}
       whileHover={!used && !rolling ? { y: -5, rotate: 3 } : {}}>
       
+      <PortfolioDieProvider scoreFill={scoreFill} enabled={isPortfolioFx}>
       <button
         type="button"
         onClick={onClick}
         disabled={used || rolling}
-        className={`relative w-full h-full ${skin.id !== "classic_white" && !skin.videoUrl ? `bg-gradient-to-br ${skin.gradient}` : ""} ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
+        className={`relative w-full h-full ${!isClearBody && !skin.experimental ? `bg-gradient-to-br ${skin.gradient}` : ""} ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
           borderRadius: radius,
           boxShadow: buildShadow(),
           overflow: "hidden",
-          background: skin.id === "classic_white" || skin.videoUrl ? "transparent" : undefined,
+          background: isClearBody ? "transparent" : undefined,
           ...squircleStyle
         }}>
         
@@ -336,6 +407,11 @@ export default function Die({
             </>
           );
         })()}
+
+        {/* Experimental / preview dice bodies */}
+        {skin.experimental && skin.style && (
+          <ExperimentalDieBody style={skin.style} radius={radius} scoreFill={scoreFill} layout={layout} size={size} />
+        )}
 
         {/* Sprite sheet texture or pip grid */}
         {skin.id !== "blue_gel" && skin.id !== "snow_globe" && skin.spriteUrl ?
@@ -602,32 +678,29 @@ export default function Die({
           );
         })() :
 
+        (skin.experimental || (skin.id !== "blue_gel" && skin.id !== "snow_globe" && !skin.spriteUrl)) && renderPipGrid()}
 
-        skin.id !== "blue_gel" && skin.id !== "snow_globe" && <div
-          className="absolute grid grid-cols-3 grid-rows-3"
-          style={{ inset: padding, gap: Math.round(size * 0.045) }}>
-          
-            {layout.flat().map((p, i) => {
-              // For the Diamond skin, cycle pip animations: glow → shinyStar → blackHole
-              const diamondEffects = ["glow", "shinyStar", "blackHole"];
-              const effect = skin.id === "diamond" ? diamondEffects[i % 3] : null;
-              return (
-                <div key={i} className="flex items-center justify-center">
-                  {p === 1 && (
-                    <Pip
-                      size={pipSize}
-                      colorClass={skin.pipColor}
-                      inset={skin.realistic}
-                      animationEffect={effect}
-                    />
-                  )}
-                </div>
-              );
-            })}
+        {/* Radiation — pulsing pip glow overlay on sprite */}
+        {skin.id === "toxic_plasma_v2" && renderPipGrid()}
+
+        {/* Matrix — code rain overlay */}
+        {skin.id === "matrix" && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-70 mix-blend-screen" style={{ borderRadius: radius }}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute font-mono text-[6px] text-green-400 font-bold"
+                style={{ left: `${i * 12 + 2}%`, textShadow: "0 0 4px #22c55e" }}
+                animate={{ top: ["-20%", "120%"] }}
+                transition={{ duration: 0.5 + i * 0.06, repeat: Infinity, delay: i * 0.05, ease: "linear" }}
+              >
+                {Array.from({ length: 10 }).map((__, j) => (
+                  <div key={j}>{(i + j) % 2 ? "1" : "0"}</div>
+                ))}
+              </motion.div>
+            ))}
           </div>
-        }
-
-
+        )}
 
         {/* Corner shadow vignette — Chrome Silver only */}
         {skin.id === "silver" && (
@@ -640,8 +713,6 @@ export default function Die({
             }}
           />
         )}
-
-
 
         {/* Diamond shimmer overlay */}
         {skin.special === "diamond" &&
@@ -681,6 +752,24 @@ export default function Die({
           </>
         }
       </button>
+      </PortfolioDieProvider>
     </motion.div>);
 
 }
+
+function diePropsAreEqual(prev, next) {
+  return (
+    prev.value === next.value &&
+    prev.held === next.held &&
+    prev.used === next.used &&
+    prev.rolling === next.rolling &&
+    prev.skinId === next.skinId &&
+    prev.size === next.size &&
+    prev.scoreFill === next.scoreFill &&
+    prev.bigFishVariantIndex === next.bigFishVariantIndex &&
+    prev.bigFishExtraScale === next.bigFishExtraScale &&
+    prev.onClick === next.onClick
+  );
+}
+
+export default React.memo(Die, diePropsAreEqual);

@@ -8,12 +8,8 @@ import {
   isSkinUnlockedByTier,
   isSkinAchievementOnly,
 } from "@/lib/progression";
-import {
-  getPreviewCoins,
-  getPreviewOwnedFelts,
-  getPreviewOwnedSkins,
-  isPreviewTierUnlocked,
-} from "@/lib/devPreview";
+import { isPreviewSkin, withPreviewOwned } from "@/lib/previewSkins";
+import { isDevUnlockAll } from "@/lib/devUnlock";
 
 export function useCosmetics() {
   const queryClient = useQueryClient();
@@ -31,14 +27,14 @@ export function useCosmetics() {
     },
   });
 
-  const coins = getPreviewCoins(user?.coins ?? 0);
+  const coins = user?.coins ?? 0;
   const xp = user?.xp ?? 0;
   const currentTier = getTierForXp(xp);
   const nextTier = getNextTier(xp);
   const introSeen = user?.intro_seen ?? false;
-  const ownedSkins = getPreviewOwnedSkins(user?.owned_skins ?? ["classic_white"]);
+  const ownedSkins = withPreviewOwned(user?.owned_skins ?? ["classic_white"]);
   const ownedBadges = user?.owned_badges ?? [];
-  const ownedFelts = getPreviewOwnedFelts(user?.owned_felts ?? ["classic_green"]);
+  const ownedFelts = user?.owned_felts ?? ["classic_green"];
   const equippedSkinId = user?.equipped_skin || "classic_white";
   const equippedBadgeId = user?.equipped_badge || "";
   const equippedFeltId = user?.equipped_felt || "classic_green";
@@ -74,7 +70,11 @@ export function useCosmetics() {
   const buyItem = (type, item) => {
     if (!user) return { ok: false, reason: "not_loaded" };
 
-    if (type === "skin" && isSkinAchievementOnly(item.id, xp)) {
+    if (type === "skin" && isPreviewSkin(item.id) && !isDevUnlockAll()) {
+      return { ok: false, reason: "mystery_box_only" };
+    }
+
+    if (type === "skin" && isSkinAchievementOnly(item.id, xp) && !isDevUnlockAll()) {
       return { ok: false, reason: "achievement_only" };
     }
 
@@ -131,8 +131,9 @@ export function useCosmetics() {
     buyItem,
     equipItem,
     grantReward,
-    getSkinEffectivePrice: (skin) => getSkinEffectivePrice(skin, xp),
-    isSkinUnlockedByTier: (skinId) => isPreviewTierUnlocked() || isSkinUnlockedByTier(skinId, xp),
-    isSkinAchievementOnly: (skinId) => isSkinAchievementOnly(skinId, xp),
+    isDevUnlockAll: isDevUnlockAll(),
+    getSkinEffectivePrice: (skin) => (isDevUnlockAll() ? 0 : getSkinEffectivePrice(skin, xp)),
+    isSkinUnlockedByTier: (skinId) => isDevUnlockAll() || isSkinUnlockedByTier(skinId, xp),
+    isSkinAchievementOnly: (skinId) => !isDevUnlockAll() && isSkinAchievementOnly(skinId, xp),
   };
 }
