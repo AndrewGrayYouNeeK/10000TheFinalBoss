@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { isLowPowerDevice } from "@/lib/platform";
+import { isLowPowerDevice, isNativeApp } from "@/lib/platform";
 
 const FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
@@ -8,6 +8,11 @@ function randomBetween(a, b) {
 }
 
 export default function DiceRain() {
+  if (isNativeApp()) return null;
+  return <DiceRainCanvas />;
+}
+
+function DiceRainCanvas() {
   const canvasRef = useRef(null);
   const diceRef = useRef([]);
   const obstaclesRef = useRef([]);

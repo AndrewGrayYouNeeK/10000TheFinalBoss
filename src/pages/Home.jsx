@@ -6,17 +6,30 @@ import RulesSheet from "@/components/game/RulesSheet";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
 import DiamondShowcase from "@/components/home/DiamondShowcase";
+import { isNativeApp } from "@/lib/platform";
 
 export default function Home() {
   const { coins, isLoading } = useCosmetics();
+  const native = isNativeApp();
+  const particleCount = native ? 0 : 14;
 
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-20 overflow-hidden relative"
       style={{ background: "#020408" }}
     >
-      {/* Matrix dice rain */}
-      <DiceRain />
+      {/* Matrix dice rain — disabled on native (see DiceRain.jsx) */}
+      {!native && <DiceRain />}
+
+      {native && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse at 50% 0%, rgba(0,255,200,0.08) 0%, transparent 55%), radial-gradient(ellipse at 50% 100%, rgba(180,0,255,0.06) 0%, transparent 50%)",
+          }}
+        />
+      )}
 
       {/* Animated scanlines */}
       <div className="absolute inset-0 pointer-events-none z-0"
@@ -26,6 +39,7 @@ export default function Home() {
       />
 
       {/* Cyan glow orb top */}
+      {!native && (
       <motion.div
         className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] pointer-events-none"
         animate={{ opacity: [0.4, 0.7, 0.4] }}
@@ -34,8 +48,10 @@ export default function Home() {
           background: "radial-gradient(ellipse at 50% 0%, rgba(0,255,200,0.12) 0%, transparent 70%)",
         }}
       />
+      )}
 
       {/* Purple glow orb bottom */}
+      {!native && (
       <motion.div
         className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] pointer-events-none"
         animate={{ opacity: [0.3, 0.6, 0.3] }}
@@ -44,6 +60,7 @@ export default function Home() {
           background: "radial-gradient(ellipse at 50% 100%, rgba(180,0,255,0.13) 0%, transparent 70%)",
         }}
       />
+      )}
 
       {/* Grid floor perspective */}
       <div className="absolute bottom-0 left-0 right-0 h-48 pointer-events-none overflow-hidden"
@@ -58,8 +75,9 @@ export default function Home() {
       />
 
       {/* Floating neon particles */}
+      {particleCount > 0 && (
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(14)].map((_, i) => {
+        {[...Array(particleCount)].map((_, i) => {
           const colors = ["rgba(0,255,200,0.7)", "rgba(180,0,255,0.7)", "rgba(255,50,150,0.7)", "rgba(0,180,255,0.7)"];
           return (
             <motion.div
@@ -87,6 +105,7 @@ export default function Home() {
           );
         })}
       </div>
+      )}
 
       {/* Top bar */}
       <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
