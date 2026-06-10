@@ -7,6 +7,7 @@ import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
 import DiamondShowcase from "@/components/home/DiamondShowcase";
 import { isNativeApp } from "@/lib/platform";
+import { assetUrl } from "@/lib/assetUrl";
 
 export default function Home() {
   const { coins, isLoading } = useCosmetics();
@@ -152,7 +153,7 @@ export default function Home() {
           <img
             data-dice-obstacle
             data-dice-solid
-            src="/assets/02645f1df_J-pkVgoLigDTfwK1sZ0Qt_3RwWpqbD.png"
+            src={assetUrl("/assets/02645f1df_J-pkVgoLigDTfwK1sZ0Qt_3RwWpqbD.png")}
             alt="10,000 The Ultimate Roll"
             className="w-80 h-80 object-contain mx-auto relative"
             style={{ filter: "drop-shadow(0 0 30px rgba(0,255,200,0.3)) drop-shadow(0 0 60px rgba(180,0,255,0.2))" }}

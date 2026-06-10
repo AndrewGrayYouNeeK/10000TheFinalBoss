@@ -741,8 +741,9 @@ export function getSpriteStyle(skin, value, size) {
   const rows = skin.spriteGrid?.rows ?? 2;
   const col = (value - 1) % cols;
   const row = Math.floor((value - 1) / cols);
+  const url = skin.spriteUrl.startsWith("http") ? skin.spriteUrl : `${import.meta.env.BASE_URL || "./"}${skin.spriteUrl.replace(/^\//, "")}`;
   return {
-    backgroundImage: `url(${skin.spriteUrl})`,
+    backgroundImage: `url(${url})`,
     backgroundSize: `${size * cols}px ${size * rows}px`,
     backgroundPosition: `${-(col * size)}px ${-(row * size)}px`,
     backgroundRepeat: 'no-repeat',

@@ -2,7 +2,11 @@ import { Capacitor } from "@capacitor/core";
 
 /** Native iOS/Android Capacitor shell */
 export function isNativeApp() {
-  return Capacitor.isNativePlatform();
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
 }
 
 /** Reduce effects on phones and in the native app */
