@@ -1,114 +1,163 @@
 import React from "react";
+import { assetUrl } from "@/lib/assetUrl";
+import { getFeltTheme } from "@/lib/feltThemes";
+import {
+  getFeltFiberNoiseUrl,
+  getFeltLighting,
+  getFeltMottlingLayers,
+  getFeltNapLayers,
+  getPhotoTextureStyle,
+  getThemedFabricUnderlayOpacity,
+  isFabricFelt,
+  usesPhotoFeltTexture,
+} from "@/lib/feltVisuals";
+import FeltThemeOverlay from "./FeltThemeOverlay";
 
 /**
- * Rich, reusable felt surface used by both the in-game DiceTray and the Shop preview.
- * Layered passes: base radial → photo texture → woven fibers → wool speckle → SVG grain
- * → top sheen highlight → corner edge wear → deep vignette.
- *
- * Pass `compact` for the small shop swatch (smaller speckle, less wear).
+ * Layered billiard-cloth surface: mottling → photo/cloth nap → theme → fibers → lighting.
  */
 export default function FeltSurface({ felt, compact = false }) {
   if (!felt) return null;
 
-  const sheenOpacity = compact ? 0.18 : 0.22;
-  const wearOpacity = compact ? 0.25 : 0.4;
-  const vignetteStrength = compact ? 0.35 : 0.55;
+  const nap = getFeltNapLayers(felt, compact);
+  const lighting = getFeltLighting(felt, compact);
+  const theme = getFeltTheme(felt.id);
+  const isFabric = isFabricFelt(felt.id);
+  const fabricStrength = getThemedFabricUnderlayOpacity(felt.id);
+  const showPhoto = usesPhotoFeltTexture(felt.id) && felt.textureUrl;
+  const wearOpacity = compact ? 0.22 : 0.38;
+  const vignetteStrength = compact ? 0.32 : 0.5;
 
   return (
     <>
-      {/* Photographic felt texture */}
-      {felt.textureUrl && (
+      {/* Dye-lot variation — breaks up the flat wash */}
+      <div
+        className="absolute inset-0 pointer-events-none mix-blend-soft-light"
+        style={{
+          opacity: isFabric ? 0.85 : 0.45 * fabricStrength,
+          background: getFeltMottlingLayers(felt),
+        }}
+      />
+
+      {showPhoto && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: `url(${felt.textureUrl})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            mixBlendMode: compact ? "multiply" : "soft-light",
-            opacity: compact ? 0.85 : 0.55,
+            backgroundImage: `url("${assetUrl(felt.textureUrl)}")`,
+            ...getPhotoTextureStyle(felt, compact),
           }}
         />
       )}
 
-      {/* Woven fibers — three crossing directions for depth */}
+      {/* Cloth body for standard felts + subtle underlay on themed ones */}
+      {(isFabric || fabricStrength > 0) && felt.id !== "wolf_fur" && (
+        <>
+          <div
+            className="absolute inset-0 pointer-events-none mix-blend-multiply"
+            style={{
+              opacity: isFabric ? 0.55 : 0.35 * fabricStrength,
+              backgroundImage: `${nap.primary}, ${nap.cross}`,
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none mix-blend-overlay"
+            style={{
+              opacity: isFabric ? 0.42 : 0.28 * fabricStrength,
+              backgroundImage: nap.shear,
+            }}
+          />
+        </>
+      )}
+
+      <FeltThemeOverlay felt={felt} compact={compact} />
+
+      {/* Wool fuzz — directional fiber noise */}
       <div
-        className="absolute inset-0 opacity-35 pointer-events-none mix-blend-overlay"
+        className="absolute inset-0 pointer-events-none mix-blend-overlay"
         style={{
-          backgroundImage: `
-            repeating-linear-gradient(43deg, rgba(0,0,0,0.20) 0, rgba(0,0,0,0.20) 0.5px, transparent 0.5px, transparent 2px),
-            repeating-linear-gradient(137deg, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 0.5px, transparent 0.5px, transparent 2.5px),
-            repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0, rgba(0,0,0,0.06) 1px, transparent 1px, transparent 4px)
-          `,
+          opacity: compact ? 0.45 : 0.58,
+          backgroundImage: getFeltFiberNoiseUrl(),
+          backgroundSize: compact ? "128px 128px" : "192px 192px",
         }}
       />
 
-      {/* Wool fuzz speckle */}
+      {/* Micro speckle — individual raised fibers */}
       <div
-        className="absolute inset-0 opacity-50 pointer-events-none mix-blend-soft-light"
+        className="absolute inset-0 pointer-events-none mix-blend-soft-light"
         style={{
+          opacity: compact ? 0.35 : 0.48,
           backgroundImage: `
-            radial-gradient(circle at 12% 18%, rgba(255,255,255,0.18) 0.5px, transparent 1px),
-            radial-gradient(circle at 38% 62%, rgba(0,0,0,0.22) 0.5px, transparent 1px),
-            radial-gradient(circle at 71% 31%, rgba(255,255,255,0.12) 0.5px, transparent 1px),
-            radial-gradient(circle at 87% 78%, rgba(0,0,0,0.20) 0.5px, transparent 1px),
-            radial-gradient(circle at 24% 89%, rgba(255,255,255,0.14) 0.5px, transparent 1px),
-            radial-gradient(circle at 56% 14%, rgba(0,0,0,0.18) 0.5px, transparent 1px)
+            radial-gradient(circle at 14% 22%, rgba(255,255,255,0.2) 0.4px, transparent 0.8px),
+            radial-gradient(circle at 41% 67%, rgba(0,0,0,0.24) 0.4px, transparent 0.8px),
+            radial-gradient(circle at 73% 28%, rgba(255,255,255,0.14) 0.4px, transparent 0.8px),
+            radial-gradient(circle at 86% 74%, rgba(0,0,0,0.2) 0.4px, transparent 0.8px),
+            radial-gradient(circle at 28% 88%, rgba(255,255,255,0.16) 0.4px, transparent 0.8px),
+            radial-gradient(circle at 58% 12%, rgba(0,0,0,0.18) 0.4px, transparent 0.8px)
           `,
           backgroundSize: compact
-            ? "5px 5px, 6px 6px, 7px 7px, 4px 4px, 5px 5px, 6px 6px"
-            : "7px 7px, 9px 9px, 11px 11px, 6px 6px, 8px 8px, 10px 10px",
+            ? "6px 6px, 7px 7px, 8px 8px, 5px 5px, 6px 6px, 7px 7px"
+            : "8px 8px, 10px 10px, 12px 12px, 7px 7px, 9px 9px, 11px 11px",
         }}
       />
 
-      {/* High-frequency SVG fabric grain */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-60 mix-blend-overlay"
-        style={{
-          backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(
-            `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>`
-          )}")`,
-          backgroundSize: "180px 180px",
-        }}
-      />
+      {/* Play-wear — dice rolling wears the center over time */}
+      {isFabric && (
+        <div
+          className="absolute inset-0 pointer-events-none mix-blend-multiply"
+          style={{
+            opacity: compact ? 0.35 : 0.48,
+            background:
+              "radial-gradient(ellipse 58% 48% at 50% 54%, rgba(0,0,0,0.1) 0%, transparent 72%)",
+          }}
+        />
+      )}
 
-      {/* Soft top sheen — like overhead lamp light hitting the felt */}
+      {/* Pool-hall lamp */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{
-          background: `radial-gradient(ellipse 70% 40% at 50% 12%, rgba(255,255,255,${sheenOpacity}) 0%, transparent 70%)`,
-          mixBlendMode: "screen",
-        }}
+        style={lighting.overhead}
       />
 
-      {/* Edge wear — slight darkening into the corners with a worn fade */}
+      {/* Nap-direction sheen */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={lighting.napSheen}
+      />
+
+      {/* Edge compression from years of elbows */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background: `
-            radial-gradient(circle at 0% 0%, rgba(0,0,0,${wearOpacity * 0.5}) 0%, transparent 25%),
-            radial-gradient(circle at 100% 0%, rgba(0,0,0,${wearOpacity * 0.5}) 0%, transparent 25%),
-            radial-gradient(circle at 0% 100%, rgba(0,0,0,${wearOpacity * 0.6}) 0%, transparent 30%),
-            radial-gradient(circle at 100% 100%, rgba(0,0,0,${wearOpacity * 0.6}) 0%, transparent 30%)
+            radial-gradient(circle at 0% 0%, rgba(0,0,0,${wearOpacity * 0.55}) 0%, transparent 28%),
+            radial-gradient(circle at 100% 0%, rgba(0,0,0,${wearOpacity * 0.55}) 0%, transparent 28%),
+            radial-gradient(circle at 0% 100%, rgba(0,0,0,${wearOpacity * 0.65}) 0%, transparent 32%),
+            radial-gradient(circle at 100% 100%, rgba(0,0,0,${wearOpacity * 0.65}) 0%, transparent 32%)
           `,
         }}
       />
 
-      {/* Deep vignette */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignetteStrength}) 100%)`,
+          background: `radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,${vignetteStrength}) 100%)`,
         }}
       />
 
-      {/* Inner rim shadow — gives the tray a physical "bowl" depth */}
       <div
         className="absolute inset-0 pointer-events-none rounded-[inherit]"
-        style={{
-          boxShadow:
-            "inset 0 0 30px rgba(0,0,0,0.45), inset 0 4px 10px rgba(255,255,255,0.07), inset 0 -6px 14px rgba(0,0,0,0.35)",
-        }}
+        style={lighting.rim}
       />
+
+      {/* Velvet/table rails catch a hairline highlight on fabric felts */}
+      {isFabric && theme !== "velvet" && (
+        <div
+          className="absolute inset-0 pointer-events-none rounded-[inherit]"
+          style={{
+            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+          }}
+        />
+      )}
     </>
   );
 }

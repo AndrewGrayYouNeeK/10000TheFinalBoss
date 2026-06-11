@@ -1,5 +1,6 @@
 // Core game state manipulation for Dice 10,000
-import { scoreSelection, hasAnyScore } from "./scoring";
+import { scoreSelection, hasAnyScore, sixOfAKindPoints } from "./scoring";
+import { POWER_MODE_HOT_DICE } from "./powers";
 
 export const TARGET_SCORE = 10000;
 export const ENTRY_THRESHOLD = 1000;
@@ -12,9 +13,19 @@ function bustWord(count) {
   return BUST_WORDS[count % BUST_WORDS.length];
 }
 
+/** Cleared when a turn ends (bank or farkle pass). */
+function turnPowerReset() {
+  return {
+    hotDiceCount: 0,
+    powerModeAvailable: false,
+    skinPowerUsedThisTurn: false,
+    powerShield: false,
+  };
+}
+
 export function createInitialState(playerNames) {
   return {
-    players: playerNames.map(name => ({ name, score: 0, onBoard: false })),
+    players: playerNames.map(name => ({ name, score: 0, onBoard: false, debuffs: [] })),
     currentIndex: 0,
     dice: makeFreshDice(),
     rolling: false,
@@ -26,6 +37,14 @@ export function createInitialState(playerNames) {
     farkle: false,
     bustCount: 0,
     lastBustWord: null,
+    perfectTenKPending: false,
+    hotDiceCount: 0,
+    powerModeAvailable: false,
+    skinPowerUsedThisTurn: false,
+    powerShield: false,
+    luckyRollNext: false,
+    turnScoreMultiplier: 1,
+    doubleOrNothing: false,
   };
 }
 
@@ -38,41 +57,75 @@ function makeFreshDice() {
   }));
 }
 
-function rollDieValues(count) {
+function rollDieValues(count, { luckyRoll = false } = {}) {
+  let perfectTenK = false;
+  let values;
+
   if (count === 6 && Math.random() < PERFECT_TENK_ODDS) {
     const face = Math.floor(Math.random() * 6) + 1;
-    return Array(6).fill(face);
+    values = Array(6).fill(face);
+    perfectTenK = true;
+  } else {
+    values = Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1);
   }
-  return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1);
+
+  if (luckyRoll && count > 0 && !hasAnyScore(values)) {
+    values = [...values];
+    values[0] = 1;
+  }
+
+  return { values, perfectTenK };
 }
 
 // Perform a dice roll — only on dice that are not `used`
 export function rollDice(state) {
   const rolling = state.dice.filter((d) => !d.used);
-  const values = rollDieValues(rolling.length);
+  const luckyRoll = !!state.luckyRollNext;
+  const { values, perfectTenK } = rollDieValues(rolling.length, { luckyRoll });
   let vi = 0;
   const newDice = state.dice.map((d) => {
     if (d.used) return d;
     const value = values[vi++];
     return { ...d, value, held: false };
   });
-  return { ...state, dice: newDice, hasRolled: true };
+  return {
+    ...state,
+    dice: newDice,
+    hasRolled: true,
+    luckyRollNext: false,
+    perfectTenKPending: perfectTenK || false,
+  };
 }
 
 // Evaluate the roll after it lands → farkle / continue
 export function evaluateRoll(state) {
   const active = state.dice.filter(d => !d.used).map(d => d.value);
   if (!hasAnyScore(active)) {
-    // Bust
+    if (state.powerShield) {
+      const currentName = state.players[state.currentIndex].name;
+      return {
+        ...state,
+        farkle: false,
+        powerShield: false,
+        message: `🛡️ Shield saved ${currentName}'s turn score!`,
+        messageVariant: "success",
+      };
+    }
     const currentName = state.players[state.currentIndex].name;
     const word = bustWord(state.bustCount || 0);
+    const lostScore = state.doubleOrNothing ? state.turnScore * 2 : state.turnScore;
     return {
       ...state,
       farkle: true,
       turnScore: 0,
       bustCount: (state.bustCount || 0) + 1,
       lastBustWord: word,
-      message: `💥 ${word} ${currentName} loses turn score.`,
+      doubleOrNothing: false,
+      turnScoreMultiplier: 1,
+      perfectTenKPending: false,
+      message: state.doubleOrNothing
+        ? `💥 ${word} Double or Nothing — ${currentName} loses ${lostScore}.`
+        : `💥 ${word} ${currentName} loses turn score.`,
       messageVariant: "danger",
     };
   }
@@ -103,30 +156,37 @@ export function getHeldInfo(state) {
 // Confirm held dice into the turn, then re-roll remaining
 // Returns { state, instantWin }
 export function confirmAndReroll(state) {
-  const info = getHeldInfo(state);
-  if (!info.valid || (info.score === 0 && !info.sixOfAKind)) return { state };
+  const held = getHeldInfo(state);
+  if (!held.valid || (held.score === 0 && !held.sixOfAKind)) return { state };
 
-  if (info.sixOfAKind) {
-    // Instant win — all 6 dice showing the same number in one roll = Perfect 10,000
-    const players = state.players.map((p, i) =>
-      i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
-    );
-    return {
-      state: {
-        ...state,
-        players,
-        winner: players[state.currentIndex],
-        perfectTenK: true,
-        message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
-        messageVariant: "success",
-      },
-      instantWin: true,
-    };
+  if (held.sixOfAKind) {
+    if (state.perfectTenKPending) {
+      const players = state.players.map((p, i) =>
+        i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
+      );
+      return {
+        state: {
+          ...state,
+          players,
+          winner: players[state.currentIndex],
+          perfectTenK: true,
+          perfectTenKPending: false,
+          message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
+          messageVariant: "success",
+        },
+        instantWin: true,
+      };
+    }
   }
+
+  const scored = held.sixOfAKind
+    ? { ...held, sixOfAKind: false, score: sixOfAKindPoints(held.face), valid: true }
+    : held;
 
   // Mark held dice as used, add to turn score
   let newDice = state.dice.map(d => (d.held ? { ...d, used: true, held: false } : d));
-  const newTurnScore = state.turnScore + info.score;
+  const mult = state.turnScoreMultiplier || 1;
+  const newTurnScore = state.turnScore + Math.floor(scored.score * mult);
 
   // Overshoot bust — you must land EXACTLY on 10,000. If the locked-in turn score
   // already pushes the player over, end the turn immediately (no further rolls).
@@ -156,7 +216,8 @@ export function confirmAndReroll(state) {
 
   // Re-roll the un-used dice
   const rerolling = newDice.filter((d) => !d.used);
-  const values = rollDieValues(rerolling.length);
+  const luckyRoll = !!state.luckyRollNext;
+  const { values, perfectTenK } = rollDieValues(rerolling.length, { luckyRoll });
   let vi = 0;
   newDice = newDice.map((d) => {
     if (d.used) return d;
@@ -184,15 +245,37 @@ export function confirmAndReroll(state) {
     };
   }
 
+  const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
+  const unlockPower = allUsed && newHotCount >= POWER_MODE_HOT_DICE;
+
   return {
     state: {
       ...state,
       dice: newDice,
       turnScore: newTurnScore,
       hasRolled: true,
-      message: allUsed ? "🔥 HOT DICE! All 6 re-rolled." : "Select scoring dice, then bank or roll again.",
-      messageVariant: allUsed ? "success" : "info",
+      luckyRollNext: false,
+      perfectTenKPending: perfectTenK || false,
+      hotDiceCount: newHotCount,
+      powerModeAvailable: state.skinPowerUsedThisTurn
+        ? false
+        : unlockPower || state.powerModeAvailable,
+      message: unlockPower && !state.powerModeAvailable
+        ? "🔥 HOT DICE! Power Mode unlocked!"
+        : allUsed
+        ? "🔥 HOT DICE! All 6 re-rolled."
+        : "Select scoring dice, then bank or roll again.",
+      messageVariant: allUsed || unlockPower ? "success" : "info",
     },
+  };
+}
+
+/** Mark skin secret power as spent for this turn. */
+export function consumeSkinPower(state) {
+  return {
+    ...state,
+    skinPowerUsedThisTurn: true,
+    powerModeAvailable: false,
   };
 }
 
@@ -200,10 +283,28 @@ export function confirmAndReroll(state) {
 // Returns new state; if someone wins, winner is set.
 export function bankAndPass(state) {
   const info = getHeldInfo(state);
+
+  if (info.sixOfAKind && state.perfectTenKPending) {
+    const players = state.players.map((p, i) =>
+      i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
+    );
+    return {
+      ...state,
+      players,
+      winner: players[state.currentIndex],
+      perfectTenK: true,
+      perfectTenKPending: false,
+      message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
+      messageVariant: "success",
+    };
+  }
+
   // Include any currently-held valid selection into the bank
   let finalTurn = state.turnScore;
   if (info.valid && info.score > 0) {
     finalTurn += info.score;
+  } else if (info.sixOfAKind && !state.perfectTenKPending) {
+    finalTurn += sixOfAKindPoints(info.face);
   }
 
   const player = state.players[state.currentIndex];
@@ -254,6 +355,11 @@ export function bankAndPass(state) {
     turnScore: 0,
     hasRolled: false,
     farkle: false,
+    perfectTenKPending: false,
+    turnScoreMultiplier: 1,
+    doubleOrNothing: false,
+    luckyRollNext: false,
+    ...turnPowerReset(),
     message: `${message} ${newPlayers[nextIndex].name}'s turn.`,
     messageVariant: variant,
   };
@@ -261,15 +367,39 @@ export function bankAndPass(state) {
 
 // Pass turn after a Farkle
 export function passAfterFarkle(state) {
+  const bustedIdx = state.currentIndex;
   const nextIndex = (state.currentIndex + 1) % state.players.length;
+  const players = state.players.map((p, i) =>
+    i === bustedIdx ? { ...p, debuffs: [] } : p
+  );
   return {
     ...state,
+    players,
     currentIndex: nextIndex,
     dice: makeFreshDice(),
     turnScore: 0,
     hasRolled: false,
     farkle: false,
-    message: `${state.players[nextIndex].name}'s turn — roll the dice!`,
+    perfectTenKPending: false,
+    turnScoreMultiplier: 1,
+    doubleOrNothing: false,
+    luckyRollNext: false,
+    ...turnPowerReset(),
+    message: `${players[nextIndex].name}'s turn — roll the dice!`,
     messageVariant: "info",
   };
+}
+
+/** Player indices whose scores should show as hidden (sabotage debuffs). */
+export function getObscuredScoreIndices(state) {
+  const obscured = new Set();
+  if (!state?.players) return obscured;
+  state.players.forEach((p, i) => {
+    (p.debuffs || []).forEach((d) => {
+      const id = typeof d === "string" ? d : d.id;
+      if (id === "static") obscured.add(i);
+      if (id === "blackout" && typeof d === "object") obscured.add(d.from);
+    });
+  });
+  return obscured;
 }

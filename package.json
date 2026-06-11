@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "ios:run": "npm run ios:sync && npx cap run ios"
+    "ios:run": "npm run ios:sync && npx cap run ios --target \"${IOS_SIMULATOR:-6DF39480-7916-493B-BA4B-D589206AE8FC}\""
   },
   "dependencies": {
     "@capacitor/core": "^7.2.0",

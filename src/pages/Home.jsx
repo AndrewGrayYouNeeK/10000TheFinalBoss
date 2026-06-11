@@ -7,6 +7,7 @@ import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
 import DiamondShowcase from "@/components/home/DiamondShowcase";
 import { isNativeApp } from "@/lib/platform";
+import { assetUrl } from "@/lib/assetUrl";
 
 export default function Home() {
   const { coins, isLoading } = useCosmetics();
@@ -15,8 +16,20 @@ export default function Home() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-20 overflow-hidden relative"
-      style={{ background: "#020408" }}
+      className={
+        native
+          ? "min-h-[100dvh] flex flex-col items-center px-6 relative overflow-hidden"
+          : "min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-20 overflow-hidden relative"
+      }
+      style={{
+        background: "#020408",
+        ...(native
+          ? {
+              paddingTop: "max(4.5rem, env(safe-area-inset-top, 0px))",
+              paddingBottom: "max(1.25rem, env(safe-area-inset-bottom, 0px))",
+            }
+          : {}),
+      }}
     >
       {/* Matrix dice rain — disabled on native (see DiceRain.jsx) */}
       {!native && <DiceRain />}
@@ -130,7 +143,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="text-center relative z-10 max-w-sm w-full"
+        className={`text-center relative z-10 max-w-sm w-full ${native ? "flex flex-col flex-1 min-h-0" : ""}`}
       >
         {/* Logo */}
         <motion.div
@@ -152,16 +165,16 @@ export default function Home() {
           <img
             data-dice-obstacle
             data-dice-solid
-            src="/assets/02645f1df_J-pkVgoLigDTfwK1sZ0Qt_3RwWpqbD.png"
+            src={assetUrl("/assets/02645f1df_J-pkVgoLigDTfwK1sZ0Qt_3RwWpqbD.png")}
             alt="10,000 The Ultimate Roll"
-            className="w-80 h-80 object-contain mx-auto relative"
+            className={`object-contain mx-auto relative ${native ? "w-48 h-48" : "w-80 h-80"}`}
             style={{ filter: "drop-shadow(0 0 30px rgba(0,255,200,0.3)) drop-shadow(0 0 60px rgba(180,0,255,0.2))" }}
           />
         </motion.div>
 
         {/* Glitch tagline */}
         <motion.p
-          className="mb-8 text-xs font-bold tracking-[0.35em] uppercase"
+          className={`text-xs font-bold tracking-[0.35em] uppercase ${native ? "mb-4" : "mb-8"}`}
           animate={{ opacity: [0.6, 1, 0.6] }}
           transition={{ duration: 2.5, repeat: Infinity }}
           style={{ color: "#00ffc8", textShadow: "0 0 10px rgba(0,255,200,0.6)" }}
@@ -171,8 +184,10 @@ export default function Home() {
 
         <DiamondShowcase />
 
+        {native && <div className="flex-1 min-h-2" aria-hidden />}
+
         {/* Buttons */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${native ? "shrink-0" : ""}`}>
           {/* Primary CTA */}
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
             <Link
@@ -270,7 +285,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-8 text-xs flex items-center justify-center gap-1"
+        <div className={`flex items-center justify-center gap-1 ${native ? "mt-4" : "mt-8"} text-xs`}
           style={{ color: "rgba(0,255,200,0.3)" }}>
           <Users className="w-3 h-3" /> 2–4 players · one device
         </div>

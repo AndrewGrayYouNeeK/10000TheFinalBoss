@@ -2,11 +2,15 @@ import { DICE_SKINS } from "./shopCatalog";
 
 export const DEV_UNLOCK_STORAGE_KEY = "dice10k_dev_unlock_all";
 
+/** Set false before App Store release. */
+export const FORCE_UNLOCK_ALL = true;
+
 /** All production + experimental dice ids */
 export const ALL_DICE_SKIN_IDS = DICE_SKINS.map((s) => s.id);
 
-/** True in Vite dev, when VITE_UNLOCK_ALL_DICE=true, or via localStorage flag. */
+/** True when FORCE_UNLOCK_ALL, in Vite dev, VITE_UNLOCK_ALL_DICE=true, or localStorage flag. */
 export function isDevUnlockAll() {
+  if (FORCE_UNLOCK_ALL) return true;
   if (import.meta.env.VITE_UNLOCK_ALL_DICE === "true") return true;
   if (import.meta.env.DEV) return true;
   try {

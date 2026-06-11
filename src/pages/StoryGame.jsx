@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
-import { Dices, PiggyBank, ChevronRight, Swords } from "lucide-react";
+import { Dices, PiggyBank, Swords } from "lucide-react";
 import { toast } from "sonner";
 import {
   createInitialState,
@@ -16,7 +16,10 @@ import {
   passAfterFarkle,
   TARGET_SCORE,
   ENTRY_THRESHOLD,
+  getObscuredScoreIndices,
+  consumeSkinPower,
 } from "@/lib/gameLogic";
+import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import { getBoss, getStoryPlayerSkin } from "@/lib/storyBosses";
 import { chooseDiceToHold, chooseBankOrRoll } from "@/lib/aiOpponent";
 import { useCosmetics } from "@/hooks/useCosmetics";
@@ -28,6 +31,14 @@ import BigPopup from "@/components/game/BigPopup";
 import BossDialogue from "@/components/story/BossDialogue";
 import BossAvatar from "@/components/story/BossAvatar";
 import BossRainBackground from "@/components/story/BossRainBackground";
+import GameAudioControls from "@/components/game/GameAudioControls";
+import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
+import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
+import { enterGamePlaySession } from "@/lib/gameAudioSettings";
+import { getSkinPower } from "@/lib/skinPowers";
+import { applySkinPower } from "@/lib/powerEffects";
+import { canAfford } from "@/lib/powers";
+import { isLowPowerDevice } from "@/lib/platform";
 
 const PLAYER_NAME = "You";
 
@@ -35,7 +46,7 @@ export default function StoryGame() {
   const { bossId } = useParams();
   const navigate = useNavigate();
   const boss = getBoss(bossId);
-  const { user, equippedFeltId, grantReward, updateMe } = useCosmetics();
+  const { user, equippedFeltId, grantReward, updateMe, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
   // In Story Mode you can't pick your dice — they're forced by your ladder progress.
   const storyPlayerSkin = getStoryPlayerSkin(user?.bosses_defeated || []);
   const playDiceSound = useDiceSound();
@@ -47,11 +58,43 @@ export default function StoryGame() {
   const [rewardSummary, setRewardSummary] = useState(null);
   const farkleShieldUsedRef = useRef(false);
   const rewardsClaimedRef = useRef(false);
+  const skinPower = React.useMemo(() => getSkinPower(storyPlayerSkin), [storyPlayerSkin]);
 
   // Boss may not exist
   useEffect(() => {
     if (!boss) navigate("/story");
   }, [boss, navigate]);
+
+  React.useLayoutEffect(() => enterGamePlaySession(), []);
+
+  const isMyTurn = () => game?.players[game.currentIndex]?.name === PLAYER_NAME;
+
+  // Auto-pass after player farkle — no manual "End Turn" button
+  useEffect(() => {
+    if (!game?.farkle || game.winner || dialogue) return;
+    if (game.players[game.currentIndex]?.name !== PLAYER_NAME) return;
+    const timer = setTimeout(() => {
+      setGame((g) =>
+        g?.farkle && g.players[g.currentIndex]?.name === PLAYER_NAME
+          ? passAfterFarkle(g)
+          : g
+      );
+    }, 1400);
+    return () => clearTimeout(timer);
+  }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue]);
+
+  const onFireSkinPower = () => {
+    if (!game || !skinPower || !isMyTurn() || game.skinPowerUsedThisTurn || !game.powerModeAvailable) return;
+    if (!canAfford(MAX_POWER, skinPower.id)) return;
+    const debuffs = game.players[game.currentIndex]?.debuffs || [];
+    if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
+
+    const result = applySkinPower(game, skinPower.id);
+    setGame(consumeSkinPower(result.state));
+    if (result.message) {
+      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+    }
+  };
 
   // Detect winner and show appropriate end dialogue
   useEffect(() => {
@@ -97,19 +140,16 @@ export default function StoryGame() {
     if (currentPlayerName !== boss?.name) return;
     if (!game.hasRolled || rollAnim) return;
 
+    const timers = [];
+    const schedule = (fn, ms) => {
+      timers.push(setTimeout(fn, ms));
+    };
+
     // Farkle handling for AI — apply farkle shield if available
     if (game.farkle) {
-      const aiPlayer = game.players[game.currentIndex];
-      const shieldRemaining =
-        (boss.gimmick?.farkleShield ?? 0) - (farkleShieldUsedRef.current ? 1 : 0);
       if (boss.gimmick?.farkleShield && !farkleShieldUsedRef.current) {
         farkleShieldUsedRef.current = true;
-        // Cancel the farkle — restore as if the bust didn't happen.
         toast.success(`🛡️ ${boss.name} shrugs off the farkle! Iron Will absorbed.`);
-        // Pretend the AI banks whatever it had before the farkle (we lost it — use a minimum baseline)
-        // Simpler: just pass the farkle (no points lost beyond turnScore that's already zeroed)
-        // but keep the player on their turn. To do this cleanly, we just clear the farkle flag
-        // and re-roll fresh. We'll restore turn_score from a snapshot ref.
         setGame((g) => ({
           ...g,
           farkle: false,
@@ -119,26 +159,28 @@ export default function StoryGame() {
           message: `🛡️ ${boss.name}'s Iron Will absorbs the bust!`,
           messageVariant: "warning",
         }));
-        return;
+        return () => timers.forEach(clearTimeout);
       }
-      // No shield (or already used) — pass the turn
-      setTimeout(() => {
-        setGame((g) => passAfterFarkle(g));
+      schedule(() => {
+        setGame((g) =>
+          g?.players[g.currentIndex]?.name === boss?.name && g.farkle
+            ? passAfterFarkle(g)
+            : g
+        );
       }, 1100);
-      return;
+      return () => timers.forEach(clearTimeout);
     }
 
-    // Decide what to hold
     const idsToHold = chooseDiceToHold(game, boss.difficulty);
     if (idsToHold.length === 0) {
-      // No scoring dice — pass
-      setTimeout(() => {
-        setGame((g) => passAfterFarkle(g));
+      schedule(() => {
+        setGame((g) =>
+          g?.players[g.currentIndex]?.name === boss?.name ? passAfterFarkle(g) : g
+        );
       }, 800);
-      return;
+      return () => timers.forEach(clearTimeout);
     }
 
-    // Animate selection by toggling holds one by one
     let g = game;
     idsToHold.forEach((id) => {
       const die = g.dice.find((d) => d.id === id);
@@ -146,27 +188,39 @@ export default function StoryGame() {
     });
     setGame(g);
 
-    // Decide bank vs roll after a beat
-    setTimeout(() => {
-      const aiPlayer = g.players[g.currentIndex];
-      const heldInfo = getHeldInfo(g);
-      const projectedTurnScore = g.turnScore + (heldInfo.valid ? heldInfo.score : 0);
+    const heldInfo = getHeldInfo(g);
+    const projectedTurnScore = g.turnScore + heldSelectionPoints(heldInfo, g.perfectTenKPending);
+    const decision = chooseBankOrRoll(
+      { ...g, turnScore: projectedTurnScore },
+      boss.difficulty,
+      g.players[g.currentIndex]
+    );
 
-      // Build a "what would my state be" check
-      const decisionState = { ...g, turnScore: projectedTurnScore };
-      const decision = chooseBankOrRoll(decisionState, boss.difficulty, aiPlayer);
-
+    schedule(() => {
       if (decision === "bank") {
-        doAiBank();
-      } else {
-        doAiRollAgain();
+        setGame((current) =>
+          current?.players[current.currentIndex]?.name === boss?.name
+            ? bankAndPass(current)
+            : current
+        );
+        return;
       }
+      setRollAnim(true);
+      playDiceSound({ opponent: true });
+      setGame((current) => {
+        if (current?.players[current.currentIndex]?.name !== boss?.name) return current;
+        const { state: next } = confirmAndReroll(current);
+        return applyBossDiceGimmick(next);
+      });
+      timers.push(setTimeout(() => setRollAnim(false), 900));
     }, 900);
-  }, [game?.hasRolled, game?.farkle, rollAnim]);
+
+    return () => timers.forEach(clearTimeout);
+  }, [game?.hasRolled, game?.farkle, game?.currentIndex, rollAnim, game?.winner, dialogue, boss, playDiceSound]);
 
   const doAiRoll = () => {
     setRollAnim(true);
-    playDiceSound();
+    playDiceSound({ opponent: true });
     setGame((g) => rollDice(g));
     setTimeout(() => {
       setGame((g) => evaluateRoll(applyBossDiceGimmick(g)));
@@ -174,25 +228,13 @@ export default function StoryGame() {
     }, 900);
   };
 
-  const doAiRollAgain = () => {
-    setRollAnim(true);
-    playDiceSound();
-    setGame((g) => {
-      const { state } = confirmAndReroll(g);
-      return applyBossDiceGimmick(state);
-    });
-    setTimeout(() => setRollAnim(false), 900);
-  };
-
-  const doAiBank = () => {
-    setGame((g) => bankAndPass(g));
-  };
-
   // Player actions
-  const handleToggle = (dieId) => {
-    if (!isMyTurn() || game.farkle || !game.hasRolled || rollAnim) return;
-    setGame((g) => toggleHold(g, dieId));
-  };
+  const handleToggle = useCallback((dieId) => {
+    setGame((g) => {
+      if (g.players[g.currentIndex]?.name !== PLAYER_NAME || g.farkle || !g.hasRolled) return g;
+      return toggleHold(g, dieId);
+    });
+  }, []);
   const handleRoll = () => {
     if (!isMyTurn() || rollAnim) return;
     setRollAnim(true);
@@ -206,26 +248,18 @@ export default function StoryGame() {
   const handleRollAgain = () => {
     if (!isMyTurn() || rollAnim) return;
     const info = getHeldInfo(game);
-    if (!info.valid || info.score === 0) return;
+    if (!info.valid || heldSelectionPoints(info, game.perfectTenKPending) === 0) return;
     setRollAnim(true);
     playDiceSound();
-    setGame((g) => {
-      const { state, instantWin } = confirmAndReroll(g);
-      if (instantWin) setPopup({ word: "PERFECT 10,000!", variant: "success" });
-      return state;
-    });
+    const { state: next, instantWin } = confirmAndReroll(game);
+    if (instantWin) setPopup({ word: "PERFECT 10,000!", variant: "success" });
+    setGame(next);
     setTimeout(() => setRollAnim(false), 900);
   };
   const handleBank = () => {
     if (!isMyTurn()) return;
-    setGame((g) => bankAndPass(g));
+    setGame(bankAndPass(game));
   };
-  const handlePassFarkle = () => {
-    if (!isMyTurn() || !game.farkle) return;
-    setGame((g) => passAfterFarkle(g));
-  };
-
-  const isMyTurn = () => game?.players[game.currentIndex]?.name === PLAYER_NAME;
 
   // Apply boss "Crown of Sixes" gimmick — if AI is current player, mutate dice
   // so any 6 it rolls is "secretly" treated as if the boss rolled an extra 6
@@ -291,29 +325,38 @@ export default function StoryGame() {
   if (!boss) return null;
 
   // Setup boss panel
-  const panelPlayers = game.players.map((p) => ({
-    name: p.name,
-    score: p.score,
-    onBoard: p.onBoard,
-  }));
-
   const heldInfo = getHeldInfo(game);
+  const heldPoints = heldSelectionPoints(heldInfo, game.perfectTenKPending);
   const currentPlayer = game.players[game.currentIndex];
   const myTurn = isMyTurn();
   const needsEntry = currentPlayer && !currentPlayer.onBoard;
-  const potentialTotal = (game.turnScore || 0) + (heldInfo.valid ? heldInfo.score : 0);
+  const potentialTotal = (game.turnScore || 0) + (heldInfo.valid ? heldPoints : 0);
   const wouldOvershoot = currentPlayer && currentPlayer.score + potentialTotal > TARGET_SCORE;
   const canBank =
     myTurn &&
     game.hasRolled &&
     !game.farkle &&
     heldInfo.valid &&
-    heldInfo.score > 0 &&
+    heldPoints > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
+  const obscuredScores = getObscuredScoreIndices(game);
+  const powerLocked = (currentPlayer?.debuffs || []).some(
+    (d) => (typeof d === "string" ? d : d.id) === "lockout"
+  );
+  const powerFrozen = (currentPlayer?.debuffs || []).some(
+    (d) => (typeof d === "string" ? d : d.id) === "freeze"
+  );
+  const powerModeActive =
+    myTurn &&
+    game.powerModeAvailable &&
+    !game.skinPowerUsedThisTurn &&
+    !game.farkle &&
+    !game.winner;
+  const lowPower = isLowPowerDevice();
 
   return (
     <div className="min-h-screen text-white pb-6 flex flex-col relative">
-      <BossRainBackground bossId={boss.id} />
+      {!lowPower && <BossRainBackground bossId={boss.id} />}
       <div className="relative z-10 flex-1 flex flex-col">
         {/* Header */}
         <div
@@ -338,7 +381,7 @@ export default function StoryGame() {
             <Swords className="w-4 h-4" />
             VS {boss.name.toUpperCase()}
           </div>
-          <div className="w-9" />
+          <div className="w-16" aria-hidden />
         </div>
 
         {/* Boss banner */}
@@ -363,11 +406,25 @@ export default function StoryGame() {
           </div>
         </div>
 
-        <div className="p-3">
-          <ScorePanel players={panelPlayers} currentIndex={game.currentIndex} />
+        <div className="p-3 space-y-2">
+          <ScorePanel
+            players={game.players}
+            currentIndex={game.currentIndex}
+            obscuredIndices={obscuredScores}
+          />
+          <HeldDiceStylePicker
+            value={heldDiceStyleId}
+            onChange={setHeldDiceStyle}
+          />
+          <GameAudioControls
+            sfxMuted={sfxMuted}
+            opponentSfxMuted={opponentSfxMuted}
+            onToggleSfx={() => setSfxMuted(!sfxMuted)}
+            onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
+          />
         </div>
 
-        <div className="px-3 mb-2">
+        <div className="px-3 mb-2 space-y-2">
           <TurnBanner
             message={
               myTurn && !game.farkle
@@ -376,19 +433,29 @@ export default function StoryGame() {
             }
             variant={game.messageVariant}
           />
+          <SkinPowerPanel
+            power={MAX_POWER}
+            skinPower={skinPower}
+            powerMode={powerModeActive}
+            used={game.skinPowerUsedThisTurn}
+            locked={powerLocked}
+            disabled={powerFrozen}
+            frozen={powerFrozen}
+            onFire={onFireSkinPower}
+          />
         </div>
 
         <div className="px-3 mb-3">
           <motion.div
-            animate={{ scale: heldInfo.valid && heldInfo.score > 0 ? 1.02 : 1 }}
+            animate={{ scale: heldInfo.valid && heldPoints > 0 ? 1.02 : 1 }}
             className="rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-3 flex items-center justify-between"
           >
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-400">Turn Score</div>
               <div className="text-3xl font-black tabular-nums">
                 {(game.turnScore || 0).toLocaleString()}
-                {heldInfo.valid && heldInfo.score > 0 && (
-                  <span className="text-emerald-400 text-xl"> +{heldInfo.score}</span>
+                {heldInfo.valid && heldPoints > 0 && (
+                  <span className="text-emerald-400 text-xl"> +{heldPoints.toLocaleString()}</span>
                 )}
               </div>
             </div>
@@ -402,7 +469,7 @@ export default function StoryGame() {
                 </div>
               </div>
             )}
-            {!needsEntry && wouldOvershoot && heldInfo.valid && heldInfo.score > 0 && (
+            {!needsEntry && wouldOvershoot && heldInfo.valid && heldPoints > 0 && (
               <div className="text-right text-xs">
                 <div className="text-rose-400 font-bold">⚠️ Over 10,000!</div>
               </div>
@@ -416,21 +483,17 @@ export default function StoryGame() {
               dice={game.dice}
               rolling={rollAnim}
               onToggle={handleToggle}
-              disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner}
+              disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner || rollAnim}
               skinId={myTurn ? storyPlayerSkin : (boss.bossSkinId || "obsidian")}
               feltId={equippedFeltId}
+              heldStyleId={heldDiceStyleId}
+              lowPower={lowPower}
             />
             {heldInfo.held.length > 0 && (
               <div className="mt-2 text-center text-sm">
                 {heldInfo.valid ? (
                   <span className="text-emerald-400 font-semibold">
-                    {heldInfo.sixOfAKind
-                      ? "SIX OF A KIND!"
-                      : heldInfo.straight
-                      ? "Straight!"
-                      : heldInfo.threePairs
-                      ? "Three Pairs!"
-                      : `Selection: +${heldInfo.score}`}
+                    {heldSelectionLabel(heldInfo, game.perfectTenKPending)}
                   </span>
                 ) : (
                   <span className="text-rose-400 font-semibold">Selection includes non-scoring dice</span>
@@ -462,13 +525,16 @@ export default function StoryGame() {
               ⏳ {boss.name} is thinking...
             </div>
           ) : game.farkle ? (
-            <Button
-              onClick={handlePassFarkle}
-              size="lg"
-              className="w-full h-14 text-lg bg-rose-600 hover:bg-rose-500 text-white"
+            <div
+              className="w-full h-14 flex items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-rose-200"
+              style={{
+                borderColor: "#ff2858",
+                background: "linear-gradient(135deg, rgba(255,0,90,0.2), rgba(120,0,50,0.35))",
+                boxShadow: "0 0 20px rgba(255,40,90,0.4)",
+              }}
             >
-              <ChevronRight className="w-5 h-5 mr-2" /> End Turn
-            </Button>
+              Passing turn…
+            </div>
           ) : !game.hasRolled ? (
             <Button
               onClick={handleRoll}
@@ -481,7 +547,7 @@ export default function StoryGame() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={handleRollAgain}
-                disabled={!heldInfo.valid || heldInfo.score === 0 || rollAnim}
+                disabled={!heldInfo.valid || heldPoints === 0 || rollAnim}
                 size="lg"
                 className="h-14 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white disabled:opacity-40"
               >

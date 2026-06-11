@@ -1,8 +1,20 @@
 import React from "react";
 import { motion } from "framer-motion";
 
-// Animated cyberpunk backdrop: dark base, neon grid floor, scanlines, drifting particles, vignette glow.
-export default function CyberBackground() {
+/** Animated cyberpunk backdrop. Pass `lite` on mobile/native for a static gradient only. */
+export default function CyberBackground({ lite = false }) {
+  if (lite) {
+    return (
+      <div
+        className="absolute inset-0 overflow-hidden pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse at 20% 10%, rgba(255,0,170,0.12) 0%, transparent 45%), radial-gradient(ellipse at 80% 90%, rgba(0,255,200,0.12) 0%, transparent 45%), #03040a",
+        }}
+      />
+    );
+  }
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ background: "#03040a" }}>
       {/* Magenta/cyan radial glow */}

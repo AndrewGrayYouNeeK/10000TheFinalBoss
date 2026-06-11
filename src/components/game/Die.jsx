@@ -8,6 +8,8 @@ import FishOverlay from "./FishOverlay";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
 import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
+import HeldDiceOverlay from "./HeldDiceOverlay";
+import { DEFAULT_HELD_DICE_STYLE } from "@/lib/heldDiceStyles";
 
 function useRollVariants() {
   const ref = React.useRef(null);
@@ -32,12 +34,25 @@ function Die({
   used = false,
   rolling = false,
   onClick,
+  dieId,
+  onToggleDie,
   size = 64,
   skinId = "classic_white",
   bigFishVariantIndex = 0,
   bigFishExtraScale = 1,
   scoreFill = 0.5,
+  heldStyleId = DEFAULT_HELD_DICE_STYLE,
+  dieSeed,
+  lowPower = false,
 }) {
+  const stableSeedRef = React.useRef(Math.floor(Math.random() * 10000));
+  const effectDieSeed = dieSeed ?? stableSeedRef.current;
+  const effectiveHeldStyleId = heldStyleId;
+  const reduceEffects = lowPower || rolling;
+  const handleClick = React.useCallback(() => {
+    if (onClick) onClick();
+    else if (onToggleDie && dieId != null) onToggleDie(dieId);
+  }, [onClick, onToggleDie, dieId]);
   const skin = getSkin(skinId);
   const isXray = skin.id === "pf_xray";
   const { displayLayout: xrayLayout } = useXrayMorphLayout(value, rolling, isXray);
@@ -104,10 +119,11 @@ function Die({
 
   const buildShadow = () => {
     if (skin.experimental) {
-      return getExperimentalShadow(skin.style, size, { used, held, selected });
+      return getExperimentalShadow(skin.style, size, { used, held, selected, heldStyleId: effectiveHeldStyleId });
     }
     if (used) return "none";
-    if (held) return `0 0 0 ${Math.round(size * 0.07)}px #fcd34d`;
+    if (held && effectiveHeldStyleId === "corner_badge") return `0 0 0 ${Math.round(size * 0.07)}px #fcd34d`;
+    if (held) return `0 0 ${Math.round(size * 0.12)}px rgba(251,191,36,0.25)`;
     if (selected) return `0 0 0 ${Math.round(size * 0.05)}px rgba(52,211,153,0.6)`;
     return "none";
   };
@@ -118,7 +134,7 @@ function Die({
     isExperimentalClearBody(skin) ||
     (skin.experimental && (skin.style?.kind === "clear" || skin.style?.kind === "glass"));
 
-  const isPortfolioFx = skin.experimental && skin.style?.effectId;
+  const isPortfolioFx = skin.experimental && skin.style?.effectId && !reduceEffects;
 
   const renderPipGrid = () => {
     const flat = layout.flat();
@@ -211,7 +227,7 @@ function Die({
   return (
     <motion.div
       key={rolling ? rollKey.current : "idle"}
-      className="flex-shrink-0"
+      className="relative flex-shrink-0 overflow-visible"
       style={{ width: size, height: size }}
       initial={false}
       animate={
@@ -232,11 +248,17 @@ function Die({
       }
       whileTap={!used && !rolling ? { scale: 0.92 } : {}}
       whileHover={!used && !rolling ? { y: -5, rotate: 3 } : {}}>
-      
+
+      {held && !used && (
+        <div className="absolute inset-0 z-20 pointer-events-none overflow-visible">
+          <HeldDiceOverlay styleId={effectiveHeldStyleId} size={size} radius={radius} />
+        </div>
+      )}
+
       <PortfolioDieProvider scoreFill={scoreFill} enabled={isPortfolioFx}>
       <button
         type="button"
-        onClick={onClick}
+        onClick={handleClick}
         disabled={used || rolling}
         className={`relative w-full h-full ${!isClearBody && !skin.experimental ? `bg-gradient-to-br ${skin.gradient}` : ""} ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
@@ -248,7 +270,7 @@ function Die({
         }}>
         
         {/* Video background skin — cropped 3x2 grid, zoomed 3x centered in each cell */}
-        {skin.videoUrl && (() => {
+        {skin.videoUrl && !reduceEffects && (() => {
           const zoom = 3.0;
           const cols = 3;
           const rows = 2;
@@ -410,7 +432,14 @@ function Die({
 
         {/* Experimental / preview dice bodies */}
         {skin.experimental && skin.style && (
-          <ExperimentalDieBody style={skin.style} radius={radius} scoreFill={scoreFill} layout={layout} size={size} />
+          <ExperimentalDieBody
+            style={skin.style}
+            radius={radius}
+            scoreFill={scoreFill}
+            layout={layout}
+            size={size}
+            dieSeed={effectDieSeed}
+          />
         )}
 
         {/* Sprite sheet texture or pip grid */}
@@ -439,7 +468,6 @@ function Die({
           const DRAGON_X_OFFSET = { 2: size * 0.015, 3: size * 0.015, 5: size * 0.01, 6: size * 0.015 };
           const AMETHYST_X_OFFSET = { 2: size * 0.015, 3: -size * 0.005, 6: size * 0.015 };
           const LAVA_X_OFFSET = { 2: -size * 0.005, 3: -size * 0.005, 5: 0, 6: 0 };
-          const LAVA_Y_OFFSET = { 1: -size * 0.035, 2: -size * 0.035, 3: -size * 0.035, 4: -size * 0.045, 5: -size * 0.045, 6: -size * 0.045 };
           const MOONSTONE_X_OFFSET = { 1: size * 0.03, 2: size * 0.035, 3: size * 0.035, 4: size * 0.04, 5: size * 0.035, 6: size * 0.035 };
           const MOONSTONE_Y_OFFSET = { 1: size * 0.01, 2: size * 0.005, 3: size * 0.0075, 4: size * 0.003, 5: size * 0.003, 6: size * 0.003 };
           const SILVER_Y_OFFSET = { 1: -size * 0.015, 2: -size * 0.015, 3: -size * 0.015 };
@@ -599,8 +627,6 @@ function Die({
             ? (AMETHYST_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
             : skin.id === "moonstone"
             ? (MOONSTONE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "lava"
-            ? (LAVA_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
             : skin.id === "plasma"
             ? (PLASMA_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
             : skin.id === "paper"
@@ -654,7 +680,11 @@ function Die({
             : (FACE_Y_OFFSET[value] || 0);
           const MOONSTONE_EXTRA_STRETCH = { 3: size * 0.015, 4: size * 0.015, 5: size * 0.015, 6: size * 0.015 };
           const AMBER_WASP_STRETCH = { 1: size * 0.065, 2: size * 0.065, 3: size * 0.065, 4: size * 0.065, 5: size * 0.065, 6: size * 0.065 };
-          const stretch = skin.id === "moonstone"
+          const spriteCropStretch = skin.spriteCrop?.stretch ? size * skin.spriteCrop.stretch : 0;
+          const spriteCropBgY = skin.spriteCrop?.offsetY ? size * skin.spriteCrop.offsetY : 0;
+          const stretch = spriteCropStretch
+            ? spriteCropStretch
+            : skin.id === "moonstone"
             ? size * 0.0375 + (MOONSTONE_EXTRA_STRETCH[value] || 0)
             : skin.id === "amber_wasp"
             ? (AMBER_WASP_STRETCH[value] || 0)
@@ -672,7 +702,7 @@ function Die({
                 borderRadius: radius,
                 backgroundImage: `url(${skin.spriteUrl})`,
                 backgroundSize: `${cellW * cols + stretch * 2}px ${cellH * rows + stretch * 2}px`,
-                backgroundPosition: `${-(col * (cellW + stretch * 2 / cols))}px ${-(row * (cellH + stretch * 2 / rows))}px`,
+                backgroundPosition: `${-(col * (cellW + stretch * 2 / cols))}px ${-(row * (cellH + stretch * 2 / rows)) - spriteCropBgY}px`,
                 backgroundRepeat: 'no-repeat',
               }} />
           );
@@ -684,7 +714,7 @@ function Die({
         {skin.id === "toxic_plasma_v2" && renderPipGrid()}
 
         {/* Matrix — code rain overlay */}
-        {skin.id === "matrix" && (
+        {skin.id === "matrix" && !reduceEffects && (
           <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-70 mix-blend-screen" style={{ borderRadius: radius }}>
             {Array.from({ length: 8 }).map((_, i) => (
               <motion.div
@@ -738,19 +768,6 @@ function Die({
           </>
         }
 
-        {/* Held indicator — pulsing amber glow + checkmark */}
-        {held && !used &&
-        <>
-            <motion.div
-            initial={{ scale: 0, rotate: -30 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 500, damping: 18 }}
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center text-black font-black text-xs pointer-events-none">
-            
-              ✓
-            </motion.div>
-          </>
-        }
       </button>
       </PortfolioDieProvider>
     </motion.div>);
@@ -768,6 +785,11 @@ function diePropsAreEqual(prev, next) {
     prev.scoreFill === next.scoreFill &&
     prev.bigFishVariantIndex === next.bigFishVariantIndex &&
     prev.bigFishExtraScale === next.bigFishExtraScale &&
+    prev.heldStyleId === next.heldStyleId &&
+    prev.dieId === next.dieId &&
+    prev.dieSeed === next.dieSeed &&
+    prev.lowPower === next.lowPower &&
+    prev.onToggleDie === next.onToggleDie &&
     prev.onClick === next.onClick
   );
 }

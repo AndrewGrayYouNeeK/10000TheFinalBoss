@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isLowPowerDevice } from "@/lib/platform";
 
 // Per-boss theme map: glyph set + colors. Anything not in this map falls back to dice faces.
 const THEMES = {
@@ -79,7 +80,7 @@ export default function BossRainBackground({ bossId }) {
     resize();
     window.addEventListener("resize", resize);
 
-    const COUNT = 90;
+    const COUNT = isLowPowerDevice() ? 18 : 90;
     const spawn = (initial = false) => ({
       x: randomBetween(0, canvas.width),
       y: initial ? randomBetween(0, canvas.height) : randomBetween(-canvas.height * 0.4, -20),
@@ -94,6 +95,10 @@ export default function BossRainBackground({ bossId }) {
     let frame;
 
     const draw = () => {
+      if (document.hidden) {
+        frame = requestAnimationFrame(draw);
+        return;
+      }
       // Light trail effect — fill with a low-alpha bg color each frame.
       ctx.fillStyle = "rgba(0,0,0,0.15)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
