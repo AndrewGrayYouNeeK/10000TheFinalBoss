@@ -23,7 +23,7 @@ Optional: copy `.env.example` to `.env.local` for local overrides (not required)
 | `npm run lint` | ESLint |
 | `npm run ios:sync` | Build web app + sync to iOS (Capacitor) |
 | `npm run ios:open` | Open project in Xcode |
-| `npm run ios:run` | Sync + run on iOS simulator |
+| `npm run ios:run` | Sync + run on **iPhone 17** simulator (override with `IOS_SIMULATOR=<uuid>`) |
 
 ## Progress & Cosmetics
 
@@ -41,7 +41,7 @@ npm run ios:sync    # first time: builds web + creates/syncs ios/
 npm run ios:open    # opens App.xcworkspace in Xcode
 ```
 
-In Xcode: select a simulator or device → Run (▶).
+In Xcode: select **iPhone 17** (or newer) simulator → Run (▶). There is no iPhone 16 simulator on Xcode 26 — picking an missing device causes "build failed" / destination errors.
 
 After any web code change, run `npm run ios:sync` before rebuilding in Xcode.
 

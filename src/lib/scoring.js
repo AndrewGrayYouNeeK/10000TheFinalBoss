@@ -1,5 +1,10 @@
 // Dice 10,000 (Farkle) scoring engine
 
+/** Points for a natural six-of-a-kind (not the 1-in-10,000 perfect roll). */
+export function sixOfAKindPoints(face) {
+  return face === 1 ? 6000 : face * 800;
+}
+
 // Count occurrences of each face
 function countFaces(dice) {
   const counts = [0, 0, 0, 0, 0, 0, 0]; // index 1-6
@@ -130,13 +135,38 @@ export function hasAnyScore(dice) {
 }
 
 // Describe the scoring combo for UX
-export function describeSelection(dice) {
+export function describeSelection(dice, { perfectTenKPending = false } = {}) {
   const result = scoreSelection(dice);
-  if (result.sixOfAKind) return `Six ${result.face}s — INSTANT WIN!`;
+  if (result.sixOfAKind) {
+    if (perfectTenKPending) return `Six ${result.face}s — PERFECT 10,000!`;
+    return `Six ${result.face}s — +${sixOfAKindPoints(result.face).toLocaleString()}`;
+  }
   if (result.straight) return "Straight 1-6 (1500)";
   if (result.smallStraight) return "Small Straight (1000)";
   if (result.threePairs) return "Three Pairs (1500)";
   if (!result.valid) return "Invalid — includes non-scoring dice";
   if (result.score === 0) return "No score";
   return `+${result.score}`;
+}
+
+/** Points for the current held selection (handles natural vs perfect six-of-a-kind). */
+export function heldSelectionPoints(info, perfectTenKPending = false) {
+  if (!info?.valid) return 0;
+  if (info.sixOfAKind) {
+    return perfectTenKPending ? 10000 : sixOfAKindPoints(info.face);
+  }
+  return info.score || 0;
+}
+
+/** Label shown under the dice tray for the held selection. */
+export function heldSelectionLabel(info, perfectTenKPending = false) {
+  if (!info?.valid) return "Selection includes non-scoring dice";
+  if (info.sixOfAKind) {
+    if (perfectTenKPending) return `Six ${info.face}s — PERFECT 10,000!`;
+    return `Six ${info.face}s — +${sixOfAKindPoints(info.face).toLocaleString()}`;
+  }
+  if (info.straight) return "Straight!";
+  if (info.smallStraight) return "Small Straight! +1000";
+  if (info.threePairs) return "Three Pairs!";
+  return `Selection: +${info.score}`;
 }

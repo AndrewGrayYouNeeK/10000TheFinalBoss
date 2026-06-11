@@ -4,11 +4,12 @@ import { Trophy, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LevelBadge from "@/components/online/LevelBadge";
 
-export default function ScorePanel({ players, currentIndex, target = 10000 }) {
+export default function ScorePanel({ players, currentIndex, target = 10000, obscuredIndices = null }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {players.map((p, i) => {
         const active = i === currentIndex;
+        const hidden = obscuredIndices?.has?.(i);
         const pct = Math.min(100, (p.score / target) * 100);
         return (
           <motion.div
@@ -69,17 +70,19 @@ export default function ScorePanel({ players, currentIndex, target = 10000 }) {
             </div>
             <AnimatePresence mode="popLayout">
               <motion.div
-                key={p.score}
+                key={hidden ? "hidden" : p.score}
                 initial={{ y: -10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 className={cn("text-2xl font-black tabular-nums relative")}
                 style={
-                  active
+                  hidden
+                    ? { color: "#64748b", textShadow: "0 0 12px rgba(127,90,240,0.5)" }
+                    : active
                     ? { color: "#ffffff", textShadow: "0 0 10px rgba(0,255,200,0.9), 0 0 18px rgba(255,0,170,0.5)" }
                     : { color: "#cbd5e1" }
                 }
               >
-                {p.score.toLocaleString()}
+                {hidden ? "???" : p.score.toLocaleString()}
               </motion.div>
             </AnimatePresence>
             <div className="mt-2 h-1.5 rounded-full overflow-hidden relative" style={{ background: "rgba(0,0,0,0.6)" }}>

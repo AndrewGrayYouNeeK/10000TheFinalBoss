@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dices, PiggyBank, ChevronRight } from "lucide-react";
+import { Dices, PiggyBank } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   createInitialState,
@@ -13,7 +13,10 @@ import {
   bankAndPass,
   passAfterFarkle,
   ENTRY_THRESHOLD,
+  getObscuredScoreIndices,
+  consumeSkinPower,
 } from "@/lib/gameLogic";
+import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import DiceTray from "@/components/game/DiceTray";
 import ScorePanel from "@/components/game/ScorePanel";
 import TurnBanner from "@/components/game/TurnBanner";
@@ -25,6 +28,15 @@ import CyberBackground from "@/components/game/CyberBackground";
 import GlitchNeonBanner from "@/components/game/GlitchNeonBanner";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { XP_REWARDS } from "@/lib/progression";
+import { useDiceSound } from "@/lib/useDiceSound";
+import GameAudioControls from "@/components/game/GameAudioControls";
+import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
+import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
+import { enterGamePlaySession } from "@/lib/gameAudioSettings";
+import { getSkinPower } from "@/lib/skinPowers";
+import { applySkinPower } from "@/lib/powerEffects";
+import { canAfford } from "@/lib/powers";
+import { isLowPowerDevice } from "@/lib/platform";
 
 export default function Game() {
   const navigate = useNavigate();
@@ -32,9 +44,11 @@ export default function Game() {
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null); // { word, variant }
   const [shakeTriggered, setShakeTriggered] = useState(0);
-  const { user, equippedSkinId, equippedPipsId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward } = useCosmetics();
+  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
+  const playDiceSound = useDiceSound();
   const prevBustRef = React.useRef(0);
   const winnerAwardedRef = React.useRef(false);
+  const skinPower = React.useMemo(() => getSkinPower(equippedSkinId), [equippedSkinId]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("dice10k_players");
@@ -47,6 +61,8 @@ export default function Game() {
     winnerAwardedRef.current = false;
   }, [navigate]);
 
+  React.useLayoutEffect(() => enterGamePlaySession(), []);
+
   // Show big pop-up when bust count increases
   useEffect(() => {
     if (!state) return;
@@ -55,6 +71,15 @@ export default function Game() {
       prevBustRef.current = state.bustCount;
     }
   }, [state]);
+
+  // Auto-pass after farkle — turns swap without a manual button
+  useEffect(() => {
+    if (!state?.farkle || state.winner) return;
+    const timer = setTimeout(() => {
+      setState((s) => (s?.farkle ? passAfterFarkle(s) : s));
+    }, 1400);
+    return () => clearTimeout(timer);
+  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner]);
 
   // Award coins + XP on game end (and record win / games_finished)
   useEffect(() => {
@@ -81,16 +106,35 @@ export default function Game() {
     }
   }, [state?.winner, state?.perfectTenK, addCoins, recordGameResult, user, state?.bustCount]);
 
-  // Hot dice XP — awarded each time a player clears all 6 dice in a turn
-  const prevDiceLeftRef = React.useRef(6);
+  // Hot dice XP — award once per hot-dice event (tracked in game state)
+  const prevHotDiceRef = React.useRef(0);
+
+  // Sync hot-dice tracker when the active player changes
   useEffect(() => {
     if (!state) return;
-    const remaining = state.dice.filter(d => !d.used).length;
-    if (remaining === 0 && prevDiceLeftRef.current > 0 && !state.farkle) {
-      addXp(XP_REWARDS.hotDice);
+    prevHotDiceRef.current = state.hotDiceCount || 0;
+  }, [state?.currentIndex, state]);
+  useEffect(() => {
+    if (!state) return;
+    const count = state.hotDiceCount || 0;
+    if (count > prevHotDiceRef.current && !state.farkle) {
+      addXp(XP_REWARDS.hotDice * (count - prevHotDiceRef.current));
     }
-    prevDiceLeftRef.current = remaining || 6;
-  }, [state, addXp]);
+    prevHotDiceRef.current = count;
+  }, [state?.hotDiceCount, state?.farkle, addXp, state]);
+
+  const onFireSkinPower = () => {
+    if (!state || !skinPower || state.skinPowerUsedThisTurn || !state.powerModeAvailable) return;
+    if (!canAfford(MAX_POWER, skinPower.id)) return;
+    const debuffs = state.players[state.currentIndex]?.debuffs || [];
+    if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
+
+    const result = applySkinPower(state, skinPower.id);
+    setState(consumeSkinPower(result.state));
+    if (result.message) {
+      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+    }
+  };
 
   // Shake-to-roll via DeviceMotion
   // NOTE: Uses pure acceleration (gravity removed) and a high threshold so taps
@@ -141,34 +185,44 @@ export default function Game() {
       }
     }
     return () => window.removeEventListener("devicemotion", handleMotion);
-  }, [rollAnim]);
+  }, []);
+
+  const playRollSound = useCallback(() => {
+    if (state?.players?.length >= 2 && opponentSfxMuted) return;
+    playDiceSound();
+  }, [state, opponentSfxMuted, playDiceSound]);
 
   const doRoll = useCallback(() => {
     if (!state) return;
     setRollAnim(true);
+    playRollSound();
     const rolled = rollDice(state);
     setState(rolled);
     setTimeout(() => {
       setRollAnim(false);
       setState(s => evaluateRoll(s));
     }, 900);
-  }, [state]);
+  }, [state, playRollSound]);
 
-  const onToggle = (dieId) => {
-    setState(s => toggleHold(s, dieId));
-  };
+  const onToggleDie = useCallback((dieId) => {
+    setState((s) => toggleHold(s, dieId));
+  }, []);
 
   const onRollAgain = useCallback(() => {
-    const { state: next } = confirmAndReroll(state);
-    if (!next) return;
+    if (!state || rollAnim) return;
+    const info = getHeldInfo(state);
+    if (!info.valid || heldSelectionPoints(info, state.perfectTenKPending) === 0) return;
+    const { state: next, instantWin } = confirmAndReroll(state);
+    if (instantWin) setPopup({ word: "PERFECT 10,000!", variant: "success" });
     if (next.winner) {
       setState(next);
       return;
     }
     setRollAnim(true);
+    playRollSound();
     setState(next);
     setTimeout(() => setRollAnim(false), 900);
-  }, [state]);
+  }, [state, rollAnim, playRollSound]);
 
   useEffect(() => {
     if (shakeTriggered === 0) return;
@@ -177,7 +231,7 @@ export default function Game() {
       doRoll();
     } else {
       const info = getHeldInfo(state);
-      if (info.valid && info.score > 0) onRollAgain();
+      if (info.valid && heldSelectionPoints(info, state.perfectTenKPending) > 0) onRollAgain();
     }
   }, [shakeTriggered, state, doRoll, onRollAgain, rollAnim]);
 
@@ -191,10 +245,6 @@ export default function Game() {
     setState(next);
   };
 
-  const onPassFarkle = () => {
-    setState(passAfterFarkle(state));
-  };
-
   const playAgain = () => {
     const stored = sessionStorage.getItem("dice10k_players");
     if (stored) setState(createInitialState(JSON.parse(stored)));
@@ -204,16 +254,31 @@ export default function Game() {
 
   const info = getHeldInfo(state);
   const currentPlayer = state.players[state.currentIndex];
-  const potentialTotal = state.turnScore + (info.valid ? info.score : 0);
+  const heldPoints = heldSelectionPoints(info, state.perfectTenKPending);
+  const potentialTotal = state.turnScore + (info.valid ? heldPoints : 0);
   const needsEntry = !currentPlayer.onBoard;
   const wouldOvershoot = currentPlayer.score + potentialTotal > 10000;
-  const canBank = state.hasRolled && !state.farkle && info.valid && info.score > 0 &&
+  const canBank = state.hasRolled && !state.farkle && info.valid && heldPoints > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
   const scoreFill = Math.min(1, (currentPlayer.score + state.turnScore) / 10000);
+  const obscuredScores = getObscuredScoreIndices(state);
+  const powerLocked = (currentPlayer.debuffs || []).some(
+    (d) => (typeof d === "string" ? d : d.id) === "lockout"
+  );
+  const powerFrozen = (currentPlayer.debuffs || []).some(
+    (d) => (typeof d === "string" ? d : d.id) === "freeze"
+  );
+  const powerModeActive =
+    state.powerModeAvailable &&
+    !state.skinPowerUsedThisTurn &&
+    !state.farkle &&
+    !state.winner;
+
+  const lowPower = isLowPowerDevice();
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-6 relative">
-      <CyberBackground />
+      <CyberBackground lite={lowPower} />
       <div className="relative z-10 flex flex-col flex-1">
       {/* Header */}
       <div
@@ -252,25 +317,51 @@ export default function Game() {
       </div>
 
       {/* Score panel */}
-      <div className="p-3">
-        <ScorePanel players={state.players} currentIndex={state.currentIndex} />
+      <div className="p-3 space-y-2">
+        <ScorePanel
+          players={state.players}
+          currentIndex={state.currentIndex}
+          obscuredIndices={obscuredScores}
+        />
+        <HeldDiceStylePicker
+          value={heldDiceStyleId}
+          onChange={setHeldDiceStyle}
+        />
+        {state.players.length >= 2 && (
+          <GameAudioControls
+            sfxMuted={sfxMuted}
+            opponentSfxMuted={opponentSfxMuted}
+            onToggleSfx={() => setSfxMuted(!sfxMuted)}
+            onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
+          />
+        )}
       </div>
 
       {/* Banner */}
-      <div className="px-3 mb-2">
+      <div className="px-3 mb-2 space-y-2">
         <TurnBanner message={state.message} variant={state.messageVariant} />
+        <SkinPowerPanel
+          power={MAX_POWER}
+          skinPower={skinPower}
+          powerMode={powerModeActive}
+          used={state.skinPowerUsedThisTurn}
+          locked={powerLocked}
+          disabled={powerFrozen}
+          frozen={powerFrozen}
+          onFire={onFireSkinPower}
+        />
       </div>
 
       {/* Turn score */}
       <div className="px-3 mb-3">
         <motion.div
-          animate={{ scale: info.valid && info.score > 0 ? 1.02 : 1 }}
+          animate={{ scale: info.valid && heldPoints > 0 ? 1.02 : 1 }}
           className="rounded-2xl border p-3 flex items-center justify-between relative overflow-hidden"
           style={{
             background: "linear-gradient(135deg, rgba(8,10,20,0.85), rgba(20,5,30,0.85))",
-            borderColor: info.valid && info.score > 0 ? "rgba(0,255,200,0.6)" : "rgba(255,0,170,0.35)",
+            borderColor: info.valid && heldPoints > 0 ? "rgba(0,255,200,0.6)" : "rgba(255,0,170,0.35)",
             boxShadow:
-              info.valid && info.score > 0
+              info.valid && heldPoints > 0
                 ? "0 0 20px rgba(0,255,200,0.4), inset 0 0 0 1px rgba(0,255,200,0.2)"
                 : "0 0 16px rgba(255,0,170,0.2), inset 0 0 0 1px rgba(255,0,170,0.15)",
           }}
@@ -290,12 +381,12 @@ export default function Game() {
               }}
             >
               {state.turnScore.toLocaleString()}
-              {info.valid && info.score > 0 && (
+              {info.valid && heldPoints > 0 && (
                 <span
                   className="text-xl ml-1"
                   style={{ color: "#7effc4", textShadow: "0 0 10px rgba(0,255,170,0.9)" }}
                 >
-                  +{info.score}
+                  +{heldPoints.toLocaleString()}
                 </span>
               )}
             </div>
@@ -308,7 +399,7 @@ export default function Game() {
               </div>
             </div>
           )}
-          {!needsEntry && wouldOvershoot && info.valid && info.score > 0 && (
+          {!needsEntry && wouldOvershoot && info.valid && heldPoints > 0 && (
             <div className="text-right text-xs">
               <div className="text-rose-400 font-bold">⚠️ Over 10,000!</div>
               <div className="text-slate-400">Need exactly {(10000 - currentPlayer.score - state.turnScore).toLocaleString()}</div>
@@ -331,17 +422,19 @@ export default function Game() {
           <DiceTray
             dice={state.dice}
             rolling={rollAnim}
-            onToggle={onToggle}
+            onToggle={onToggleDie}
             disabled={!state.hasRolled || state.farkle || !!state.winner}
             skinId={equippedSkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
+            heldStyleId={heldDiceStyleId}
+            lowPower={lowPower}
           />
           {info.held.length > 0 && (
             <div className="mt-2 text-center text-sm">
               {info.valid ? (
                 <span className="text-emerald-400 font-semibold">
-                  {info.sixOfAKind ? "SIX OF A KIND!" : info.straight ? "Straight!" : info.smallStraight ? "Small Straight! +1000" : info.threePairs ? "Three Pairs!" : `Selection: +${info.score}`}
+                  {heldSelectionLabel(info, state.perfectTenKPending)}
                 </span>
               ) : (
                 <span className="text-rose-400 font-semibold">Selection includes non-scoring dice</span>
@@ -362,19 +455,16 @@ export default function Game() {
         }}
       >
         {state.farkle ? (
-          <Button
-            onClick={onPassFarkle}
-            size="lg"
-            className="w-full h-14 text-lg text-white font-black uppercase tracking-widest border-2"
+          <div
+            className="w-full h-14 flex items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-rose-200"
             style={{
-              background: "linear-gradient(135deg, rgba(255,0,90,0.3), rgba(120,0,50,0.5))",
               borderColor: "#ff2858",
-              boxShadow: "0 0 24px rgba(255,40,90,0.6), inset 0 0 0 1px rgba(255,255,255,0.1)",
-              textShadow: "0 0 8px rgba(255,40,90,0.9)",
+              background: "linear-gradient(135deg, rgba(255,0,90,0.2), rgba(120,0,50,0.35))",
+              boxShadow: "0 0 20px rgba(255,40,90,0.4)",
             }}
           >
-            <ChevronRight className="w-5 h-5 mr-2" /> Next Player
-          </Button>
+            Next player&apos;s turn…
+          </div>
         ) : !state.hasRolled ? (
           <Button
             onClick={doRoll}
@@ -393,7 +483,7 @@ export default function Game() {
           <div className="grid grid-cols-2 gap-2">
             <Button
               onClick={onRollAgain}
-              disabled={!info.valid || info.score === 0 || rollAnim}
+              disabled={!info.valid || heldPoints === 0 || rollAnim}
               size="lg"
               className="h-14 text-white font-black uppercase tracking-wider border-2 disabled:opacity-30 disabled:grayscale"
               style={{

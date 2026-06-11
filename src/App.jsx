@@ -7,12 +7,14 @@ import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
+import Shop from '@/pages/Shop';
+import VocalSfxPreview from '@/pages/VocalSfxPreview';
 
 const Setup = lazy(() => import('@/pages/Setup'));
 const Game = lazy(() => import('@/pages/Game'));
 const Rules = lazy(() => import('@/pages/Rules'));
-const Shop = lazy(() => import('@/pages/Shop'));
 const PreviewDice = lazy(() => import('@/pages/PreviewDice'));
+const HeldStylePreview = lazy(() => import('@/pages/HeldStylePreview'));
 const About = lazy(() => import('@/pages/About'));
 const Contact = lazy(() => import('@/pages/Contact'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
@@ -42,6 +44,8 @@ function App() {
             <Route path="/rules" element={<Rules />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/preview-dice" element={<PreviewDice />} />
+            <Route path="/vocal-sfx" element={<VocalSfxPreview />} />
+            <Route path="/held-style" element={<HeldStylePreview />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy" element={<Privacy />} />

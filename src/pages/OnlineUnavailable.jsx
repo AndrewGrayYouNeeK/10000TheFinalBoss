@@ -5,17 +5,35 @@ import { WifiOff } from "lucide-react";
 import { motion } from "framer-motion";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import NightCityBackground from "@/components/online/NightCityBackground";
+import MuteToggleButton from "@/components/game/MuteToggleButton";
+import { useCosmetics } from "@/hooks/useCosmetics";
 
 export default function OnlineUnavailable() {
+  const { sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted } = useCosmetics();
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative text-white" style={{ background: "#020408" }}>
       <NightCityBackground />
 
       <div
-        className="absolute top-0 left-0 right-0 z-10 px-4 pb-3"
+        className="absolute top-0 left-0 right-0 z-10 px-4 pb-3 flex items-center justify-between gap-2"
         style={PAGE_HEADER_SAFE_STYLE}
       >
         <BackButton to="/" label="Back" />
+        <div className="flex items-center gap-0.5">
+          <MuteToggleButton
+            muted={sfxMuted}
+            onToggle={() => setSfxMuted(!sfxMuted)}
+            label="your sounds"
+            compact
+          />
+          <MuteToggleButton
+            muted={opponentSfxMuted}
+            onToggle={() => setOpponentSfxMuted(!opponentSfxMuted)}
+            label="opponent"
+            compact
+          />
+        </div>
       </div>
 
       <motion.div
@@ -36,9 +54,20 @@ export default function OnlineUnavailable() {
         <h1 className="font-pixel text-2xl mb-3" style={{ color: "#00ffc8" }}>
           Online Play Unavailable
         </h1>
-        <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+        <p className="text-sm text-slate-400 mb-6 leading-relaxed">
           Multiplayer requires a dedicated game server. This standalone build runs entirely on your device — use local play or story mode instead.
         </p>
+
+        <div
+          className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 mb-6 text-left"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-2">
+            Online audio settings
+          </p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Use the speaker icons above to mute <b className="text-white">your</b> sounds or <b className="text-white">opponent</b> sounds. Saved to your profile for when online play launches.
+          </p>
+        </div>
 
         <div className="flex flex-col gap-3">
           <Button asChild className="w-full font-bold" style={{ background: "linear-gradient(135deg, #00ffc8, #00b8ff)", color: "#000" }}>

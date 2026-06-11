@@ -2,6 +2,7 @@
 // Skins describe the die body. Pips describe the dots. Badges describe an animated player badge.
 
 import { EXPERIMENTAL_DICE } from "./experimentalDice";
+import { assetUrl } from "./assetUrl";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -135,6 +136,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Molten hot dice.",
     realistic: true,
     spriteUrl: "/assets/d21426962_XCSnTqF8nVT8rvkZYlH5g_BYlXoewC.png",
+    spriteCrop: { stretch: 0.1, offsetY: 0.065, zoom: 1.16 },
   },
   {
     id: "tesla",
@@ -375,6 +377,20 @@ export const PRODUCTION_DICE_SKINS = [
     realistic: true,
     spriteUrl: "/assets/2557270d2_25tUwCJ15TdeszFvoq7X3_u7DNsem8.png",
     videoUrl: "/assets/31dadb6ba_602de551430041e3ade1c21d529bc5c0.mp4",
+  },
+  {
+    id: "cyber_neon",
+    name: "Cyber Neon",
+    price: 0,
+    gradient: "from-slate-950 via-black to-slate-950",
+    border: "border-fuchsia-500",
+    pipColor: "bg-fuchsia-400",
+    glow: "shadow-fuchsia-500/80",
+    description: "Hot pink & cyan neon cyberpunk dice.",
+    preview: true,
+    realistic: true,
+    spriteUrl: "/assets/354eae8fe_generated_image.png",
+    spriteGrid: { cols: 3, rows: 2 },
   },
 ];
 
@@ -741,11 +757,20 @@ export function getSpriteStyle(skin, value, size) {
   const rows = skin.spriteGrid?.rows ?? 2;
   const col = (value - 1) % cols;
   const row = Math.floor((value - 1) / cols);
-  const url = skin.spriteUrl.startsWith("http") ? skin.spriteUrl : `${import.meta.env.BASE_URL || "./"}${skin.spriteUrl.replace(/^\//, "")}`;
+  const url = assetUrl(skin.spriteUrl);
+  const posX = cols <= 1 ? "0%" : `${(col / (cols - 1)) * 100}%`;
+  const posY = rows <= 1 ? "0%" : `${(row / (rows - 1)) * 100}%`;
+  const zoom = skin.spriteCrop?.zoom ?? 1;
+  const offsetYPx = skin.spriteCrop?.offsetY ? size * skin.spriteCrop.offsetY : 0;
+
   return {
-    backgroundImage: `url(${url})`,
-    backgroundSize: `${size * cols}px ${size * rows}px`,
-    backgroundPosition: `${-(col * size)}px ${-(row * size)}px`,
-    backgroundRepeat: 'no-repeat',
+    width: size,
+    height: size,
+    backgroundImage: `url("${url}")`,
+    backgroundSize: `${cols * 100 * zoom}% ${rows * 100 * zoom}%`,
+    backgroundPosition: offsetYPx
+      ? `${posX} calc(${posY} - ${offsetYPx}px)`
+      : `${posX} ${posY}`,
+    backgroundRepeat: "no-repeat",
   };
 }

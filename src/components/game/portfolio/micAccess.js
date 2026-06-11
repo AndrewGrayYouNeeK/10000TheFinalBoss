@@ -48,7 +48,33 @@ export function micSupportError() {
   return null;
 }
 
-export async function requestMicrophoneStream() {
+export function buildMicConstraints(settings = {}) {
+  const audio = {
+    echoCancellation: !!settings.echoCancellation,
+    noiseSuppression: !!settings.noiseSuppression,
+    autoGainControl: !!settings.autoGainControl,
+  };
+
+  if (settings.deviceId) {
+    audio.deviceId = { exact: settings.deviceId };
+  }
+
+  return { audio };
+}
+
+export async function listAudioInputDevices() {
+  if (!ensureMediaDevices() || !navigator.mediaDevices.enumerateDevices) {
+    return [];
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((d) => d.kind === "audioinput");
+  } catch {
+    return [];
+  }
+}
+
+export async function requestMicrophoneStream(settings = {}) {
   if (typeof window === "undefined") {
     throw Object.assign(new Error("Mic not supported"), { code: "NOT_SUPPORTED" });
   }
@@ -62,7 +88,11 @@ export async function requestMicrophoneStream() {
   }
 
   const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-  const attempts = [{ audio: true }, { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }];
+  const attempts = [
+    buildMicConstraints(settings),
+    { audio: true },
+    buildMicConstraints({ ...settings, deviceId: "" }),
+  ];
 
   let lastErr;
   for (const constraints of attempts) {
@@ -72,6 +102,9 @@ export async function requestMicrophoneStream() {
       lastErr = err;
       if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") throw err;
       if (err?.name === "SecurityError") throw err;
+      if (err?.name === "OverconstrainedError" && settings.deviceId) {
+        continue;
+      }
     }
   }
 

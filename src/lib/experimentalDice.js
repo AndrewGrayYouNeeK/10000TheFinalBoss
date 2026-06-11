@@ -11,7 +11,7 @@ const base = (id, name, description, category, style, extras = {}) => ({
   pipColor: "bg-white",
   glow: "",
   description,
-  preview: true,
+  customDice: true,
   experimental: true,
   category,
   style,
@@ -73,7 +73,7 @@ export const EXPERIMENTAL_DICE = [
   fx("pf_matrix_storm", "Matrix Storm", "Hyperspeed code hurricane — ANDREW GRAY letters trail down in sequence.", "matrix_storm", "matrixPip", { accentGlow: "rgba(34,197,94,0.5)" }),
   fx("pf_plasma_cut", "Plasma Cut", "Marching cut lines on the edge and pips — CUT HERE.", "plasma_cut", "plasmaCutPip"),
   fx("pf_core_burst", "Core Burst", "Hypnotic tunnel rings — endless black & white circles pulse from every pip.", "core_burst", "hypnoCorePip"),
-  fx("pf_bug_zapper", "Bug Zapper", "UV grid crackles — flies buzz around and get zapped.", "bug_zapper", "zapperPip", { accentGlow: "rgba(168,85,247,0.45)" }),
+  fx("pf_bug_zapper", "Bug Zapper", "UV grid crackles — flies buzz the pips and get zapped with a spark.", "bug_zapper", "zapperPip", { accentGlow: "rgba(168,85,247,0.45)" }),
   fx("pf_xray", "X-Ray", "Fluoroscopy scan — internal bone lattice, sweep beam, dense glowing pips.", "xray", "xrayPip", { accentGlow: "rgba(56,189,248,0.45)" }),
 ];
 

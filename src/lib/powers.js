@@ -3,6 +3,9 @@
 // Each ability costs Power to fire. Sabotage abilities target the opponent and
 // persist UNTIL THAT OPPONENT BUSTS (farkles).
 
+/** Hot dice clears required in one turn before skin power mode unlocks. */
+export const POWER_MODE_HOT_DICE = 2;
+
 export const MAX_POWER = 100;
 
 // Power gain rules

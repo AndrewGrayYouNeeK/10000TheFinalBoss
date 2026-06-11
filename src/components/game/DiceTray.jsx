@@ -1,26 +1,34 @@
-import React from "react";
+import React, { useCallback } from "react";
 import Die from "./Die";
 import { motion } from "framer-motion";
 import { getFelt } from "@/lib/shopCatalog";
-import FeltSurface from "@/components/shop/FeltSurface";
+import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 
 /**
  * Visual tray for the 6 dice. Rendered on a felt surface whose color is controlled by `feltId`.
- * dice: array of { id, value, used (banked), held (in active selection) }
  */
-export default function DiceTray({ dice, rolling, onToggle, disabled, skinId, feltId = "classic_green", scoreFill = 0.5 }) {
+function DiceTray({
+  dice,
+  rolling,
+  onToggle,
+  disabled,
+  skinId,
+  feltId = "classic_green",
+  scoreFill = 0.5,
+  heldStyleId,
+  lowPower = false,
+}) {
   const felt = getFelt(feltId);
-  return (
-    <div
-      className={`relative rounded-3xl p-6 overflow-hidden border-4 ${felt.border}`}
-      style={{
-        background: `radial-gradient(ellipse at 50% 40%, ${felt.inner} 0%, ${felt.mid} 45%, ${felt.outer} 95%)`,
-        boxShadow:
-          "inset 0 4px 12px rgba(255,255,255,0.06)",
-      }}
-    >
-      <FeltSurface felt={felt} />
 
+  const handleToggle = useCallback(
+    (dieId) => {
+      if (!disabled && onToggle) onToggle(dieId);
+    },
+    [disabled, onToggle]
+  );
+
+  return (
+    <FeltTrayFrame felt={felt} innerClassName="p-6">
       <div className="relative grid grid-cols-3 gap-3 sm:gap-6 justify-items-center sm:grid-cols-6">
         {dice.map((d, idx) => (
           <motion.div
@@ -34,16 +42,22 @@ export default function DiceTray({ dice, rolling, onToggle, disabled, skinId, fe
               held={d.held}
               used={d.used}
               rolling={rolling && !d.used}
-              onClick={() => !disabled && !d.used && onToggle && onToggle(d.id)}
+              dieId={d.id}
+              onToggleDie={handleToggle}
               size={100}
               skinId={skinId}
               scoreFill={scoreFill}
+              dieSeed={d.id}
+              heldStyleId={heldStyleId}
+              lowPower={lowPower}
               bigFishVariantIndex={[7, 1, 6, 3, 1, 4][idx]}
               bigFishExtraScale={idx === 0 ? 2.1 : idx === 4 ? 2.0 : 1.15}
             />
           </motion.div>
         ))}
       </div>
-    </div>
+    </FeltTrayFrame>
   );
 }
+
+export default React.memo(DiceTray);

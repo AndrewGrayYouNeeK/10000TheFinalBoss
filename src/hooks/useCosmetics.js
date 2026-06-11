@@ -8,8 +8,9 @@ import {
   isSkinUnlockedByTier,
   isSkinAchievementOnly,
 } from "@/lib/progression";
-import { isPreviewSkin, withPreviewOwned } from "@/lib/previewSkins";
+import { isPreviewSkin, isCustomDiceSkin, withPreviewOwned } from "@/lib/previewSkins";
 import { isDevUnlockAll } from "@/lib/devUnlock";
+import { DEFAULT_HELD_DICE_STYLE, isValidHeldDiceStyle } from "@/lib/heldDiceStyles";
 
 export function useCosmetics() {
   const queryClient = useQueryClient();
@@ -38,6 +39,11 @@ export function useCosmetics() {
   const equippedSkinId = user?.equipped_skin || "classic_white";
   const equippedBadgeId = user?.equipped_badge || "";
   const equippedFeltId = user?.equipped_felt || "classic_green";
+  const heldDiceStyleId = isValidHeldDiceStyle(user?.held_dice_style)
+    ? user.held_dice_style
+    : DEFAULT_HELD_DICE_STYLE;
+  const sfxMuted = user?.sfx_muted === true;
+  const opponentSfxMuted = user?.opponent_sfx_muted === true;
 
   const equippedSkin = getSkin(equippedSkinId);
   const equippedBadge = getBadge(equippedBadgeId);
@@ -70,7 +76,7 @@ export function useCosmetics() {
   const buyItem = (type, item) => {
     if (!user) return { ok: false, reason: "not_loaded" };
 
-    if (type === "skin" && isPreviewSkin(item.id) && !isDevUnlockAll()) {
+    if (type === "skin" && (isPreviewSkin(item.id) || isCustomDiceSkin(item.id)) && !isDevUnlockAll()) {
       return { ok: false, reason: "mystery_box_only" };
     }
 
@@ -101,6 +107,19 @@ export function useCosmetics() {
     updateMe.mutate({ [key]: itemId });
   };
 
+  const setHeldDiceStyle = (styleId) => {
+    if (!isValidHeldDiceStyle(styleId)) return;
+    updateMe.mutate({ held_dice_style: styleId });
+  };
+
+  const setSfxMuted = (muted) => {
+    updateMe.mutate({ sfx_muted: !!muted });
+  };
+
+  const setOpponentSfxMuted = (muted) => {
+    updateMe.mutate({ opponent_sfx_muted: !!muted });
+  };
+
   const grantReward = ({ skinId, badgeId }) => {
     if (!user) return { skinGranted: false, badgeGranted: false };
     const skins = user.owned_skins || ["classic_white"];
@@ -125,11 +144,15 @@ export function useCosmetics() {
     isLoading,
     coins, xp, currentTier, nextTier, introSeen,
     ownedSkins, ownedBadges, ownedFelts,
-    equippedSkinId, equippedBadgeId, equippedFeltId,
+    equippedSkinId, equippedBadgeId, equippedFeltId, heldDiceStyleId,
+    sfxMuted, opponentSfxMuted,
     equippedSkin, equippedBadge, equippedFelt,
     addCoins, addXp, markIntroSeen, recordGameResult,
     buyItem,
     equipItem,
+    setHeldDiceStyle,
+    setSfxMuted,
+    setOpponentSfxMuted,
     grantReward,
     isDevUnlockAll: isDevUnlockAll(),
     getSkinEffectivePrice: (skin) => (isDevUnlockAll() ? 0 : getSkinEffectivePrice(skin, xp)),

@@ -8,6 +8,7 @@ import {
 } from "@/lib/experimentalDice";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { toast } from "sonner";
+import VocalSfxButtons from "@/components/vocal/VocalSfxButtons";
 
 const FELT_BG =
   "radial-gradient(circle at center, #226a3b 0%, #0f3d24 70%, #061a10 100%)";
@@ -94,6 +95,15 @@ export default function PreviewDice() {
         </div>
       </div>
 
+      <div className="max-w-4xl mx-auto px-3 pt-2">
+        <div className="rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/25 px-3 py-3">
+          <p className="text-xs font-bold text-fuchsia-200 text-center mb-2">
+            🔊 Vocal SFX prototypes
+          </p>
+          <VocalSfxButtons compact />
+        </div>
+      </div>
+
       <div className="max-w-4xl mx-auto px-3 pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
         {skins.map((skin) => {
           const equipped = equippedSkinId === skin.id;
@@ -145,7 +155,7 @@ export default function PreviewDice() {
       </div>
 
       <p className="text-center text-xs text-slate-500 mt-6 px-4">
-        {skins.length} dice — Soundwave: tap the die once to allow mic, then talk or make noise.
+        {skins.length} dice — Soundwave: tap for mic, then tap ⚙ Mic for presets, sensitivity, and device options.
       </p>
     </div>
   );

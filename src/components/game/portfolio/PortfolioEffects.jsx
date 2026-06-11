@@ -3,6 +3,10 @@ import { motion, useMotionValue, useTransform } from "framer-motion";
 import { EdgeFrame, NoiseFilm } from "./primitives";
 import { usePortfolioDie } from "./PortfolioDieContext";
 import { useAudioLevels } from "./useAudioLevels";
+import SoundwaveMicPanel from "./SoundwaveMicPanel";
+import { armBugZapperAudio, playBugZapSound, startBugZapperHum, stopBugZapperHum, whenBugZapperAudioReady } from "./bugZapperSound";
+import { useCosmetics } from "@/hooks/useCosmetics";
+import { shouldPlayBugZapperSfx } from "@/lib/gameAudioSettings";
 
 function SweepLine({ color = "rgba(0,255,255,0.85)", width = 3 }) {
   const ctx = usePortfolioDie();
@@ -220,7 +224,7 @@ function rippleMaxRadius(x, y) {
 function HypnoBurstRings({ layout, radius }) {
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
   const ringCount = 120;
-  const ringDuration = 1.35;
+  const ringDuration = 2.35;
   const stagger = ringDuration / ringCount;
 
   return (
@@ -419,96 +423,276 @@ function XrayScene({ radius, layout }) {
   );
 }
 
-function FlyIcon({ size = 9 }) {
+function FlyIcon({ size = 9, variant = {} }) {
+  const {
+    wingColor = "rgba(230,230,230,0.82)",
+    bodyColor = "#0a0a0a",
+    headColor = "#0a0a0a",
+    wingSpeed = 0.07,
+    wingDelay = 0.035,
+    mirror = false,
+    bodyRx = 2.4,
+    bodyRy = 3.6,
+    headR = 1.6,
+    wingRx = 4.5,
+    wingRy = 2,
+  } = variant;
+
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" style={{ overflow: "visible", display: "block" }}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      style={{
+        overflow: "visible",
+        display: "block",
+        transform: mirror ? "scaleX(-1)" : undefined,
+      }}
+    >
       <motion.ellipse
         cx="6"
         cy="7"
-        rx="4.5"
-        ry="2"
-        fill="rgba(230,230,230,0.8)"
-        animate={{ ry: [2, 0.5, 2] }}
-        transition={{ duration: 0.07, repeat: Infinity }}
+        rx={wingRx}
+        ry={wingRy}
+        fill={wingColor}
+        animate={{ ry: [wingRy, wingRy * 0.25, wingRy] }}
+        transition={{ duration: wingSpeed, repeat: Infinity }}
       />
       <motion.ellipse
         cx="14"
         cy="7"
-        rx="4.5"
-        ry="2"
-        fill="rgba(230,230,230,0.8)"
-        animate={{ ry: [2, 0.5, 2] }}
-        transition={{ duration: 0.07, repeat: Infinity, delay: 0.035 }}
+        rx={wingRx}
+        ry={wingRy}
+        fill={wingColor}
+        animate={{ ry: [wingRy, wingRy * 0.25, wingRy] }}
+        transition={{ duration: wingSpeed, repeat: Infinity, delay: wingDelay }}
       />
-      <ellipse cx="10" cy="12" rx="2.4" ry="3.6" fill="#0a0a0a" />
-      <circle cx="10" cy="8.5" r="1.6" fill="#0a0a0a" />
+      <ellipse cx="10" cy="12" rx={bodyRx} ry={bodyRy} fill={bodyColor} />
+      <circle cx="10" cy="8.5" r={headR} fill={headColor} />
+      {(variant.stripe || variant.spots) && (
+        <ellipse
+          cx="10"
+          cy="11.5"
+          rx={bodyRx * 0.55}
+          ry={bodyRy * 0.35}
+          fill={variant.stripe || "rgba(255,255,255,0.18)"}
+        />
+      )}
     </svg>
   );
 }
 
-function BuzzingFly({ id, size, points, duration, delay, zapAt }) {
-  const xs = [...points.map((p) => `${p.x}%`), `${points[0].x}%`];
-  const ys = [...points.map((p) => `${p.y}%`), `${points[0].y}%`];
-  const tZap = Math.min(0.92, Math.max(0.35, zapAt));
-  const times = [0, tZap - 0.08, tZap - 0.02, tZap, tZap + 0.04, tZap + 0.1, 1];
+const FLY_PALETTES = [
+  { wingColor: "rgba(230,230,230,0.85)", bodyColor: "#0a0a0a", headColor: "#0a0a0a" },
+  { wingColor: "rgba(198,224,168,0.82)", bodyColor: "#142010", headColor: "#1a2810", stripe: "rgba(120,180,80,0.35)" },
+  { wingColor: "rgba(176,198,232,0.78)", bodyColor: "#101820", headColor: "#0c1420", stripe: "rgba(100,160,220,0.28)" },
+  { wingColor: "rgba(242,210,168,0.84)", bodyColor: "#281808", headColor: "#201005" },
+  { wingColor: "rgba(220,186,220,0.8)", bodyColor: "#180818", headColor: "#140614", stripe: "rgba(200,120,220,0.22)" },
+  { wingColor: "rgba(255,230,190,0.75)", bodyColor: "#201810", headColor: "#181008", spots: true },
+  { wingColor: "rgba(190,210,190,0.8)", bodyColor: "#101810", headColor: "#0c140c" },
+  { wingColor: "rgba(255,210,210,0.78)", bodyColor: "#200808", headColor: "#180606", stripe: "rgba(255,120,120,0.25)" },
+];
 
+function getFlyVariant(flySeed) {
+  const palette = FLY_PALETTES[Math.floor(seeded(flySeed, 1) * FLY_PALETTES.length)];
+  const scale = 0.78 + seeded(flySeed, 2) * 0.48;
+  return {
+    ...palette,
+    mirror: seeded(flySeed, 3) > 0.5,
+    wingSpeed: 0.055 + seeded(flySeed, 4) * 0.045,
+    wingDelay: 0.02 + seeded(flySeed, 5) * 0.04,
+    bodyRx: 2.1 + seeded(flySeed, 6) * 0.7,
+    bodyRy: 3.1 + seeded(flySeed, 7) * 0.9,
+    headR: 1.35 + seeded(flySeed, 8) * 0.45,
+    wingRx: 3.8 + seeded(flySeed, 9) * 1.2,
+    wingRy: 1.6 + seeded(flySeed, 10) * 0.7,
+    scale,
+  };
+}
+
+function clampPct(v) {
+  return Math.min(91, Math.max(9, v));
+}
+
+/** Random path across the die — stays away from pip zapper nodes until landing. */
+function buildWanderPath(seed, pips) {
+  const count = 4 + Math.floor(seeded(seed, 7) * 3);
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    let x;
+    let y;
+    let tries = 0;
+    do {
+      x = clampPct(10 + seeded(seed, i * 2 + 1) * 80);
+      y = clampPct(10 + seeded(seed, i * 2 + 2) * 80);
+      tries++;
+    } while (tries < 10 && pips.some((p) => Math.hypot(p.x - x, p.y - y) < 9));
+    points.push({ x, y });
+  }
+  return points;
+}
+
+function ZapBurstFlash({ x, y, active }) {
+  if (!active) return null;
   return (
     <motion.div
-      className="absolute pointer-events-none z-[6]"
-      style={{ x: "-50%", y: "-50%" }}
-      animate={{
-        left: xs,
-        top: ys,
-        opacity: [1, 1, 1, 1, 0, 0, 1],
-        scale: [1, 1, 1, 1, 2.4, 0.15, 1],
-        rotate: [0, 12, -8, 15, 40, 0, 0],
-      }}
-      transition={{
-        duration,
-        repeat: Infinity,
-        delay,
-        times,
-        ease: "linear",
-      }}
+      className="absolute pointer-events-none z-[7]"
+      style={{ left: `${x}%`, top: `${y}%`, x: "-50%", y: "-50%" }}
+      initial={{ opacity: 0.95, scale: 0.5 }}
+      animate={{ opacity: 0, scale: 2.8 }}
+      transition={{ duration: 0.16, ease: "easeOut" }}
     >
-      <motion.div
-        className="absolute left-1/2 bottom-full pointer-events-none"
+      <div
+        className="rounded-full"
         style={{
-          width: 1.5,
-          height: 18,
-          marginLeft: -0.75,
-          background: "linear-gradient(to top, rgba(255,255,255,0.9), rgba(56,189,248,0.5), transparent)",
-          boxShadow: "0 0 6px #fff",
+          width: 16,
+          height: 16,
+          background: "radial-gradient(circle, #fff 0%, #c4b5fd 35%, rgba(168,85,247,0.5) 60%, transparent 75%)",
+          boxShadow: "0 0 14px #fff, 0 0 26px rgba(168,85,247,0.95)",
         }}
-        animate={{ opacity: [0, 0, 0, 1, 0, 0, 0], scaleY: [0.2, 0.2, 0.2, 1, 0.2, 0.2, 0.2] }}
-        transition={{ duration, repeat: Infinity, delay, times, ease: "linear" }}
       />
-      <FlyIcon size={size} />
     </motion.div>
   );
 }
 
-function BugZapperScene({ radius, layout }) {
+function ZapperFly({ targets, instanceKey, initialDelay = 0, variant = {} }) {
+  const [cycle, setCycle] = useState(0);
+  const [phase, setPhase] = useState("idle");
+  const [targetPip, setTargetPip] = useState(null);
+  const [showBurst, setShowBurst] = useState(false);
+
+  const seed = instanceKey * 997 + cycle * 131;
+  const wanderPoints = React.useMemo(() => buildWanderPath(seed, targets), [seed, targets]);
+  const wanderDur = 2.8 + seeded(seed, 8) * 3.2;
+  const approachDur = 0.28 + seeded(seed, 9) * 0.34;
+  const size = (5 + seeded(seed, 0) * 4) * (variant.scale || 1);
+
+  useEffect(() => {
+    let timer;
+
+    if (phase === "idle") {
+      const wait = cycle === 0 ? initialDelay : 0.55 + seeded(seed, 11) * 1.1;
+      timer = setTimeout(() => {
+        const pip = targets[Math.floor(seeded(seed, 10) * targets.length)];
+        setTargetPip(pip);
+        setPhase("wander");
+      }, wait * 1000);
+    } else if (phase === "wander") {
+      timer = setTimeout(() => setPhase("approach"), wanderDur * 1000);
+    } else if (phase === "approach") {
+      timer = setTimeout(() => {
+        setShowBurst(true);
+        if (shouldPlayBugZapperSfx()) playBugZapSound();
+        setPhase("zap");
+      }, approachDur * 1000);
+    } else if (phase === "zap") {
+      timer = setTimeout(() => {
+        setShowBurst(false);
+        setTargetPip(null);
+        setCycle((c) => c + 1);
+        setPhase("idle");
+      }, 170);
+    }
+
+    return () => clearTimeout(timer);
+  }, [phase, cycle, seed, targets, initialDelay, wanderDur, approachDur]);
+
+  const visible = phase !== "idle" && phase !== "zap";
+  const atPip = (phase === "approach" || phase === "zap") && targetPip;
+
+  let animate;
+  let transition;
+
+  if (phase === "wander") {
+    animate = {
+      left: wanderPoints.map((p) => `${p.x}%`),
+      top: wanderPoints.map((p) => `${p.y}%`),
+      opacity: 1,
+      scale: 1,
+      rotate: wanderPoints.map((_, i) => (seeded(seed, 20 + i) > 0.5 ? 14 : -12) + (i % 3) * 6),
+    };
+    transition = { duration: wanderDur, ease: "linear" };
+  } else if (phase === "approach" && targetPip) {
+    animate = {
+      left: `${targetPip.x}%`,
+      top: `${targetPip.y}%`,
+      opacity: 1,
+      scale: 1,
+      rotate: 18,
+    };
+    transition = { duration: approachDur, ease: "easeIn" };
+  } else if (phase === "zap" && targetPip) {
+    animate = {
+      left: `${targetPip.x}%`,
+      top: `${targetPip.y}%`,
+      opacity: 0,
+      scale: 2.6,
+      rotate: 48,
+    };
+    transition = { duration: 0.14, ease: "easeOut" };
+  } else {
+    animate = {
+      left: `${wanderPoints[0]?.x ?? 50}%`,
+      top: `${wanderPoints[0]?.y ?? 50}%`,
+      opacity: 0,
+      scale: 0.6,
+      rotate: 0,
+    };
+    transition = { duration: 0.12 };
+  }
+
+  return (
+    <>
+      {targetPip && <ZapBurstFlash x={targetPip.x} y={targetPip.y} active={showBurst} />}
+      <motion.div
+        key={`fly-${instanceKey}-${cycle}`}
+        className="absolute pointer-events-none z-[6]"
+        style={{ x: "-50%", y: "-50%", opacity: visible ? 1 : 0 }}
+        animate={animate}
+        transition={transition}
+      >
+        {atPip && phase === "approach" && (
+          <motion.div
+            className="absolute left-1/2 bottom-full pointer-events-none"
+            style={{
+              width: 2,
+              height: 22,
+              marginLeft: -1,
+              background:
+                "linear-gradient(to top, rgba(255,255,255,1), rgba(196,181,253,0.85), rgba(56,189,248,0.35), transparent)",
+              boxShadow: "0 0 8px #fff, 0 0 14px rgba(168,85,247,0.9)",
+              transformOrigin: "50% 100%",
+            }}
+            initial={{ opacity: 0, scaleY: 0.2 }}
+            animate={{ opacity: 1, scaleY: 1.15 }}
+            transition={{ duration: approachDur * 0.85, ease: "easeIn" }}
+          />
+        )}
+        <FlyIcon size={size} variant={variant} />
+      </motion.div>
+    </>
+  );
+}
+
+function BugZapperScene({ radius, layout, dieSeed = 0 }) {
   const uid = React.useId().replace(/:/g, "");
   const glowId = `zapMeshGlow${uid}`;
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
-  const flyCount = Math.min(5, 2 + targets.length);
+  const flyCount = targets.length > 0 ? 1 + Math.floor(seeded(dieSeed, 50) * 2) : 0;
+  const { sfxMuted } = useCosmetics();
 
-  const flies = React.useMemo(
-    () =>
-      Array.from({ length: flyCount }, (_, i) => ({
-        id: i,
-        size: 5 + seeded(i, 0) * 4,
-        duration: 2.8 + seeded(i, 1) * 2.2,
-        delay: seeded(i, 2) * 2.5,
-        zapAt: 0.55 + seeded(i, 3) * 0.22,
-        points: Array.from({ length: 4 }, (_, j) => ({
-          x: 12 + seeded(i, j + 5) * 76,
-          y: 12 + seeded(i, j + 10) * 76,
-        })),
-      })),
-    [flyCount]
-  );
+  useEffect(() => {
+    if (!shouldPlayBugZapperSfx()) {
+      stopBugZapperHum();
+      return undefined;
+    }
+    armBugZapperAudio();
+    const unsub = whenBugZapperAudioReady(() => startBugZapperHum());
+    return () => {
+      unsub();
+      stopBugZapperHum();
+    };
+  }, [sfxMuted]);
 
   return (
     <>
@@ -555,9 +739,19 @@ function BugZapperScene({ radius, layout }) {
         ))}
         <rect x="6" y="6" width="88" height="88" rx="6" fill="none" stroke="rgba(167,139,250,0.4)" strokeWidth="0.9" />
       </svg>
-      {flies.map((f) => (
-        <BuzzingFly key={f.id} {...f} />
-      ))}
+      {Array.from({ length: flyCount }, (_, i) => {
+        const flySeed = dieSeed * 41 + i * 9973;
+        const variant = getFlyVariant(flySeed);
+        return (
+          <ZapperFly
+            key={`fly-${dieSeed}-${i}`}
+            instanceKey={flySeed}
+            targets={targets}
+            variant={variant}
+            initialDelay={seeded(flySeed, 12) * 4.2 + i * 1.1}
+          />
+        );
+      })}
       <EdgeFrame radius={radius} color="rgba(167,139,250,0.45)" glow="0 0 10px rgba(168,85,247,0.3)" />
     </>
   );
@@ -589,17 +783,17 @@ function MatrixStormScene({ radius }) {
           className="absolute font-mono font-bold pointer-events-none select-none leading-none uppercase"
           style={{
             left: `${(i / columns) * 100}%`,
-            fontSize: 6.5,
+            fontSize: 7,
             color: i % 4 === 0 ? "#4ade80" : "#16a34a",
             textShadow: "0 0 4px #4ade80",
-            opacity: 0.85,
+            opacity: 0.9,
             letterSpacing: "0.06em",
           }}
           animate={{ top: ["-110%", "130%"] }}
           transition={{
-            duration: 0.082 + (i % 5) * 0.014,
+            duration: 3.6 + (i % 5) * 0.45,
             repeat: Infinity,
-            delay: (i * 0.05) % 0.42,
+            delay: (i * 0.34) % 2.6,
             ease: "linear",
           }}
         >
@@ -609,7 +803,7 @@ function MatrixStormScene({ radius }) {
               <div
                 key={j}
                 style={{
-                  opacity: j === 0 ? 1 : 0.2 + ((j + i) % 3) * 0.12,
+                  opacity: j === 0 ? 1 : 0.35 + ((j + i) % 3) * 0.12,
                   color: j === 0 ? "#fff" : undefined,
                   minWidth: char === " " ? "0.4em" : undefined,
                 }}
@@ -625,21 +819,21 @@ function MatrixStormScene({ radius }) {
         className="absolute inset-0 flex items-center justify-center font-mono font-bold pointer-events-none select-none z-[6] uppercase text-center px-1"
         style={{
           color: "#86efac",
-          fontSize: 5.6,
+          fontSize: 6.2,
           lineHeight: 1.05,
           letterSpacing: "0.2em",
           textShadow: "0 0 10px #22c55e",
         }}
         animate={{
-          opacity: [0, 0, 0.9, 0],
-          scale: [0.92, 0.92, 1.04, 1.1],
-          filter: ["blur(4px)", "blur(4px)", "blur(0px)", "blur(6px)"],
+          opacity: [0, 0, 0.95, 0.95, 0],
+          scale: [0.96, 0.96, 1, 1.02],
+          filter: ["blur(3px)", "blur(3px)", "blur(0px)", "blur(0px)", "blur(4px)"],
         }}
         transition={{
-          duration: 0.28,
+          duration: 2.4,
           repeat: Infinity,
-          repeatDelay: 2.4,
-          ease: "easeOut",
+          repeatDelay: 5.5,
+          ease: "easeInOut",
         }}
       >
         {MATRIX_STORM_TEXT}
@@ -650,10 +844,30 @@ function MatrixStormScene({ radius }) {
 }
 
 function SoundwaveBars() {
-  const { levels, live, pending, error, synthetic, enableMic } = useAudioLevels(14, true);
+  const {
+    levels,
+    live,
+    pending,
+    error,
+    synthetic,
+    settings,
+    devices,
+    enableMic,
+    updateSettings,
+    refreshDevices,
+    restartMic,
+  } = useAudioLevels(14, true);
 
   return (
     <>
+      <SoundwaveMicPanel
+        settings={settings}
+        devices={devices}
+        live={live}
+        onChange={updateSettings}
+        onRefreshDevices={refreshDevices}
+        onRestart={restartMic}
+      />
       {!live && (
         <div
           role="button"
@@ -671,12 +885,17 @@ function SoundwaveBars() {
               enableMic();
             }
           }}
-          title={error || "Tap to enable audio"}
+          title={error || "Tap to enable microphone"}
         >
           <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 text-cyan-300 border border-cyan-500/40">
-            {pending ? "Listening…" : error || "Tap for audio"}
+            {pending ? "Listening…" : error || "Tap for mic"}
           </span>
         </div>
+      )}
+      {live && !synthetic && (
+        <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 z-10 text-[6px] font-bold uppercase tracking-wider text-emerald-300/90 pointer-events-none">
+          Live mic
+        </span>
       )}
       {live && synthetic && error && (
         <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 z-10 text-[6px] font-bold uppercase tracking-wider text-amber-300/80 pointer-events-none">
@@ -689,10 +908,10 @@ function SoundwaveBars() {
             key={i}
             className="flex-1 rounded-t-sm origin-bottom"
             style={{
-              height: `${lv * 88}%`,
+              height: `${Math.min(100, lv * 100)}%`,
               background: `linear-gradient(to top, ${i % 2 ? "#ff00ea" : "#00ffff"}, rgba(255,255,255,0.8))`,
-              boxShadow: `0 0 6px ${i % 2 ? "rgba(255,0,234,0.5)" : "rgba(0,255,255,0.5)"}`,
-              transition: live ? "height 40ms linear" : undefined,
+              boxShadow: `0 0 ${4 + lv * 10}px ${i % 2 ? "rgba(255,0,234,0.5)" : "rgba(0,255,255,0.5)"}`,
+              transition: live ? "height 35ms linear" : undefined,
             }}
           />
         ))}
@@ -966,17 +1185,17 @@ const EFFECTS = {
     <HypnoBurstRings layout={layout} radius={radius} />
   ),
 
-  bug_zapper: ({ radius, layout }) => (
-    <BugZapperScene radius={radius} layout={layout} />
+  bug_zapper: ({ radius, layout, dieSeed }) => (
+    <BugZapperScene radius={radius} layout={layout} dieSeed={dieSeed ?? 0} />
   ),
 
   xray: ({ radius, layout }) => <XrayScene radius={radius} layout={layout} />,
 };
 
-export default function PortfolioDieEffect({ effectId, radius, scoreFill, layout, size }) {
+export default function PortfolioDieEffect({ effectId, radius, scoreFill, layout, size, dieSeed = 0 }) {
   const Effect = EFFECTS[effectId];
   if (!Effect) return null;
-  return <Effect radius={radius} scoreFill={scoreFill} layout={layout} size={size} />;
+  return <Effect radius={radius} scoreFill={scoreFill} layout={layout} size={size} dieSeed={dieSeed} />;
 }
 
 export const PORTFOLIO_EFFECT_IDS = Object.keys(EFFECTS);

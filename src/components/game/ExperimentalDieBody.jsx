@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import PortfolioDieEffect from "./portfolio/PortfolioEffects";
 
 /** Renders procedural body for experimental / preview dice from skin.style config */
-export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, layout, size = 64 }) {
+export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, layout, size = 64, dieSeed = 0 }) {
   if (!style) return null;
 
   if (style.effectId) {
@@ -14,6 +14,7 @@ export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, la
         scoreFill={scoreFill}
         layout={layout}
         size={size}
+        dieSeed={dieSeed}
       />
     );
   }
@@ -98,9 +99,10 @@ export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, la
 
 export function getExperimentalShadow(style, size, state = {}) {
   if (!style) return "none";
-  const { used, held, selected } = state;
+  const { used, held, selected, heldStyleId = "amber_glow" } = state;
   if (used) return "none";
-  if (held) return `0 0 0 ${Math.round(size * 0.07)}px #fcd34d`;
+  if (held && heldStyleId === "corner_badge") return `0 0 0 ${Math.round(size * 0.07)}px #fcd34d`;
+  if (held) return `0 0 ${Math.round(size * 0.12)}px rgba(251,191,36,0.25)`;
   if (selected) return `0 0 0 ${Math.round(size * 0.05)}px rgba(52,211,153,0.6)`;
   if (style.outerShadow) return style.outerShadow.replace(/\{size\}/g, String(size));
   if (style.kind === "clear" && style.edgeColor) {
