@@ -184,6 +184,13 @@ export default function Home() {
 
         <DiamondShowcase />
 
+        <Link
+          to="/sfx-preview"
+          className="mb-4 flex items-center justify-center gap-2 rounded-xl border-2 border-cyan-400/60 bg-cyan-500/20 px-4 py-4 text-sm font-black text-cyan-100 hover:bg-cyan-500/30 transition-colors shadow-lg shadow-cyan-500/20"
+        >
+          🔊 TAP HERE — Dice roll & vocal sound previews
+        </Link>
+
         {native && <div className="flex-1 min-h-2" aria-hidden />}
 
         {/* Buttons */}

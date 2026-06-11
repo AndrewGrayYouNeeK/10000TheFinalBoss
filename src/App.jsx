@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import React, { Component, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -7,8 +7,9 @@ import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
-import Shop from '@/pages/Shop';
-import VocalSfxPreview from '@/pages/VocalSfxPreview';
+
+const Shop = lazy(() => import('@/pages/Shop'));
+const SfxPreview = lazy(() => import('@/pages/SfxPreview'));
 
 const Setup = lazy(() => import('@/pages/Setup'));
 const Game = lazy(() => import('@/pages/Game'));
@@ -30,6 +31,29 @@ function PageLoader() {
   );
 }
 
+class RouteErrorBoundary extends Component {
+  state = { error: null };
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white px-6 text-center gap-4">
+          <p className="text-rose-400 font-bold">Something went wrong loading this page.</p>
+          <p className="text-xs text-slate-400 max-w-sm">{this.state.error.message}</p>
+          <a href="/" className="text-cyan-400 text-sm font-bold underline">
+            Back to Home
+          </a>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const Router = isNativeApp() ? HashRouter : BrowserRouter;
 
@@ -37,6 +61,7 @@ function App() {
     <QueryClientProvider client={queryClientInstance}>
       <Router>
         <Suspense fallback={<PageLoader />}>
+          <RouteErrorBoundary>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/setup" element={<Setup />} />
@@ -44,7 +69,8 @@ function App() {
             <Route path="/rules" element={<Rules />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/preview-dice" element={<PreviewDice />} />
-            <Route path="/vocal-sfx" element={<VocalSfxPreview />} />
+            <Route path="/vocal-sfx" element={<SfxPreview />} />
+            <Route path="/sfx-preview" element={<SfxPreview />} />
             <Route path="/held-style" element={<HeldStylePreview />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
@@ -55,6 +81,7 @@ function App() {
             <Route path="/story/:bossId" element={<StoryGame />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
+          </RouteErrorBoundary>
         </Suspense>
       </Router>
       <Toaster />

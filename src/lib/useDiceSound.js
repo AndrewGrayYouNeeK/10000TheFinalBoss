@@ -3,7 +3,7 @@ import { shouldPlaySfx } from "@/lib/gameAudioSettings";
 import { playDiceRollSound } from "@/lib/diceSoundEngine";
 
 /**
- * Hook that returns a play() function for the digital synth dice roll SFX.
+ * Hook that returns a play() function for the soft felt dice roll SFX.
  */
 export function useDiceSound() {
   const play = useCallback((options = {}) => {

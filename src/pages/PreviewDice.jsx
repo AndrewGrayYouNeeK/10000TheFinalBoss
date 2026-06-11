@@ -46,6 +46,13 @@ export default function PreviewDice() {
           </div>
         </div>
 
+        <div className="max-w-4xl mx-auto mt-3 rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/25 px-3 py-3">
+          <p className="text-xs font-bold text-fuchsia-200 text-center mb-2">
+            🔊 Vocal SFX prototypes — tap to preview
+          </p>
+          <VocalSfxButtons compact />
+        </div>
+
         <div className="max-w-4xl mx-auto mt-3 rounded-xl border border-cyan-500/20 bg-cyan-950/20 px-3 py-2">
           <label className="text-[10px] text-cyan-300 font-bold block mb-1">
             Score Meter demo fill ({Math.round(demoScore * 10000).toLocaleString()} / 10,000)
@@ -92,15 +99,6 @@ export default function PreviewDice() {
               {v}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-3 pt-2">
-        <div className="rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/25 px-3 py-3">
-          <p className="text-xs font-bold text-fuchsia-200 text-center mb-2">
-            🔊 Vocal SFX prototypes
-          </p>
-          <VocalSfxButtons compact />
         </div>
       </div>
 
