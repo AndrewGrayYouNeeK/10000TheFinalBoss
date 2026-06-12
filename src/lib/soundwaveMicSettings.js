@@ -100,7 +100,7 @@ export const DEFAULT_MIC_SETTINGS = {
   echoCancellation: false,
   noiseSuppression: false,
   autoGainControl: false,
-  autoEnable: true,
+  autoEnable: false,
 };
 
 export function getMicPreset(id) {

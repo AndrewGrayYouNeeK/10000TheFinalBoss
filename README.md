@@ -22,7 +22,8 @@ Optional: copy `.env.example` to `.env.local` for local overrides (not required)
 | `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
 | `npm run ios:sync` | Build web app + sync to iOS (Capacitor) |
-| `npm run ios:open` | Open project in Xcode |
+| `npm run ios:fix` | Clean DerivedData, reinstall pods, sync, open workspace |
+| `npm run ios:open` | Open **App.xcworkspace** in Xcode (not `.xcodeproj`) |
 | `npm run ios:run` | Sync + run on **iPhone 17** simulator (override with `IOS_SIMULATOR=<uuid>`) |
 
 ## Progress & Cosmetics
@@ -39,6 +40,12 @@ This project uses [Capacitor](https://capacitorjs.com/) to wrap the web app as a
 npm install
 npm run ios:sync    # first time: builds web + creates/syncs ios/
 npm run ios:open    # opens App.xcworkspace in Xcode
+```
+
+**Important:** Always open `ios/App/App.xcworkspace`, **never** `App.xcodeproj`. Opening the `.xcodeproj` alone skips CocoaPods and causes errors like `Search path .../Capacitor not found`. If that happens, run:
+
+```bash
+npm run ios:fix
 ```
 
 In Xcode: select **iPhone 17** (or newer) simulator → Run (▶). There is no iPhone 16 simulator on Xcode 26 — picking an missing device causes "build failed" / destination errors.

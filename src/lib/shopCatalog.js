@@ -396,16 +396,35 @@ export const PRODUCTION_DICE_SKINS = [
 
 /** Shop dice sections */
 export const SHOP_DICE_CATEGORIES = [
-  { id: "gemstone", label: "Gemstones", blurb: "Classic, gold, chrome & prison dice" },
+  { id: "regular", label: "Regular", blurb: "Classic, gold, chrome & prison dice" },
+  { id: "gemstone", label: "Gemstones", blurb: "Gems, materials & standard sets" },
   { id: "exotic", label: "Exotic", blurb: "Cosmic, tech, themed & wild" },
-  { id: "regular", label: "Regular", blurb: "Gems, materials & standard sets" },
 ];
 
-const GEMSTONE_SKIN_IDS = new Set([
+const REGULAR_SKIN_IDS = new Set([
   "classic_white",
   "gold",
   "silver",
   "paper",
+]);
+
+const GEMSTONE_SKIN_IDS = new Set([
+  "obsidian",
+  "ice",
+  "wood",
+  "amethyst",
+  "moonstone",
+  "teal_crackle",
+  "fluorite",
+  "aquamarine",
+  "aquamarine_light",
+  "labradorite",
+  "labradorite_polished",
+  "pride",
+  "ruby",
+  "crystal_cut",
+  "love_is_love",
+  "cyber_neon",
 ]);
 
 const EXOTIC_SKIN_IDS = new Set([
@@ -424,8 +443,9 @@ const EXOTIC_SKIN_IDS = new Set([
 ]);
 
 export function getSkinShopCategory(skinId) {
-  if (GEMSTONE_SKIN_IDS.has(skinId)) return "gemstone";
+  if (REGULAR_SKIN_IDS.has(skinId)) return "regular";
   if (EXOTIC_SKIN_IDS.has(skinId)) return "exotic";
+  if (GEMSTONE_SKIN_IDS.has(skinId)) return "gemstone";
   return "regular";
 }
 

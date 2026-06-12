@@ -6,6 +6,7 @@ import {
   createAudioContext,
   ensureMediaDevices,
   listAudioInputDevices,
+  micSupportError,
   requestMicrophoneStream,
   resumeAudioContext,
 } from "./micAccess";
@@ -36,6 +37,7 @@ class AudioLevelsEngine {
     this._ctx = null;
     this._analyser = null;
     this._gainNode = null;
+    this._silentSink = null;
     this._freq = null;
     this._time = null;
     this._raf = null;
@@ -109,10 +111,18 @@ class AudioLevelsEngine {
     if (this._gestureBound || typeof document === "undefined") return;
     this._gestureBound = true;
     const onGesture = () => {
-      this._resumeContext();
+      void this._resumeContext();
     };
     document.addEventListener("pointerdown", onGesture, { passive: true });
     document.addEventListener("keydown", onGesture);
+  }
+
+  async _ensureAudioContext() {
+    if (!this._ctx || this._ctx.state === "closed") {
+      this._ctx = createAudioContext();
+    }
+    await resumeAudioContext(this._ctx);
+    return this._ctx;
   }
 
   async _resumeContext() {
@@ -138,6 +148,7 @@ class AudioLevelsEngine {
     this._raf = null;
     this._analyser = null;
     this._gainNode = null;
+    this._silentSink = null;
     this._freq = null;
     this._time = null;
   }
@@ -165,26 +176,48 @@ class AudioLevelsEngine {
     this._time = new Uint8Array(this._analyser.fftSize);
   }
 
+  _wireAnalyserOutput() {
+    this._silentSink = this._ctx.createGain();
+    this._silentSink.gain.value = 0;
+    this._gainNode.connect(this._analyser);
+    this._analyser.connect(this._silentSink);
+    this._silentSink.connect(this._ctx.destination);
+  }
+
+  _micErrorMessage(micErr) {
+    if (micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError") {
+      return "Mic blocked — allow access in browser settings, then tap to retry";
+    }
+    if (micErr?.code === "INSECURE_CONTEXT") return micErr.message;
+    if (micErr?.name === "NotFoundError") return "No mic found — check device";
+    return micErr?.message || "Mic unavailable — tap to retry";
+  }
+
   async _startMicrophone() {
     this._cleanupNodes();
+    await this._ensureAudioContext();
     this._stream = await requestMicrophoneStream(this.settings);
-    const ctx = createAudioContext();
-    await this._setupAnalyser(ctx);
+
+    const tracks = this._stream.getAudioTracks?.() ?? [];
+    if (!tracks.length) {
+      throw Object.assign(new Error("No audio tracks from microphone"), { name: "NotFoundError" });
+    }
+
+    await this._setupAnalyser(this._ctx);
 
     const src = this._ctx.createMediaStreamSource(this._stream);
     src.connect(this._gainNode);
-    this._gainNode.connect(this._analyser);
+    this._wireAnalyserOutput();
     this.synthetic = false;
+
+    await this._resumeContext();
     await this.refreshDevices();
   }
 
   async _startSynthetic() {
     this._cleanupNodes();
-    if (this._ctx?.state !== "closed") {
-      await this._ctx?.close?.().catch(() => {});
-    }
-    const ctx = createAudioContext();
-    await this._setupAnalyser(ctx);
+    await this._ensureAudioContext();
+    await this._setupAnalyser(this._ctx);
 
     const bufferSize = this._ctx.sampleRate * 2;
     const noiseBuffer = this._ctx.createBuffer(1, bufferSize, this._ctx.sampleRate);
@@ -218,13 +251,14 @@ class AudioLevelsEngine {
 
     noise.connect(gain);
     gain.connect(this._gainNode);
-    this._gainNode.connect(this._analyser);
+    this._wireAnalyserOutput();
     noise.start();
     lfo.start();
     lfo2.start();
 
     this._syntheticNodes = [noise, lfo, lfo2];
     this.synthetic = true;
+    await this._resumeContext();
   }
 
   _beginLive() {
@@ -235,20 +269,55 @@ class AudioLevelsEngine {
     this._notify();
   }
 
+  _failMic(micErr) {
+    this.pending = false;
+    this.live = false;
+    this.synthetic = false;
+    this._started = false;
+    this.error = this._micErrorMessage(micErr);
+    this._cleanupNodes();
+    this._notify();
+  }
+
   async restart() {
     const wasLive = this._started;
-    this._stop();
+    this._stop(false);
     if (wasLive || this.subscribers.size > 0) {
       await this.ensureStarted(true);
     }
   }
 
+  async startDemo() {
+    if (this.pending) return;
+    if (this._started) this._stop(false);
+
+    this.pending = true;
+    this.error = null;
+    this._notify();
+    this._bindGestureResume();
+
+    try {
+      await this._ensureAudioContext();
+      await this._startSynthetic();
+      this.error = null;
+      this._beginLive();
+    } catch (err) {
+      this.pending = false;
+      this.live = false;
+      this.synthetic = false;
+      this._started = false;
+      this.error = "Demo audio unavailable";
+      this._cleanupNodes();
+      this._notify();
+    }
+  }
+
   async ensureStarted(force = false) {
     if (this.pending) return;
-    if (!force && this._started && this.live && !this.synthetic) return;
+    if (!force) return;
 
     if (this._started) {
-      this._stop();
+      this._stop(false);
     }
 
     this.settings = resolveMicSettings(loadSoundwaveMicSettings());
@@ -256,41 +325,20 @@ class AudioLevelsEngine {
     this.error = null;
     this._notify();
     this._bindGestureResume();
-    await this._resumeContext();
+
+    const supportErr = micSupportError();
+    if (supportErr) {
+      this._failMic(Object.assign(new Error(supportErr), { code: "INSECURE_CONTEXT" }));
+      return;
+    }
 
     try {
-      try {
-        await this._startMicrophone();
-        this.error = null;
-        this._beginLive();
-        return;
-      } catch (micErr) {
-        if (micErr?.name === "NotAllowedError" || micErr?.name === "PermissionDeniedError") {
-          this.error = "Mic blocked — allow access or use demo audio";
-        } else if (micErr?.code === "INSECURE_CONTEXT") {
-          this.error = micErr.message;
-        } else if (micErr?.name === "NotFoundError") {
-          this.error = "No mic found — check device";
-        } else {
-          this.error = micErr?.message || "Mic unavailable";
-        }
-        await this._startSynthetic();
-        this._beginLive();
-      }
-    } catch (err) {
-      this.pending = false;
-      this.live = false;
-      this.synthetic = false;
-      this._started = false;
-      this._cleanupNodes();
-      this._ctx?.close?.().catch(() => {});
-      this._ctx = null;
-      if (err?.code === "INSECURE_CONTEXT") {
-        this.error = err.message;
-      } else {
-        this.error = "Audio unavailable — tap to retry";
-      }
-      this._notify();
+      await this._ensureAudioContext();
+      await this._startMicrophone();
+      this.error = null;
+      this._beginLive();
+    } catch (micErr) {
+      this._failMic(micErr);
     }
   }
 
@@ -350,7 +398,7 @@ class AudioLevelsEngine {
     this._raf = requestAnimationFrame(this._loop);
   };
 
-  _stop() {
+  _stop(clearError = true) {
     if (this._stopTimer) {
       clearTimeout(this._stopTimer);
       this._stopTimer = null;
@@ -362,6 +410,8 @@ class AudioLevelsEngine {
     this.live = false;
     this.pending = false;
     this.synthetic = false;
+    if (clearError) this.error = null;
+    this._notify();
   }
 }
 

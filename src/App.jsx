@@ -9,7 +9,6 @@ import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
 
 const Shop = lazy(() => import('@/pages/Shop'));
-const SfxPreview = lazy(() => import('@/pages/SfxPreview'));
 
 const Setup = lazy(() => import('@/pages/Setup'));
 const Game = lazy(() => import('@/pages/Game'));
@@ -69,8 +68,6 @@ function App() {
             <Route path="/rules" element={<Rules />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/preview-dice" element={<PreviewDice />} />
-            <Route path="/vocal-sfx" element={<SfxPreview />} />
-            <Route path="/sfx-preview" element={<SfxPreview />} />
             <Route path="/held-style" element={<HeldStylePreview />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />

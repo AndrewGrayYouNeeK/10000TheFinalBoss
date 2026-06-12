@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:4173";
-const routes = ["/", "/shop", "/sfx-preview", "/setup", "/rules"];
+const routes = ["/", "/shop", "/setup", "/rules"];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -36,23 +36,6 @@ for (const route of routes) {
   } catch (e) {
     results.push({ route, ok: false, error: e.message });
   }
-}
-
-// Test sound button on sfx-preview
-try {
-  await page.goto(`${BASE}/sfx-preview`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(1000);
-  const btn = page.getByRole("button", { name: /Digital/i });
-  const btnCount = await btn.count();
-  if (btnCount > 0) {
-    await btn.first().click();
-    await page.waitForTimeout(500);
-    results.push({ route: "/sfx-preview click Digital", ok: true, clicked: true });
-  } else {
-    results.push({ route: "/sfx-preview buttons", ok: false, error: "No Digital button found" });
-  }
-} catch (e) {
-  results.push({ route: "/sfx-preview interaction", ok: false, error: e.message });
 }
 
 await browser.close();

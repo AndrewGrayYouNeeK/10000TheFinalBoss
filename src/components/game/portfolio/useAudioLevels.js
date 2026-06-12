@@ -24,14 +24,12 @@ export function useAudioLevels(barCount = 14, active = true) {
       setMeta({ ...nextMeta });
     });
 
-    if (loadSoundwaveMicSettings().autoEnable) {
-      void audioLevelsEngine.ensureStarted();
-    }
-
     return unsub;
   }, [active, barCount]);
 
   const enableMic = useCallback(() => audioLevelsEngine.ensureStarted(true), []);
+
+  const startDemo = useCallback(() => audioLevelsEngine.startDemo(), []);
 
   const updateSettings = useCallback((patch) => {
     audioLevelsEngine.updateSettings(patch);
@@ -45,6 +43,7 @@ export function useAudioLevels(barCount = 14, active = true) {
     levels,
     ...meta,
     enableMic,
+    startDemo,
     updateSettings,
     refreshDevices,
     restartMic,

@@ -128,12 +128,6 @@ export default function Shop() {
                   <DicePreview key={id} skinId={id} value={5} />
                 ))}
               </div>
-              <Link
-                to="/sfx-preview"
-                className="mt-3 block rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/25 px-3 py-2.5 text-center text-xs font-bold text-fuchsia-200 hover:bg-fuchsia-950/40 transition-colors"
-              >
-                🔊 Preview dice roll & vocal sounds →
-              </Link>
             </div>
             )}
 
