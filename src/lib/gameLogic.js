@@ -13,19 +13,54 @@ function bustWord(count) {
   return BUST_WORDS[count % BUST_WORDS.length];
 }
 
-/** Cleared when a turn ends (bank or farkle pass). */
+/** Per-turn state cleared on bank or bust pass (power charge lives on the player). */
 function turnPowerReset() {
   return {
     hotDiceCount: 0,
-    powerModeAvailable: false,
     skinPowerUsedThisTurn: false,
     powerShield: false,
+    doubleOrNothing: false,
+    turnScoreMultiplier: 1,
+    luckyRollNext: false,
   };
 }
 
-export function createInitialState(playerNames) {
+/** End a player's turn on bank — debuffs on them clear; power charge is kept. */
+function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false } = {}) {
+  const p = players[playerIndex];
+  if (!p) return players;
+  const next = [...players];
+  // Charge survives banking. Only busting or firing consumes it.
+  const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
+  next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
+  return next;
+}
+/** Remove sabotage debuffs cast by a player (e.g. they bust after firing). */
+export function clearDebuffsFromCaster(players, casterIdx) {
+  return players.map((p) => ({
+    ...p,
+    debuffs: (p.debuffs || []).filter((d) => {
+      if (typeof d !== "object") return true;
+      return d.from !== casterIdx;
+    }),
+  }));
+}
+
+export function createInitialState(playerNames, options = {}) {
+  const { playerSkins = [] } = options;
   return {
-    players: playerNames.map(name => ({ name, score: 0, onBoard: false, debuffs: [] })),
+    players: playerNames.map((name, i) => {
+      const skin = playerSkins[i] || { skinId: "classic_white" };
+      return {
+        name,
+        score: 0,
+        onBoard: false,
+        debuffs: [],
+        powerCharge: false,
+        skinId: skin.skinId || "classic_white",
+        ...(skin.trueSkinId ? { trueSkinId: skin.trueSkinId } : {}),
+      };
+    }),
     currentIndex: 0,
     dice: makeFreshDice(),
     rolling: false,
@@ -39,12 +74,12 @@ export function createInitialState(playerNames) {
     lastBustWord: null,
     perfectTenKPending: false,
     hotDiceCount: 0,
-    powerModeAvailable: false,
     skinPowerUsedThisTurn: false,
     powerShield: false,
     luckyRollNext: false,
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
+    xrayReveals: {},
   };
 }
 
@@ -242,36 +277,48 @@ export function confirmAndReroll(state) {
   }
 
   const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
-  const unlockPower = allUsed && newHotCount >= POWER_MODE_HOT_DICE;
+  const earnedCharge = allUsed && newHotCount >= POWER_MODE_HOT_DICE;
+  const idx = state.currentIndex;
+  const hadCharge = !!state.players[idx]?.powerCharge;
+  const players = earnedCharge && !hadCharge
+    ? state.players.map((p, i) => (i === idx ? { ...p, powerCharge: true } : p))
+    : state.players;
+  const chargeJustEarned = earnedCharge && !hadCharge;
 
   return {
     state: {
       ...state,
+      players,
       dice: newDice,
       turnScore: newTurnScore,
       hasRolled: true,
       luckyRollNext: false,
       perfectTenKPending: perfectTenK || false,
       hotDiceCount: newHotCount,
-      powerModeAvailable: state.skinPowerUsedThisTurn
-        ? false
-        : unlockPower || state.powerModeAvailable,
-      message: unlockPower && !state.powerModeAvailable
-        ? "🔥 HOT DICE! Power Mode unlocked!"
+      message: chargeJustEarned
+        ? "🔥 HOT DICE! Power charge earned — use it now or bank it for later!"
         : allUsed
         ? "🔥 HOT DICE! All 6 re-rolled."
         : "Select scoring dice, then bank or roll again.",
-      messageVariant: allUsed || unlockPower ? "success" : "info",
+      messageVariant: allUsed || chargeJustEarned ? "success" : "info",
     },
   };
 }
 
-/** Mark skin secret power as spent for this turn. */
+/** Whether a player is holding an unused power charge. */
+export function playerHasPowerCharge(state, playerIndex = state?.currentIndex) {
+  return !!state?.players?.[playerIndex]?.powerCharge;
+}
+
+/** Mark skin secret power as spent — consumes the player's power charge. */
 export function consumeSkinPower(state) {
+  const idx = state.currentIndex;
   return {
     ...state,
     skinPowerUsedThisTurn: true,
-    powerModeAvailable: false,
+    players: state.players.map((p, i) =>
+      i === idx ? { ...p, powerCharge: false } : p
+    ),
   };
 }
 
@@ -340,10 +387,18 @@ export function bankAndPass(state) {
     };
   }
 
-  const nextIndex = (state.currentIndex + 1) % state.players.length;
+  // Sabotage debuffs on the banker clear; power charge carries to their next turn.
+  const finishedIdx = state.currentIndex;
+  const chargeSaved = !!newPlayers[finishedIdx]?.powerCharge && !state.skinPowerUsedThisTurn;
+  const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx, {
+    skinPowerUsedThisTurn: state.skinPowerUsedThisTurn,
+  });
+
+  const nextIndex = (finishedIdx + 1) % state.players.length;
+  const bankMessage = chargeSaved ? `${message} ⚡ Power charge saved for your next turn.` : message;
   return {
     ...state,
-    players: newPlayers,
+    players: playersAfterBank,
     currentIndex: nextIndex,
     dice: makeFreshDice(),
     turnScore: 0,
@@ -354,7 +409,7 @@ export function bankAndPass(state) {
     doubleOrNothing: false,
     luckyRollNext: false,
     ...turnPowerReset(),
-    message: `${message} ${newPlayers[nextIndex].name}'s turn.`,
+    message: `${bankMessage} ${playersAfterBank[nextIndex].name}'s turn.`,
     messageVariant: variant,
   };
 }
@@ -363,9 +418,13 @@ export function bankAndPass(state) {
 export function passAfterFarkle(state) {
   const bustedIdx = state.currentIndex;
   const nextIndex = (state.currentIndex + 1) % state.players.length;
-  const players = state.players.map((p, i) =>
-    i === bustedIdx ? { ...p, debuffs: [] } : p
+  let players = state.players.map((p, i) =>
+    i === bustedIdx ? { ...p, debuffs: [], powerCharge: false } : p
   );
+  // Fired a power then busted — sabotage effects you cast are lost.
+  if (state.skinPowerUsedThisTurn) {
+    players = clearDebuffsFromCaster(players, bustedIdx);
+  }
   return {
     ...state,
     players,

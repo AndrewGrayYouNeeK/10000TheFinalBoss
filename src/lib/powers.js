@@ -1,10 +1,15 @@
 // YouNeeK 10,000 — Powers System
-// Players equip up to 3 powers before a match. Power fills as they roll/score.
-// Each ability costs Power to fire. Sabotage abilities target the opponent and
-// persist UNTIL THAT OPPONENT BUSTS (farkles).
+// Each equipped dice skin carries one secret power.
+//
+// CHARGE:  Hit your 3rd Hot Dice in a single turn → earn one power charge.
+// HOLD:    Keep the charge across turns; banking never costs it.
+// FIRE:    Activate anytime on your turn while holding a charge.
+// BUST:    Bust before using the charge → lose it.
+//          Fire then bust on the same turn → sabotage effects you cast are lost.
+// DURATION: Power effects last for the rest of that round (turn until bank/bust).
 
-/** Hot dice clears required in one turn before skin power mode unlocks. */
-export const POWER_MODE_HOT_DICE = 2;
+/** Hot dice clears required in one turn to earn a power charge (3rd hot dice). */
+export const POWER_MODE_HOT_DICE = 3;
 
 export const MAX_POWER = 100;
 
@@ -19,10 +24,11 @@ export const POWER_RULES = {
 // ──────────────────────────────────────────────────────────────────────────────
 // POWERS
 //   kind: "self"  → buffs / advantages for the player using it
-//   kind: "sabo"  → debuffs applied to the opposing player; last until they bust
+//   kind: "sabo"  → debuffs on the opponent for the rest of their turn
 //
-// Sabotage debuffs are stored on the target player as `debuffs: [powerId, ...]`
-// and are cleared on bust.
+// Sabotage debuffs live on the target as `debuffs: [{ id, from }, ...]`.
+// Cleared when the target's turn ends (bank or bust), or immediately if the
+// caster busts after firing.
 // ──────────────────────────────────────────────────────────────────────────────
 
 export const POWERS = [
@@ -96,7 +102,7 @@ export const POWERS = [
     cost: 50,
     icon: "❄️",
     color: "#00d4ff",
-    description: "Drain opponent's Power bar to 0. Lasts until they bust.",
+    description: "Drain opponent's Power bar to 0 for the rest of their turn.",
     tagline: "Ice in their veins.",
   },
   {
@@ -106,7 +112,7 @@ export const POWERS = [
     cost: 60,
     icon: "🔒",
     color: "#ffb800",
-    description: "Opponent cannot use ANY powers. Lasts until they bust.",
+    description: "Opponent cannot use ANY powers for the rest of their turn.",
     tagline: "No tools. Just dice.",
   },
   {
@@ -116,7 +122,7 @@ export const POWERS = [
     cost: 55,
     icon: "🌑",
     color: "#7f5af0",
-    description: "Hide YOUR score & turn from the opponent. Lasts until they bust.",
+    description: "Hide YOUR score & turn from the opponent for the rest of their turn.",
     tagline: "They can't read what they can't see.",
   },
   {
@@ -126,8 +132,28 @@ export const POWERS = [
     cost: 55,
     icon: "📡",
     color: "#ff00aa",
-    description: "Blind opponent's view of THEIR OWN score & turn. Lasts until they bust.",
+    description: "Blind opponent's view of THEIR OWN score & turn for the rest of their turn.",
     tagline: "Fly blind.",
+  },
+  {
+    id: "xray",
+    name: "X-Ray",
+    kind: "sabo",
+    cost: 45,
+    icon: "🔬",
+    color: "#38bdf8",
+    description: "Scan opponents — reveals disguises, secret powers, hidden dice traits, and active concealment.",
+    tagline: "Nothing stays hidden.",
+  },
+  {
+    id: "overtime",
+    name: "Overtime",
+    kind: "sabo",
+    cost: 50,
+    icon: "⏱️",
+    color: "#f97316",
+    description: "Wipe every player's banked score to 0 — everyone must bank 1,000 again to get on the board.",
+    tagline: "Back to zero.",
   },
 ];
 

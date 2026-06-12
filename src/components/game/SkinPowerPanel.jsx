@@ -4,7 +4,7 @@ import PowerBar from "@/components/game/PowerBar";
 import PowerSlot from "@/components/game/PowerSlot";
 
 /**
- * Shown when the player hits their 2nd hot dice in one turn — fire the equipped skin's secret power.
+ * Shown while the active player holds a power charge (earned on 3rd Hot Dice).
  */
 export default function SkinPowerPanel({
   power,
@@ -15,6 +15,9 @@ export default function SkinPowerPanel({
   disabled = false,
   frozen = false,
   onFire,
+  isGhostMimic = false,
+  mimicSkinLabel = null,
+  mimicFromName = null,
 }) {
   if (!skinPower) return null;
 
@@ -40,10 +43,25 @@ export default function SkinPowerPanel({
               className="text-[10px] font-black uppercase tracking-[0.25em]"
               style={{ color: skinPower.kind === "sabo" ? "#ff6b9d" : "#ffb347", textShadow: "0 0 8px rgba(255,107,0,0.7)" }}
             >
-              🔥 2nd Hot Dice — Power Mode
+              {isGhostMimic ? "👻 Ghost Mimic" : "⚡ Power Charge Ready"}
             </span>
-            <span className="text-[9px] text-slate-400">Fire your skin&apos;s secret power</span>
+            <span className="text-[9px] text-slate-400 text-right leading-snug max-w-[52%]">
+              {isGhostMimic
+                ? `Steals ${mimicFromName ? `${mimicFromName}'s` : "opponent's"} ${mimicSkinLabel || "skin"} power`
+                : "Bank to keep charge — bust before firing and you lose it"}
+            </span>
           </div>
+          {isGhostMimic && mimicSkinLabel && (
+            <p className="text-[10px] text-violet-200/90 leading-snug">
+              Copying <span className="font-bold text-white">{mimicSkinLabel}</span>
+              {skinPower ? (
+                <>
+                  {" "}
+                  → <span className="font-bold text-white">{skinPower.name}</span>
+                </>
+              ) : null}
+            </p>
+          )}
           <PowerBar power={power} label="SKIN POWER" frozen={frozen} />
           <div className="grid grid-cols-[1fr_88px] gap-2 items-stretch">
             <p className="text-[10px] text-slate-300 leading-snug flex items-center">

@@ -7,10 +7,10 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  * Edit SKIN_POWER_MAP to assign any power id from src/lib/powers.js to a dice skin.
  *
  * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | siphon
- * Sabo powers:  freeze | lockout | blackout | static
+ * Sabo powers:  freeze | lockout | blackout | static | xray | overtime
  *
  * Example:
- *   ghost: "blackout",   // hides your score from the opponent until they bust
+ *   ghost: (mimic — copies opponent's pretend skin; no fixed power)
  *   matrix: "static",    // blinds opponent's own score until they bust
  *
  * Skins not listed here get a stable random power from BASE_POWERS.
@@ -30,6 +30,7 @@ const SKIN_POWER_MAP = {
   pf_bug_zapper: "reroll",
   pf_core_burst: "double_or_nothing",
   pf_soundwave: "lucky_seven",
+  pf_score_meter: "overtime",
   snow_globe: "shield",
   blue_gel: "reroll",
   amber_wasp: "siphon",
@@ -37,8 +38,8 @@ const SKIN_POWER_MAP = {
   neon_grid: "hot_streak",
 
   // ── Sabotage (hide / disrupt opponent score) ──
-  ghost: "blackout",
-  pf_xray: "static",
+  // ghost: no fixed power — mimics opponent's pretend skin (see ghostDisguise.js)
+  pf_xray: "xray",
   toxic_plasma: "freeze",
   obsidian: "lockout",
 };

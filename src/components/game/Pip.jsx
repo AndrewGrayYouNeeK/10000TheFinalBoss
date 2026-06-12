@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { usePortfolioDie } from "./portfolio/PortfolioDieContext";
+import { getScoreMeterTheme } from "@/lib/scoreMeterTheme";
 
 const BH_PIP_STAR_TINTS = ["#ffffff", "#e9d5ff", "#f0abfc", "#bae6fd", "#fef3c7"];
 
@@ -570,21 +571,23 @@ export default function Pip({
   }
 
   if (animationEffect === "scoreGlowPip") {
-    const full = scoreFill >= 0.98;
+    const theme = getScoreMeterTheme(scoreFill);
+    const midGlow = theme.t > 0.06 ? `0 0 ${4 + theme.t * 10}px rgba(245, 158, 11, ${0.2 + theme.t * 0.35})` : undefined;
     return (
       <motion.div
         style={{
           ...baseStyle,
-          background: full
-            ? "radial-gradient(circle, #fff 0%, #fde68a 40%, #f59e0b 100%)"
-            : "radial-gradient(circle, #fff 0%, #22d3ee 50%, #0891b2 100%)",
+          background: theme.pipBackground,
         }}
         animate={
-          full
+          theme.pipAnimate
             ? { boxShadow: ["0 0 8px #fde68a", "0 0 22px #fbbf24", "0 0 8px #fde68a"], scale: [1, 1.12, 1] }
-            : { opacity: [0.7, 1, 0.7] }
+            : {
+                opacity: [0.72 + theme.t * 0.12, 1, 0.72 + theme.t * 0.12],
+                ...(midGlow ? { boxShadow: [midGlow, `0 0 ${8 + theme.t * 14}px rgba(253, 224, 71, ${0.35 + theme.t * 0.25})`, midGlow] } : {}),
+              }
         }
-        transition={{ duration: full ? 1 : 2, repeat: Infinity }}
+        transition={{ duration: theme.pipAnimate ? 1 : 2, repeat: Infinity }}
       />
     );
   }

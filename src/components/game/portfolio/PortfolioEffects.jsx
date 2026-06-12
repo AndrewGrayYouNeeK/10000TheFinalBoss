@@ -6,6 +6,7 @@ import { useAudioLevels } from "./useAudioLevels";
 import SoundwaveBarDisplay from "./SoundwaveBarDisplay";
 import { armBugZapperAudio, playBugZapSound, startBugZapperHum, stopBugZapperHum, whenBugZapperAudioReady } from "./bugZapperSound";
 import { useCosmetics } from "@/hooks/useCosmetics";
+import { getScoreMeterTheme } from "@/lib/scoreMeterTheme";
 import { shouldPlayBugZapperSfx } from "@/lib/gameAudioSettings";
 import { useDiceSkinAudioAllowed } from "@/lib/useDiceSkinAudioAllowed";
 
@@ -679,7 +680,8 @@ function BugZapperScene({ radius, layout, dieSeed = 0 }) {
   const uid = React.useId().replace(/:/g, "");
   const glowId = `zapMeshGlow${uid}`;
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
-  const flyCount = targets.length > 0 ? 1 + Math.floor(seeded(dieSeed, 50) * 2) : 0;
+  // One fly per pip — die value equals fly count (e.g. 4 pips → 4 flies).
+  const flyCount = targets.length;
   const { sfxMuted } = useCosmetics();
   const audioAllowed = useDiceSkinAudioAllowed();
 
@@ -793,9 +795,9 @@ function MatrixStormScene({ radius }) {
           }}
           animate={{ top: ["-110%", "130%"] }}
           transition={{
-            duration: 3.6 + (i % 5) * 0.45,
+            duration: 0.22 + (i % 5) * 0.05,
             repeat: Infinity,
-            delay: (i * 0.34) % 2.6,
+            delay: (i * 0.04) % 0.28,
             ease: "linear",
           }}
         >
@@ -987,7 +989,7 @@ const EFFECTS = {
   ),
 
   score_meter: ({ radius, scoreFill = 0.5 }) => {
-    const full = scoreFill >= 0.98;
+    const theme = getScoreMeterTheme(scoreFill);
     return (
       <>
         <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "#0f172a" }} />
@@ -995,20 +997,18 @@ const EFFECTS = {
           <motion.div
             className="absolute bottom-0 left-0 right-0 pointer-events-none"
             style={{
-              height: `${Math.min(100, scoreFill * 100)}%`,
-              background: full
-                ? "linear-gradient(to top, #fde68a, #f59e0b, #00ffff)"
-                : "linear-gradient(to top, #0891b2, #06b6d4, #22d3ee)",
-              boxShadow: full ? "0 0 24px rgba(253,224,71,0.8), inset 0 0 20px rgba(255,255,255,0.3)" : "none",
+              height: `${Math.min(100, theme.raw * 100)}%`,
+              background: theme.fillGradient,
+              boxShadow: theme.fillGlow,
             }}
-            animate={full ? { opacity: [0.85, 1, 0.85] } : {}}
+            animate={theme.full ? { opacity: [0.85, 1, 0.85] } : {}}
             transition={{ duration: 1.2, repeat: Infinity }}
           />
           {[25, 50, 75].map((t) => (
             <div key={t} className="absolute left-0 right-0 h-px bg-white/20 pointer-events-none" style={{ bottom: `${t}%` }} />
           ))}
         </div>
-        <EdgeFrame radius={radius} color={full ? "rgba(253,224,71,0.7)" : "rgba(34,211,238,0.35)"} glow={full ? "0 0 20px rgba(253,224,71,0.5)" : undefined} animate={full} />
+        <EdgeFrame radius={radius} color={theme.edgeColor} glow={theme.edgeGlow} animate={theme.full} />
       </>
     );
   },

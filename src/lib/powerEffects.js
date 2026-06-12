@@ -1,17 +1,21 @@
 import { TARGET_SCORE } from "@/lib/gameLogic";
+import { formatXraySummary, scanAllOpponents } from "@/lib/xrayScan";
 
 function opponentIndex(state) {
   if (state.players.length <= 1) return state.currentIndex;
   return (state.currentIndex + 1) % state.players.length;
 }
 
-function addDebuff(players, targetIdx, debuff) {
+function addDebuff(players, targetIdx, debuff, fromIdx) {
+  const entry =
+    typeof debuff === "string"
+      ? { id: debuff, from: fromIdx }
+      : { ...debuff, from: debuff.from ?? fromIdx };
   return players.map((p, i) => {
     if (i !== targetIdx) return p;
     const debuffs = [...(p.debuffs || [])];
-    const key = typeof debuff === "string" ? debuff : debuff.id;
-    const exists = debuffs.some((d) => (typeof d === "string" ? d : d.id) === key);
-    if (!exists) debuffs.push(debuff);
+    const exists = debuffs.some((d) => (typeof d === "string" ? d : d.id) === entry.id);
+    if (!exists) debuffs.push(entry);
     return { ...p, debuffs };
   });
 }
@@ -125,12 +129,12 @@ export function applySkinPower(state, powerId) {
     }
 
     case "freeze": {
-      const players = addDebuff(state.players, targetIdx, "freeze");
+      const players = addDebuff(state.players, targetIdx, "freeze", state.currentIndex);
       return {
         state: {
           ...state,
           players,
-          message: `❄️ ${targetName}'s power frozen until they bust!`,
+          message: `❄️ ${targetName}'s power frozen for the rest of their turn!`,
           messageVariant: "success",
         },
         message: "Freeze cast!",
@@ -139,12 +143,12 @@ export function applySkinPower(state, powerId) {
     }
 
     case "lockout": {
-      const players = addDebuff(state.players, targetIdx, "lockout");
+      const players = addDebuff(state.players, targetIdx, "lockout", state.currentIndex);
       return {
         state: {
           ...state,
           players,
-          message: `🔒 ${targetName} locked out of powers until they bust!`,
+          message: `🔒 ${targetName} locked out of powers for the rest of their turn!`,
           messageVariant: "success",
         },
         message: "Lockout cast!",
@@ -153,13 +157,12 @@ export function applySkinPower(state, powerId) {
     }
 
     case "blackout": {
-      const debuff = { id: "blackout", from: state.currentIndex };
-      const players = addDebuff(state.players, targetIdx, debuff);
+      const players = addDebuff(state.players, targetIdx, "blackout", state.currentIndex);
       return {
         state: {
           ...state,
           players,
-          message: `🌑 Your score is hidden from ${targetName} until they bust!`,
+          message: `🌑 Your score is hidden from ${targetName} for the rest of their turn!`,
           messageVariant: "success",
         },
         message: "Blackout cast!",
@@ -168,15 +171,65 @@ export function applySkinPower(state, powerId) {
     }
 
     case "static": {
-      const players = addDebuff(state.players, targetIdx, "static");
+      const players = addDebuff(state.players, targetIdx, "static", state.currentIndex);
       return {
         state: {
           ...state,
           players,
-          message: `📡 ${targetName} can't see their own score until they bust!`,
+          message: `📡 ${targetName} can't see their own score for the rest of their turn!`,
           messageVariant: "success",
         },
         message: "Static cast!",
+        variant: "success",
+      };
+    }
+
+    case "xray": {
+      if (state.players.length <= 1) {
+        return { state, message: "Need an opponent to scan.", variant: "warning" };
+      }
+
+      const { reveals, scanned, hasAny } = scanAllOpponents(state);
+
+      if (!hasAny) {
+        return {
+          state,
+          message: "🔬 X-Ray — no hidden information detected.",
+          variant: "warning",
+        };
+      }
+
+      return {
+        state: {
+          ...state,
+          xrayReveals: reveals,
+          message: `🔬 X-Ray — ${formatXraySummary(scanned)}`,
+          messageVariant: "success",
+        },
+        message: "Hidden info revealed!",
+        variant: "success",
+      };
+    }
+
+    case "overtime": {
+      if (state.players.length <= 1) {
+        return { state, message: "Need an opponent for Overtime.", variant: "warning" };
+      }
+      const players = state.players.map((p) => ({
+        ...p,
+        score: 0,
+        onBoard: false,
+        debuffs: [],
+      }));
+      return {
+        state: {
+          ...state,
+          players,
+          turnScore: 0,
+          message: "⏱️ Overtime — everyone's banked score wiped! Get 1,000 to get back on the board.",
+          messageVariant: "success",
+        },
+        message: "Overtime!",
         variant: "success",
       };
     }

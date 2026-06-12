@@ -1,5 +1,5 @@
 import React from "react";
-import { BASE_POWERS, SABO_POWERS, MAX_POWER } from "@/lib/powers";
+import { BASE_POWERS, SABO_POWERS } from "@/lib/powers";
 
 // Shared powers reference shown in Rules + Shop so players know what each does.
 // `variant="rules"` uses the dark-slate panel style; `variant="shop"` uses the
@@ -33,8 +33,9 @@ export default function PowersInfo({ variant = "rules" }) {
         ⚡ Powers
       </h2>
       <p className={`text-sm mb-3 ${isShop ? "text-cyan-100/80" : "text-slate-300"}`}>
-        Every dice skin comes with <b>one Power</b>. The skin you equip <i>is</i> your power — no picking, no loadouts.
-        Roll, bank, and Hot Dice to fill your <b>Power bar</b> (max {MAX_POWER}). Spend it to fire your ability.
+        Every dice skin carries <b>one secret power</b>. Hit your <b>3rd Hot Dice</b> in a single turn to earn a{" "}
+        <b>power charge</b>. Hold the charge across turns — <b>banking keeps it</b>. Fire anytime on your turn.{" "}
+        <b>Only a bust before you use it loses the charge.</b>
       </p>
 
       <Group
@@ -48,8 +49,26 @@ export default function PowersInfo({ variant = "rules" }) {
         color={isShop ? "#ff00aa" : "#fb7185"}
         powers={SABO_POWERS}
         isShop={isShop}
-        footer="Sabotage debuffs last until the opponent busts."
+        footer="Sabotage debuffs last for the opponent's turn. Bust before firing and you lose your charge."
       />
+
+      <div
+        className="mt-4 rounded-lg border p-3"
+        style={{
+          background: isShop ? "rgba(120,0,50,0.12)" : "rgba(15,23,42,0.6)",
+          borderColor: isShop ? "rgba(186,230,253,0.35)" : "rgba(255,255,255,0.08)",
+        }}
+      >
+        <div className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 text-violet-300">
+          👻 Ghost — Special
+        </div>
+        <p className={`text-[11px] leading-snug ${isShop ? "text-white/80" : "text-slate-300"}`}>
+          Ghost has <b>no fixed power</b>. It automatically steals whatever skin your opponent is{" "}
+          <b>pretending to be</b> — you copy their power, not your own. Pick a strong disguise and you
+          might hand them a strong power if they&apos;re Ghost too. You never know if that innocent-looking
+          skin is real… or Ghost.
+        </p>
+      </div>
     </div>
   );
 }

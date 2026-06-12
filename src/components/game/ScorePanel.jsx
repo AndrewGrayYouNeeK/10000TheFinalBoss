@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LevelBadge from "@/components/online/LevelBadge";
+import { normalizeXrayFindings } from "@/lib/xrayScan";
 
-export default function ScorePanel({ players, currentIndex, target = 10000, obscuredIndices = null }) {
+export default function ScorePanel({ players, currentIndex, target = 10000, obscuredIndices = null, xrayReveals = {} }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {players.map((p, i) => {
@@ -61,13 +62,32 @@ export default function ScorePanel({ players, currentIndex, target = 10000, obsc
               {typeof p.level === "number" && (
                 <LevelBadge level={p.level} tierId={p.tierId ?? 0} size="xs" />
               )}
-              {p.score >= target && (
-                <Trophy
-                  className="w-4 h-4 ml-auto"
-                  style={{ color: "#ffd84d", filter: "drop-shadow(0 0 6px #ffd84d)" }}
-                />
-              )}
+              <div className="flex items-center gap-1 ml-auto shrink-0">
+                {p.powerCharge && (
+                  <span
+                    className="text-[9px] font-black uppercase tracking-wider"
+                    style={{ color: "#ffb347", textShadow: "0 0 6px rgba(255,107,0,0.8)" }}
+                    title="Power charge held"
+                  >
+                    ⚡ Charge
+                  </span>
+                )}
+                {p.score >= target && (
+                  <Trophy
+                    className="w-4 h-4"
+                    style={{ color: "#ffd84d", filter: "drop-shadow(0 0 6px #ffd84d)" }}
+                  />
+                )}
+              </div>
             </div>
+            {normalizeXrayFindings(xrayReveals?.[i]).map((finding, j) => (
+              <p
+                key={`xray-${i}-${j}`}
+                className="text-[9px] text-cyan-300 font-semibold mb-0.5 relative leading-snug"
+              >
+                {finding.icon} {finding.text}
+              </p>
+            ))}
             <AnimatePresence mode="popLayout">
               <motion.div
                 key={hidden ? "hidden" : p.score}

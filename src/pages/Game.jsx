@@ -33,10 +33,7 @@ import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { getSkinPower } from "@/lib/skinPowers";
-import { applySkinPower } from "@/lib/powerEffects";
-import { canAfford } from "@/lib/powers";
-import { isLowPowerDevice } from "@/lib/platform";
+import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel } from "@/lib/ghostDisguise";
 
 export default function Game() {
   const navigate = useNavigate();
@@ -44,11 +41,18 @@ export default function Game() {
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null); // { word, variant }
   const [shakeTriggered, setShakeTriggered] = useState(0);
-  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
+  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId } = useCosmetics();
   const playDiceSound = useDiceSound();
   const prevBustRef = React.useRef(0);
   const winnerAwardedRef = React.useRef(false);
-  const skinPower = React.useMemo(() => getSkinPower(equippedSkinId), [equippedSkinId]);
+
+  const buildSkins = React.useCallback(
+    (playerCount) => buildGamePlayerSkins(playerCount, equippedSkinId, ownedSkins, ghostDisguiseId),
+    [equippedSkinId, ownedSkins, ghostDisguiseId]
+  );
+
+  const resolvedPower = state ? resolvePlayerPower(state, state.currentIndex) : null;
+  const skinPower = resolvedPower?.power ?? null;
 
   useEffect(() => {
     const stored = sessionStorage.getItem("dice10k_players");
@@ -56,10 +60,12 @@ export default function Game() {
       navigate("/setup");
       return;
     }
-    setState(createInitialState(JSON.parse(stored)));
+    const names = JSON.parse(stored);
+    const playerSkins = buildSkins(names.length);
+    setState(createInitialState(names, { playerSkins }));
     prevBustRef.current = 0;
     winnerAwardedRef.current = false;
-  }, [navigate]);
+  }, [navigate, buildSkins]);
 
   React.useLayoutEffect(() => {
     const leave = enterGamePlaySession();
@@ -127,12 +133,18 @@ export default function Game() {
   }, [state?.hotDiceCount, state?.farkle, addXp, state]);
 
   const onFireSkinPower = () => {
-    if (!state || !skinPower || state.skinPowerUsedThisTurn || !state.powerModeAvailable) return;
+    if (!state || !skinPower || !state.players[state.currentIndex]?.powerCharge) return;
     if (!canAfford(MAX_POWER, skinPower.id)) return;
     const debuffs = state.players[state.currentIndex]?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
 
     const result = applySkinPower(state, skinPower.id);
+    if (result.variant === "warning") {
+      if (result.message) {
+        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
+      }
+      return;
+    }
     setState(consumeSkinPower(result.state));
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
@@ -250,13 +262,17 @@ export default function Game() {
 
   const playAgain = () => {
     const stored = sessionStorage.getItem("dice10k_players");
-    if (stored) setState(createInitialState(JSON.parse(stored)));
+    if (stored) {
+      const names = JSON.parse(stored);
+      setState(createInitialState(names, { playerSkins: buildSkins(names.length) }));
+    }
   };
 
   if (!state) return null;
 
   const info = getHeldInfo(state);
   const currentPlayer = state.players[state.currentIndex];
+  const activeSkinId = currentPlayer?.skinId || equippedSkinId;
   const heldPoints = heldSelectionPoints(info, state.perfectTenKPending);
   const potentialTotal = state.turnScore + (info.valid ? heldPoints : 0);
   const needsEntry = !currentPlayer.onBoard;
@@ -272,8 +288,7 @@ export default function Game() {
     (d) => (typeof d === "string" ? d : d.id) === "freeze"
   );
   const powerModeActive =
-    state.powerModeAvailable &&
-    !state.skinPowerUsedThisTurn &&
+    !!currentPlayer?.powerCharge &&
     !state.farkle &&
     !state.winner;
 
@@ -325,6 +340,7 @@ export default function Game() {
           players={state.players}
           currentIndex={state.currentIndex}
           obscuredIndices={obscuredScores}
+          xrayReveals={state.xrayReveals}
         />
         <HeldDiceStylePicker
           value={heldDiceStyleId}
@@ -347,11 +363,14 @@ export default function Game() {
           power={MAX_POWER}
           skinPower={skinPower}
           powerMode={powerModeActive}
-          used={state.skinPowerUsedThisTurn}
+          used={false}
           locked={powerLocked}
           disabled={powerFrozen}
           frozen={powerFrozen}
           onFire={onFireSkinPower}
+          isGhostMimic={resolvedPower?.isMimic}
+          mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
+          mimicFromName={resolvedPower?.sourcePlayerName}
         />
       </div>
 
@@ -427,7 +446,7 @@ export default function Game() {
             rolling={rollAnim}
             onToggle={onToggleDie}
             disabled={!state.hasRolled || state.farkle || !!state.winner}
-            skinId={equippedSkinId}
+            skinId={activeSkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}

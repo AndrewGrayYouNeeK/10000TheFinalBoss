@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Coins, Sparkles } from "lucide-react";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import { toast } from "sonner";
-import { DICE_SKINS, FELT_COLORS, SHOP_DICE_CATEGORIES, getSkinShopCategory } from "@/lib/shopCatalog";
+import { DICE_SKINS, FELT_COLORS, SHOP_DICE_CATEGORIES, getSkinShopCategory, getSkin } from "@/lib/shopCatalog";
 import { EXPERIMENTAL_DICE } from "@/lib/experimentalDice";
 import { getDuplicateGroups } from "@/lib/duplicateSkins";
 import { useCosmetics } from "@/hooks/useCosmetics";
@@ -17,6 +17,8 @@ import MysteryBoxesTab from "@/components/shop/MysteryBoxesTab";
 import BuyCoinsDialog from "@/components/shop/BuyCoinsDialog";
 import { isPreviewSkin } from "@/lib/previewSkins";
 import { getHeldDiceStyle } from "@/lib/heldDiceStyles";
+import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
+import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
 
 const showPreviewLab = true;
 
@@ -26,8 +28,8 @@ export default function Shop() {
     user,
     coins, xp, isLoading,
     ownedSkins, ownedBadges, ownedFelts,
-    equippedSkinId, equippedBadgeId, equippedFeltId, heldDiceStyleId,
-    buyItem, equipItem, getSkinEffectivePrice, addCoins, isDevUnlockAll,
+    equippedSkinId, equippedBadgeId, equippedFeltId, heldDiceStyleId, ghostDisguiseId,
+    buyItem, equipItem, setGhostDisguise, getSkinEffectivePrice, addCoins, isDevUnlockAll,
   } = useCosmetics();
   const heldStyle = getHeldDiceStyle(heldDiceStyleId);
   const [tab, setTab] = useState("skins");
@@ -117,6 +119,16 @@ export default function Shop() {
           </TabsList>
 
           <TabsContent value="skins" className="mt-4">
+            {equippedSkinId === GHOST_SKIN_ID && (
+              <GhostDisguisePicker
+                ownedSkins={ownedSkins}
+                selectedId={ghostDisguiseId}
+                onSelect={(id) => {
+                  setGhostDisguise(id);
+                  toast.success(`Ghost will disguise as ${getSkin(id)?.name || id}`);
+                }}
+              />
+            )}
             {isDevUnlockAll && (
               <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-center">
                 <p className="text-xs font-bold text-emerald-300">Dev unlock — all dice owned & equippable</p>
