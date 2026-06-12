@@ -2,6 +2,8 @@
  * Dice roll SFX — Soft Felt: muffled casino-table thumps.
  */
 
+import { shouldPlaySfx } from "@/lib/gameAudioSettings";
+
 const MIN_GAIN = 0.001;
 
 let sharedCtx = null;
@@ -96,6 +98,7 @@ function playSoftFeltRoll(ctx, start, { pitchScale = 1, volScale = 1 } = {}) {
  */
 export async function playDiceRollSound(options = {}) {
   const { opponent = false } = options;
+  if (!shouldPlaySfx({ opponent })) return;
   const ctx = await ensureRunningContext();
   if (!ctx) return;
 

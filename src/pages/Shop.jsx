@@ -78,6 +78,19 @@ export default function Shop() {
           </span>
         </div>
 
+        <div className="rounded-2xl border border-fuchsia-500/35 bg-gradient-to-br from-fuchsia-950/30 to-slate-900/50 p-4 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">Soundwave Mic</p>
+              <p className="text-sm text-slate-300">Presets, sensitivity, and mic device for audio-reactive dice</p>
+              <p className="text-[10px] text-fuchsia-200/90 mt-1 font-semibold">Tap Soundwave dice in-game to enable the mic</p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="border-fuchsia-400/50 text-fuchsia-200 shrink-0 hover:bg-fuchsia-500/10">
+              <Link to="/soundwave-mic">Settings</Link>
+            </Button>
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-amber-500/35 bg-gradient-to-br from-amber-950/30 to-slate-900/50 p-4 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { audioLevelsEngine } from "./audioLevelsEngine";
-import { loadSoundwaveMicSettings } from "@/lib/soundwaveMicSettings";
+import { loadSoundwaveMicSettings, resetSoundwaveMicSettings } from "@/lib/soundwaveMicSettings";
 
 /** Live mic-driven bar levels — shared engine, one mic for all Soundwave dice */
 export function useAudioLevels(barCount = 14, active = true) {
@@ -10,6 +10,8 @@ export function useAudioLevels(barCount = 14, active = true) {
     error: null,
     pending: false,
     synthetic: false,
+    inputLevel: 0,
+    debug: null,
     settings: loadSoundwaveMicSettings(),
     devices: [],
   });
@@ -39,6 +41,12 @@ export function useAudioLevels(barCount = 14, active = true) {
 
   const restartMic = useCallback(() => audioLevelsEngine.restart(), []);
 
+  const resetMicSettings = useCallback(() => {
+    const next = resetSoundwaveMicSettings();
+    audioLevelsEngine.updateSettings(next);
+    return next;
+  }, []);
+
   return {
     levels,
     ...meta,
@@ -47,5 +55,6 @@ export function useAudioLevels(barCount = 14, active = true) {
     updateSettings,
     refreshDevices,
     restartMic,
+    resetMicSettings,
   };
 }

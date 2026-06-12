@@ -9,6 +9,22 @@ export function isNativeApp() {
   }
 }
 
+/** iPhone/iPad WKWebView (incl. Capacitor iOS) */
+export function isIOSWebKit() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+export function isNativeIOS() {
+  try {
+    return Capacitor.getPlatform() === "ios";
+  } catch {
+    return isIOSWebKit();
+  }
+}
+
 /** Reduce effects on phones and in the native app */
 export function isLowPowerDevice() {
   if (typeof window === "undefined") return false;

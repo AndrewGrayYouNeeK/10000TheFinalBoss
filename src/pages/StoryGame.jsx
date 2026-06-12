@@ -65,7 +65,10 @@ export default function StoryGame() {
     if (!boss) navigate("/story");
   }, [boss, navigate]);
 
-  React.useLayoutEffect(() => enterGamePlaySession(), []);
+  React.useLayoutEffect(() => {
+    const leave = enterGamePlaySession();
+    return leave;
+  }, []);
 
   const isMyTurn = () => game?.players[game.currentIndex]?.name === PLAYER_NAME;
 

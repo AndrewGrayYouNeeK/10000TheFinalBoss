@@ -1,4 +1,5 @@
 const STORAGE_KEY = "dice10k_soundwave_mic";
+const SETTINGS_VERSION = 3;
 
 export const MIC_PRESETS = [
   {
@@ -37,13 +38,13 @@ export const MIC_PRESETS = [
   {
     id: "voice",
     label: "Voice / Talk",
-    blurb: "Optimized for speech and claps",
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-    sensitivity: 1.9,
-    boostDb: 8,
-    smoothing: 0.45,
+    blurb: "Best for speech — raw mic, no echo filter (required on iPhone)",
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    sensitivity: 3.4,
+    boostDb: 24,
+    smoothing: 0.18,
   },
   {
     id: "ambient",
@@ -92,16 +93,38 @@ export const MIC_PRESETS = [
 ];
 
 export const DEFAULT_MIC_SETTINGS = {
-  preset: "sensitive",
+  version: SETTINGS_VERSION,
+  preset: "voice",
   deviceId: "",
-  sensitivity: 2.4,
-  boostDb: 12,
-  smoothing: 0.35,
+  sensitivity: 3.4,
+  boostDb: 24,
+  smoothing: 0.18,
   echoCancellation: false,
   noiseSuppression: false,
   autoGainControl: false,
   autoEnable: false,
 };
+
+function migrateSoundwaveMicSettings(parsed) {
+  const merged = { ...DEFAULT_MIC_SETTINGS, ...parsed };
+  const version = parsed?.version ?? 1;
+
+  if (version >= SETTINGS_VERSION) {
+    return merged;
+  }
+
+  // Older saves used balanced/noisy or echo-cancellation presets that silence iOS mic input.
+  merged.preset = "voice";
+  merged.sensitivity = DEFAULT_MIC_SETTINGS.sensitivity;
+  merged.boostDb = DEFAULT_MIC_SETTINGS.boostDb;
+  merged.smoothing = DEFAULT_MIC_SETTINGS.smoothing;
+  merged.echoCancellation = DEFAULT_MIC_SETTINGS.echoCancellation;
+  merged.noiseSuppression = DEFAULT_MIC_SETTINGS.noiseSuppression;
+  merged.autoGainControl = DEFAULT_MIC_SETTINGS.autoGainControl;
+  merged.version = SETTINGS_VERSION;
+  saveSoundwaveMicSettings(merged);
+  return merged;
+}
 
 export function getMicPreset(id) {
   return MIC_PRESETS.find((p) => p.id === id) ?? MIC_PRESETS[0];
@@ -112,10 +135,16 @@ export function loadSoundwaveMicSettings() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_MIC_SETTINGS };
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_MIC_SETTINGS, ...parsed };
+    return migrateSoundwaveMicSettings(parsed);
   } catch {
     return { ...DEFAULT_MIC_SETTINGS };
   }
+}
+
+export function resetSoundwaveMicSettings() {
+  const next = { ...DEFAULT_MIC_SETTINGS };
+  saveSoundwaveMicSettings(next);
+  return next;
 }
 
 export function saveSoundwaveMicSettings(settings) {

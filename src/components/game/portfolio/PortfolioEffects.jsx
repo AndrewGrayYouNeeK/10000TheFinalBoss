@@ -3,10 +3,11 @@ import { motion, useMotionValue, useTransform } from "framer-motion";
 import { EdgeFrame, NoiseFilm } from "./primitives";
 import { usePortfolioDie } from "./PortfolioDieContext";
 import { useAudioLevels } from "./useAudioLevels";
-import SoundwaveMicPanel from "./SoundwaveMicPanel";
+import SoundwaveBarDisplay from "./SoundwaveBarDisplay";
 import { armBugZapperAudio, playBugZapSound, startBugZapperHum, stopBugZapperHum, whenBugZapperAudioReady } from "./bugZapperSound";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { shouldPlayBugZapperSfx } from "@/lib/gameAudioSettings";
+import { useDiceSkinAudioAllowed } from "@/lib/useDiceSkinAudioAllowed";
 
 function SweepLine({ color = "rgba(0,255,255,0.85)", width = 3 }) {
   const ctx = usePortfolioDie();
@@ -680,9 +681,10 @@ function BugZapperScene({ radius, layout, dieSeed = 0 }) {
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
   const flyCount = targets.length > 0 ? 1 + Math.floor(seeded(dieSeed, 50) * 2) : 0;
   const { sfxMuted } = useCosmetics();
+  const audioAllowed = useDiceSkinAudioAllowed();
 
   useEffect(() => {
-    if (!shouldPlayBugZapperSfx()) {
+    if (!audioAllowed || !shouldPlayBugZapperSfx()) {
       stopBugZapperHum();
       return undefined;
     }
@@ -692,7 +694,7 @@ function BugZapperScene({ radius, layout, dieSeed = 0 }) {
       unsub();
       stopBugZapperHum();
     };
-  }, [sfxMuted]);
+  }, [sfxMuted, audioAllowed]);
 
   return (
     <>
@@ -844,20 +846,7 @@ function MatrixStormScene({ radius }) {
 }
 
 function SoundwaveBars() {
-  const {
-    levels,
-    live,
-    pending,
-    error,
-    synthetic,
-    settings,
-    devices,
-    enableMic,
-    startDemo,
-    updateSettings,
-    refreshDevices,
-    restartMic,
-  } = useAudioLevels(14, true);
+  const { levels, live, pending, error, synthetic, enableMic } = useAudioLevels(14, true);
 
   const needsMicTap = !live || synthetic;
 
@@ -869,16 +858,6 @@ function SoundwaveBars() {
 
   return (
     <>
-      <SoundwaveMicPanel
-        settings={settings}
-        devices={devices}
-        live={live}
-        synthetic={synthetic}
-        onChange={updateSettings}
-        onRefreshDevices={refreshDevices}
-        onRestart={restartMic}
-        onStartDemo={startDemo}
-      />
       {needsMicTap && (
         <div
           className="absolute inset-0 z-10 flex items-end justify-center pb-1 pointer-events-auto cursor-pointer"
@@ -901,20 +880,11 @@ function SoundwaveBars() {
           Demo audio
         </span>
       )}
-      <div className="absolute inset-0 flex items-end justify-center gap-[2px] px-2 pb-2 pointer-events-none">
-        {levels.map((lv, i) => (
-          <div
-            key={i}
-            className="flex-1 rounded-t-sm origin-bottom"
-            style={{
-              height: `${Math.min(100, lv * 100)}%`,
-              background: `linear-gradient(to top, ${i % 2 ? "#ff00ea" : "#00ffff"}, rgba(255,255,255,0.8))`,
-              boxShadow: `0 0 ${4 + lv * 10}px ${i % 2 ? "rgba(255,0,234,0.5)" : "rgba(0,255,255,0.5)"}`,
-              transition: live ? "height 35ms linear" : undefined,
-            }}
-          />
-        ))}
-      </div>
+      <SoundwaveBarDisplay
+        levels={levels}
+        live={live}
+        className="absolute inset-0 px-2 pb-2 pointer-events-none"
+      />
     </>
   );
 }

@@ -61,7 +61,10 @@ export default function Game() {
     winnerAwardedRef.current = false;
   }, [navigate]);
 
-  React.useLayoutEffect(() => enterGamePlaySession(), []);
+  React.useLayoutEffect(() => {
+    const leave = enterGamePlaySession();
+    return leave;
+  }, []);
 
   // Show big pop-up when bust count increases
   useEffect(() => {

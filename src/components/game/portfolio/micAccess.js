@@ -1,4 +1,6 @@
-/** Normalize getUserMedia + AudioContext across browsers (incl. older WebKit). */
+/** Normalize getUserMedia + AudioContext across browsers (incl. iOS WKWebView). */
+
+import { isIOSWebKit, isNativeIOS } from "@/lib/platform";
 
 export function ensureMediaDevices() {
   if (typeof navigator === "undefined") return false;
@@ -30,7 +32,7 @@ export function createAudioContext() {
   if (!Ctx) {
     throw Object.assign(new Error("Web Audio not supported"), { code: "NO_AUDIO_CONTEXT" });
   }
-  return new Ctx();
+  return new Ctx({ latencyHint: "interactive" });
 }
 
 export async function resumeAudioContext(ctx) {
@@ -48,15 +50,28 @@ export function micSupportError() {
   return null;
 }
 
+/**
+ * iOS WKWebView silences the mic when echo cancellation is on and the graph
+ * routes to the speaker — use raw constraints for level metering.
+ */
 export function buildMicConstraints(settings = {}) {
-  const audio = {
-    echoCancellation: !!settings.echoCancellation,
-    noiseSuppression: !!settings.noiseSuppression,
-    autoGainControl: !!settings.autoGainControl,
-  };
+  const ios = isIOSWebKit() || isNativeIOS();
+  const audio = ios
+    ? {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: settings.autoGainControl ?? false,
+      }
+    : {
+        echoCancellation: settings.echoCancellation ?? false,
+        noiseSuppression: settings.noiseSuppression ?? false,
+        autoGainControl: settings.autoGainControl ?? true,
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 },
+      };
 
   if (settings.deviceId) {
-    audio.deviceId = { exact: settings.deviceId };
+    audio.deviceId = ios ? { ideal: settings.deviceId } : { exact: settings.deviceId };
   }
 
   return { audio };
@@ -87,12 +102,19 @@ export async function requestMicrophoneStream(settings = {}) {
     throw Object.assign(new Error("Mic not supported"), { code: "NOT_SUPPORTED" });
   }
 
+  const ios = isIOSWebKit() || isNativeIOS();
   const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-  const attempts = [
-    buildMicConstraints(settings),
-    { audio: true },
-    buildMicConstraints({ ...settings, deviceId: "" }),
-  ];
+  const attempts = ios
+    ? [
+        { audio: true },
+        buildMicConstraints(settings),
+        buildMicConstraints({ ...settings, deviceId: "" }),
+      ]
+    : [
+        buildMicConstraints(settings),
+        { audio: true },
+        buildMicConstraints({ ...settings, deviceId: "" }),
+      ];
 
   let lastErr;
   for (const constraints of attempts) {

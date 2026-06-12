@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useLayoutEffect } from "react";
 import { Button } from "@/components/ui/button";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
@@ -9,6 +9,7 @@ import {
   getExperimentalDice,
 } from "@/lib/experimentalDice";
 import { useCosmetics } from "@/hooks/useCosmetics";
+import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
 import { toast } from "sonner";
 
 export default function PreviewDice() {
@@ -20,6 +21,11 @@ export default function PreviewDice() {
   const [demoScore, setDemoScore] = useState(0.72);
 
   const skins = useMemo(() => getExperimentalDice(category), [category]);
+
+  useLayoutEffect(() => {
+    const leave = enterShopPreviewSession();
+    return leave;
+  }, []);
 
   return (
     <div
@@ -151,7 +157,7 @@ export default function PreviewDice() {
       </div>
 
       <p className="text-center text-xs text-slate-500 mt-6 px-4">
-        {skins.length} dice — Soundwave: tap for mic, then tap ⚙ Mic for presets, sensitivity, and device options.
+        {skins.length} dice — Soundwave mic presets & sensitivity: Shop → Soundwave Mic settings.
       </p>
     </div>
   );
