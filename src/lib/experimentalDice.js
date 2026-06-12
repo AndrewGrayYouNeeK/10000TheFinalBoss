@@ -44,7 +44,7 @@ const fx = (id, name, desc, effectId, pipEffect, opts = {}) =>
 
 export const EXPERIMENTAL_DICE = [
   // —— SPECTRAL (kept) ——
-  spectral("ghost", "Ghost", "Nearly invisible — cyan pips fade out completely, then return.", "ghostPip", { phantomPulse: true }),
+  spectral("ghost", "Ghost", "Nearly invisible — pick a disguise. Steals opponent's pretend skin for power. Mind games.", "ghostPip", { phantomPulse: true }),
   spectral("clear_void", "Ultra Clear", "All clear. Body vanishes — pips float alone.", "whitePip", {
     fill: null,
     edge: "rgba(255,255,255,0.08)",

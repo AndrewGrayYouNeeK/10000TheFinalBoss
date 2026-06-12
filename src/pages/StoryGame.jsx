@@ -35,7 +35,7 @@ import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { assignPlayerSkin, resolvePlayerPower, getSkinLabel } from "@/lib/ghostDisguise";
+import { assignPlayerSkin, resolvePlayerPower, getSkinLabel, getDisplaySkinId } from "@/lib/ghostDisguise";
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford } from "@/lib/powers";
 import { isLowPowerDevice } from "@/lib/platform";
@@ -504,7 +504,7 @@ export default function StoryGame() {
               rolling={rollAnim}
               onToggle={handleToggle}
               disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner || rollAnim}
-              skinId={myTurn ? storyPlayerSkin : (boss.bossSkinId || "obsidian")}
+              skinId={getDisplaySkinId(game.players[game.currentIndex])}
               feltId={equippedFeltId}
               heldStyleId={heldDiceStyleId}
               lowPower={lowPower}

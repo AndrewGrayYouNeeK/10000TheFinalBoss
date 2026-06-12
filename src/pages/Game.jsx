@@ -33,7 +33,7 @@ import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel } from "@/lib/ghostDisguise";
+import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel, getDisplaySkinId } from "@/lib/ghostDisguise";
 
 export default function Game() {
   const navigate = useNavigate();
@@ -272,7 +272,7 @@ export default function Game() {
 
   const info = getHeldInfo(state);
   const currentPlayer = state.players[state.currentIndex];
-  const activeSkinId = currentPlayer?.skinId || equippedSkinId;
+  const activeSkinId = getDisplaySkinId(currentPlayer) || equippedSkinId;
   const heldPoints = heldSelectionPoints(info, state.perfectTenKPending);
   const potentialTotal = state.turnScore + (info.valid ? heldPoints : 0);
   const needsEntry = !currentPlayer.onBoard;

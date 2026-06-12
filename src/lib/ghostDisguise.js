@@ -20,6 +20,11 @@ export function getPretendSkin(player) {
   return player.skinId || "classic_white";
 }
 
+/** Dice on the table — Ghost looks like its disguise so opponents can't tell. */
+export function getDisplaySkinId(player) {
+  return getPretendSkin(player);
+}
+
 export function pickTrueSkinForGhost(ownedSkins = []) {
   const pool = ownedSkins.filter((id) => id && id !== GHOST_SKIN_ID);
   if (pool.length) return pool[0];
