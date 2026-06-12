@@ -3,6 +3,7 @@ import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
+import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
 
 function stableSeed(skinId) {
   return [...String(skinId)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
@@ -23,15 +24,27 @@ export default function DicePreview({
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el) return undefined;
+
+    let leavePreview = null;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) setVisible(true);
+        if (entry.isIntersecting) {
+          setVisible(true);
+          if (!leavePreview) leavePreview = enterShopPreviewSession();
+        } else {
+          leavePreview?.();
+          leavePreview = null;
+        }
       },
       { rootMargin: "140px" },
     );
+
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      leavePreview?.();
+      io.disconnect();
+    };
   }, []);
 
   const minHeight = size + (compact ? 28 : 44);
