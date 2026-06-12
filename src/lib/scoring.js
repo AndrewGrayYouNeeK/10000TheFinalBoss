@@ -1,15 +1,20 @@
 // Dice 10,000 (Farkle) scoring engine
 
-/** Points for a natural six-of-a-kind (not the 1-in-10,000 perfect roll). */
-export function sixOfAKindPoints(face) {
-  return face === 1 ? 6000 : face * 800;
-}
-
 // Count occurrences of each face
 function countFaces(dice) {
   const counts = [0, 0, 0, 0, 0, 0, 0]; // index 1-6
   dice.forEach(d => { counts[d]++; });
   return counts;
+}
+
+/** All six dice show the same face (used for Perfect 10,000 only). */
+export function isSixOfAKind(dice) {
+  if (!dice || dice.length !== 6) return null;
+  const counts = countFaces(dice);
+  for (let face = 1; face <= 6; face++) {
+    if (counts[face] === 6) return face;
+  }
+  return null;
 }
 
 // Score a set of dice values (array of 1-6).
@@ -21,14 +26,6 @@ export function scoreSelection(dice) {
   const counts = countFaces(dice);
   let score = 0;
   const remaining = [...counts];
-
-  // Six of a kind => instant win flag handled by caller, but score it big
-  for (let face = 1; face <= 6; face++) {
-    if (remaining[face] >= 6) {
-      // Six of a kind - special: we'll return a flag
-      return { score: 0, valid: true, sixOfAKind: true, face };
-    }
-  }
 
   // Straight 1-2-3-4-5-6 => 1500
   if (dice.length === 6 && [1,2,3,4,5,6].every(f => counts[f] === 1)) {
@@ -136,11 +133,11 @@ export function hasAnyScore(dice) {
 
 // Describe the scoring combo for UX
 export function describeSelection(dice, { perfectTenKPending = false } = {}) {
-  const result = scoreSelection(dice);
-  if (result.sixOfAKind) {
-    if (perfectTenKPending) return `Six ${result.face}s — PERFECT 10,000!`;
-    return `Six ${result.face}s — +${sixOfAKindPoints(result.face).toLocaleString()}`;
+  const sixFace = isSixOfAKind(dice);
+  if (sixFace !== null && perfectTenKPending) {
+    return `Six ${sixFace}s — PERFECT 10,000!`;
   }
+  const result = scoreSelection(dice);
   if (result.straight) return "Straight 1-6 (1500)";
   if (result.smallStraight) return "Small Straight (1000)";
   if (result.threePairs) return "Three Pairs (1500)";
@@ -149,21 +146,18 @@ export function describeSelection(dice, { perfectTenKPending = false } = {}) {
   return `+${result.score}`;
 }
 
-/** Points for the current held selection (handles natural vs perfect six-of-a-kind). */
+/** Points for the current held selection (Perfect 10,000 when pending). */
 export function heldSelectionPoints(info, perfectTenKPending = false) {
   if (!info?.valid) return 0;
-  if (info.sixOfAKind) {
-    return perfectTenKPending ? 10000 : sixOfAKindPoints(info.face);
-  }
+  if (info.held && isSixOfAKind(info.held) && perfectTenKPending) return 10000;
   return info.score || 0;
 }
 
 /** Label shown under the dice tray for the held selection. */
 export function heldSelectionLabel(info, perfectTenKPending = false) {
   if (!info?.valid) return "Selection includes non-scoring dice";
-  if (info.sixOfAKind) {
-    if (perfectTenKPending) return `Six ${info.face}s — PERFECT 10,000!`;
-    return `Six ${info.face}s — +${sixOfAKindPoints(info.face).toLocaleString()}`;
+  if (info.held && isSixOfAKind(info.held) && perfectTenKPending) {
+    return `Six ${isSixOfAKind(info.held)}s — PERFECT 10,000!`;
   }
   if (info.straight) return "Straight!";
   if (info.smallStraight) return "Small Straight! +1000";

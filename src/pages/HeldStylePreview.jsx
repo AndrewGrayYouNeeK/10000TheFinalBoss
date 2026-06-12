@@ -2,14 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
+import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
+import { getFelt } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { HELD_DICE_STYLES, HELD_STYLE_SECTIONS } from "@/lib/heldDiceStyles";
 import { toast } from "sonner";
 
-const FELT_BG =
-  "radial-gradient(circle at center, #226a3b 0%, #0f3d24 70%, #061a10 100%)";
-
-function StyleCard({ style, selected, onSelect, skinId, face }) {
+function StyleCard({ style, selected, onSelect, skinId, face, felt }) {
   return (
     <button
       type="button"
@@ -20,11 +19,10 @@ function StyleCard({ style, selected, onSelect, skinId, face }) {
           : "border-white/10 bg-black/30 hover:border-white/25"
       }`}
     >
-      <div
-        className="flex items-center justify-center rounded-lg py-6 mb-3 mx-auto w-full max-w-[200px]"
-        style={{ background: FELT_BG, boxShadow: "inset 0 0 24px rgba(0,0,0,0.4)" }}
-      >
-        <Die value={face} skinId={skinId} size={80} held heldStyleId={style.id} />
+      <div className="flex items-center justify-center mb-3 mx-auto w-full max-w-[200px]">
+        <FeltTrayFrame felt={felt} innerClassName="flex items-center justify-center py-5 px-3 w-full">
+          <Die value={face} skinId={skinId} size={80} held heldStyleId={style.id} />
+        </FeltTrayFrame>
       </div>
       <p className="text-sm font-bold">{style.label}</p>
       <p className="text-[10px] text-slate-400 mt-1 leading-snug">{style.description}</p>
@@ -36,7 +34,8 @@ function StyleCard({ style, selected, onSelect, skinId, face }) {
 }
 
 export default function HeldStylePreview() {
-  const { equippedSkinId, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
+  const { equippedSkinId, equippedFeltId, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
+  const felt = getFelt(equippedFeltId);
   const [face, setFace] = useState(5);
   const [previewStyle, setPreviewStyle] = useState(heldDiceStyleId);
 
@@ -83,24 +82,23 @@ export default function HeldStylePreview() {
           <p className="text-xs text-slate-400 text-center mb-4 uppercase tracking-wider font-bold">
             Side-by-side on felt
           </p>
-          <div
-            className="flex items-center justify-center gap-10 py-6 rounded-xl"
-            style={{ background: FELT_BG, boxShadow: "inset 0 0 32px rgba(0,0,0,0.45)" }}
-          >
-            <div className="text-center">
-              <p className="text-[10px] text-slate-400 mb-2">Not held</p>
-              <Die value={face} skinId={equippedSkinId} size={size} heldStyleId={previewStyle} />
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] text-amber-300 mb-2 font-bold">Held</p>
-              <Die
-                value={face}
-                skinId={equippedSkinId}
-                size={size}
-                held
-                heldStyleId={previewStyle}
-              />
-            </div>
+          <div className="flex items-center justify-center mb-4">
+            <FeltTrayFrame felt={felt} innerClassName="flex items-center justify-center gap-10 py-6 px-6">
+              <div className="text-center relative z-10">
+                <p className="text-[10px] text-slate-400 mb-2">Not held</p>
+                <Die value={face} skinId={equippedSkinId} size={size} heldStyleId={previewStyle} />
+              </div>
+              <div className="text-center relative z-10">
+                <p className="text-[10px] text-amber-300 mb-2 font-bold">Held</p>
+                <Die
+                  value={face}
+                  skinId={equippedSkinId}
+                  size={size}
+                  held
+                  heldStyleId={previewStyle}
+                />
+              </div>
+            </FeltTrayFrame>
           </div>
 
           <div className="flex justify-center gap-1.5 mt-4">
@@ -151,6 +149,7 @@ export default function HeldStylePreview() {
                     onSelect={() => applyStyle(style.id)}
                     skinId={equippedSkinId}
                     face={face}
+                    felt={felt}
                   />
                 ))}
               </div>

@@ -14,7 +14,7 @@ function findMinimalScoringSelection(activeDice) {
 
   // First check for big combos in the FULL roll (straights, three pairs, six-of-a-kind, etc.)
   const fullScore = scoreSelection(values);
-  if (fullScore.valid && fullScore.score > 0 && (fullScore.straight || fullScore.smallStraight || fullScore.threePairs || fullScore.sixOfAKind)) {
+  if (fullScore.valid && fullScore.score > 0 && (fullScore.straight || fullScore.smallStraight || fullScore.threePairs)) {
     return activeDice.map((d) => d.id);
   }
 

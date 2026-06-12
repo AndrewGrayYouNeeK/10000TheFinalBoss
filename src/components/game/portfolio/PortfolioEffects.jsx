@@ -853,10 +853,19 @@ function SoundwaveBars() {
     settings,
     devices,
     enableMic,
+    startDemo,
     updateSettings,
     refreshDevices,
     restartMic,
   } = useAudioLevels(14, true);
+
+  const needsMicTap = !live || synthetic;
+
+  const requestMic = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void enableMic();
+  };
 
   return (
     <>
@@ -864,31 +873,21 @@ function SoundwaveBars() {
         settings={settings}
         devices={devices}
         live={live}
+        synthetic={synthetic}
         onChange={updateSettings}
         onRefreshDevices={refreshDevices}
         onRestart={restartMic}
+        onStartDemo={startDemo}
       />
-      {!live && (
+      {needsMicTap && (
         <div
-          role="button"
-          tabIndex={0}
           className="absolute inset-0 z-10 flex items-end justify-center pb-1 pointer-events-auto cursor-pointer"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            enableMic();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              enableMic();
-            }
-          }}
+          onPointerDown={requestMic}
+          onClick={requestMic}
           title={error || "Tap to enable microphone"}
         >
           <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 text-cyan-300 border border-cyan-500/40">
-            {pending ? "Listening…" : error || "Tap for mic"}
+            {pending ? "Starting mic…" : error || (synthetic ? "Tap for live mic" : "Tap for mic")}
           </span>
         </div>
       )}
@@ -897,7 +896,7 @@ function SoundwaveBars() {
           Live mic
         </span>
       )}
-      {live && synthetic && error && (
+      {live && synthetic && (
         <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 z-10 text-[6px] font-bold uppercase tracking-wider text-amber-300/80 pointer-events-none">
           Demo audio
         </span>

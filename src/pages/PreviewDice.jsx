@@ -2,19 +2,18 @@ import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
+import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
+import { getFelt } from "@/lib/shopCatalog";
 import {
   EXPERIMENTAL_CATEGORIES,
   getExperimentalDice,
 } from "@/lib/experimentalDice";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { toast } from "sonner";
-import VocalSfxButtons from "@/components/vocal/VocalSfxButtons";
-
-const FELT_BG =
-  "radial-gradient(circle at center, #226a3b 0%, #0f3d24 70%, #061a10 100%)";
 
 export default function PreviewDice() {
-  const { equipItem, equippedSkinId } = useCosmetics();
+  const { equipItem, equippedSkinId, equippedFeltId } = useCosmetics();
+  const felt = getFelt(equippedFeltId);
   const [category, setCategory] = useState("all");
   const [face, setFace] = useState(5);
   const [expandedId, setExpandedId] = useState(null);
@@ -95,15 +94,6 @@ export default function PreviewDice() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-3 pt-2">
-        <div className="rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/25 px-3 py-3">
-          <p className="text-xs font-bold text-fuchsia-200 text-center mb-2">
-            🔊 Vocal SFX prototypes
-          </p>
-          <VocalSfxButtons compact />
-        </div>
-      </div>
-
       <div className="max-w-4xl mx-auto px-3 pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
         {skins.map((skin) => {
           const equipped = equippedSkinId === skin.id;
@@ -118,16 +108,22 @@ export default function PreviewDice() {
               }`}
             >
               <div
-                className="flex items-center justify-center rounded-lg py-5 mb-2 cursor-pointer"
-                style={{ background: FELT_BG, boxShadow: "inset 0 0 24px rgba(0,0,0,0.4)" }}
+                className="flex items-center justify-center mb-2 cursor-pointer"
                 onClick={() => setExpandedId(expanded ? null : skin.id)}
               >
-                <Die
-                  value={face}
-                  skinId={skin.id}
-                  size={expanded ? 96 : 72}
-                  scoreFill={demoScore}
-                />
+                <FeltTrayFrame
+                  felt={felt}
+                  compact={!expanded}
+                  innerClassName="flex items-center justify-center py-4 px-3"
+                >
+                  <Die
+                    value={face}
+                    skinId={skin.id}
+                    size={expanded ? 96 : 72}
+                    scoreFill={demoScore}
+                    dieSeed={[...skin.id].reduce((a, c) => a + c.charCodeAt(0), 0)}
+                  />
+                </FeltTrayFrame>
               </div>
               <p className="text-xs font-bold leading-tight truncate">{skin.name}</p>
               <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5 min-h-[2.5em]">{skin.description}</p>

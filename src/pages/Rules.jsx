@@ -60,8 +60,6 @@ export default function Rules() {
               ["Small Straight (1-2-3-4-5 or 2-3-4-5-6)", "1,000"],
               ["Large Straight (1-2-3-4-5-6)", "1,500"],
               ["Three Pairs", "1,500"],
-              ["Six 1s (natural)", "6,000"],
-              ["Six 2s–6s (natural)", "Face × 800"],
               ["Perfect 10,000", "Six of a kind on the 1-in-10,000 roll — instant win"],
             ].map(([label, val]) => (
               <div key={label} className="flex justify-between border-b border-slate-800 pb-1">

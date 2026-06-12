@@ -16,11 +16,9 @@ import FeltPreview from "@/components/shop/FeltPreview";
 import MysteryBoxesTab from "@/components/shop/MysteryBoxesTab";
 import BuyCoinsDialog from "@/components/shop/BuyCoinsDialog";
 import { isPreviewSkin } from "@/lib/previewSkins";
-import { isDevUnlockAll } from "@/lib/devUnlock";
-import { isNativeApp } from "@/lib/platform";
 import { getHeldDiceStyle } from "@/lib/heldDiceStyles";
 
-const showPreviewLab = isNativeApp() || !import.meta.env.PROD || isDevUnlockAll();
+const showPreviewLab = true;
 
 
 export default function Shop() {

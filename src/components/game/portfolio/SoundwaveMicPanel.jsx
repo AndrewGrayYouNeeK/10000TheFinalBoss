@@ -1,7 +1,16 @@
 import React, { useState } from "react";
 import { MIC_PRESETS } from "@/lib/soundwaveMicSettings";
 
-export default function SoundwaveMicPanel({ settings, devices, live, onChange, onRefreshDevices, onRestart }) {
+export default function SoundwaveMicPanel({
+  settings,
+  devices,
+  live,
+  synthetic = false,
+  onChange,
+  onRefreshDevices,
+  onRestart,
+  onStartDemo,
+}) {
   const [open, setOpen] = useState(false);
   const preset = MIC_PRESETS.find((p) => p.id === settings.preset) ?? MIC_PRESETS[0];
 
@@ -139,6 +148,16 @@ export default function SoundwaveMicPanel({ settings, devices, live, onChange, o
               Restart
             </button>
           </div>
+
+          {onStartDemo && (
+            <button
+              type="button"
+              className="w-full text-[8px] font-bold uppercase py-1 rounded bg-amber-900/40 border border-amber-500/35 text-amber-200"
+              onClick={() => void onStartDemo()}
+            >
+              {synthetic ? "Demo running" : "Use demo audio"}
+            </button>
+          )}
         </div>
       )}
     </div>

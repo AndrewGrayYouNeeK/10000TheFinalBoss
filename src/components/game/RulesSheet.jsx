@@ -43,7 +43,6 @@ export default function RulesSheet() {
               <li>Three 4s = 400 • Three 5s = 500 • Three 6s = 600</li>
               <li>Four of a kind = 2,000</li>
               <li>Five of a kind = 4,000</li>
-              <li>Six 1s (natural) = <b>6,000</b> • Six 2s–6s = <b>face × 800</b></li>
               <li><b>Perfect 10,000</b> — six of a kind on the ultra-rare 1-in-10,000 roll = instant win</li>
               <li>Small Straight (1-2-3-4-5 or 2-3-4-5-6) = 1000</li>
               <li>Large Straight (1-2-3-4-5-6) = 1500</li>
