@@ -37,6 +37,7 @@ export function useCosmetics() {
   const ownedBadges = user?.owned_badges ?? [];
   const ownedFelts = user?.owned_felts ?? ["classic_green"];
   const equippedSkinId = user?.equipped_skin || "classic_white";
+  const ghostDisguiseId = user?.ghost_disguise || null;
   const equippedBadgeId = user?.equipped_badge || "";
   const equippedFeltId = user?.equipped_felt || "classic_green";
   const heldDiceStyleId = isValidHeldDiceStyle(user?.held_dice_style)
@@ -104,7 +105,18 @@ export function useCosmetics() {
 
   const equipItem = (type, itemId) => {
     const key = type === "skin" ? "equipped_skin" : type === "felt" ? "equipped_felt" : "equipped_badge";
-    updateMe.mutate({ [key]: itemId });
+    const patch = { [key]: itemId };
+    if (type === "skin" && itemId === "ghost" && !user?.ghost_disguise) {
+      const owned = user?.owned_skins ?? ["classic_white"];
+      const pool = owned.filter((id) => id && id !== "ghost");
+      if (pool.length) patch.ghost_disguise = pool[0];
+    }
+    updateMe.mutate(patch);
+  };
+
+  const setGhostDisguise = (skinId) => {
+    if (!skinId || skinId === "ghost") return;
+    updateMe.mutate({ ghost_disguise: skinId });
   };
 
   const setHeldDiceStyle = (styleId) => {
@@ -144,12 +156,13 @@ export function useCosmetics() {
     isLoading,
     coins, xp, currentTier, nextTier, introSeen,
     ownedSkins, ownedBadges, ownedFelts,
-    equippedSkinId, equippedBadgeId, equippedFeltId, heldDiceStyleId,
+    equippedSkinId, equippedBadgeId, equippedFeltId, heldDiceStyleId, ghostDisguiseId,
     sfxMuted, opponentSfxMuted,
     equippedSkin, equippedBadge, equippedFelt,
     addCoins, addXp, markIntroSeen, recordGameResult,
     buyItem,
     equipItem,
+    setGhostDisguise,
     setHeldDiceStyle,
     setSfxMuted,
     setOpponentSfxMuted,

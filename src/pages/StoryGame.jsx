@@ -35,7 +35,7 @@ import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { getSkinPower } from "@/lib/skinPowers";
+import { assignPlayerSkin, resolvePlayerPower, getSkinLabel } from "@/lib/ghostDisguise";
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford } from "@/lib/powers";
 import { isLowPowerDevice } from "@/lib/platform";
@@ -46,19 +46,27 @@ export default function StoryGame() {
   const { bossId } = useParams();
   const navigate = useNavigate();
   const boss = getBoss(bossId);
-  const { user, equippedFeltId, grantReward, updateMe, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
+  const { user, equippedFeltId, grantReward, updateMe, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId } = useCosmetics();
   // In Story Mode you can't pick your dice — they're forced by your ladder progress.
   const storyPlayerSkin = getStoryPlayerSkin(user?.bosses_defeated || []);
   const playDiceSound = useDiceSound();
 
   const [dialogue, setDialogue] = useState("intro"); // "intro" | null | "win" | "lose"
-  const [game, setGame] = useState(() => makeInitialGame(boss));
+  const [game, setGame] = useState(null);
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null);
   const [rewardSummary, setRewardSummary] = useState(null);
   const farkleShieldUsedRef = useRef(false);
   const rewardsClaimedRef = useRef(false);
-  const skinPower = React.useMemo(() => getSkinPower(storyPlayerSkin), [storyPlayerSkin]);
+  const resolvedPower =
+    game?.players[game.currentIndex]?.name === PLAYER_NAME
+      ? resolvePlayerPower(game, game.currentIndex)
+      : null;
+  const skinPower = resolvedPower?.power ?? null;
+
+  useEffect(() => {
+    if (boss) setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+  }, [boss, storyPlayerSkin, ownedSkins, ghostDisguiseId]);
 
   // Boss may not exist
   useEffect(() => {
@@ -87,12 +95,18 @@ export default function StoryGame() {
   }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue]);
 
   const onFireSkinPower = () => {
-    if (!game || !skinPower || !isMyTurn() || game.skinPowerUsedThisTurn || !game.powerModeAvailable) return;
+    if (!game || !skinPower || !isMyTurn() || !game.players[game.currentIndex]?.powerCharge) return;
     if (!canAfford(MAX_POWER, skinPower.id)) return;
     const debuffs = game.players[game.currentIndex]?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
 
     const result = applySkinPower(game, skinPower.id);
+    if (result.variant === "warning") {
+      if (result.message) {
+        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
+      }
+      return;
+    }
     setGame(consumeSkinPower(result.state));
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
@@ -351,8 +365,7 @@ export default function StoryGame() {
   );
   const powerModeActive =
     myTurn &&
-    game.powerModeAvailable &&
-    !game.skinPowerUsedThisTurn &&
+    !!currentPlayer?.powerCharge &&
     !game.farkle &&
     !game.winner;
   const lowPower = isLowPowerDevice();
@@ -414,6 +427,7 @@ export default function StoryGame() {
             players={game.players}
             currentIndex={game.currentIndex}
             obscuredIndices={obscuredScores}
+            xrayReveals={game.xrayReveals}
           />
           <HeldDiceStylePicker
             value={heldDiceStyleId}
@@ -440,11 +454,14 @@ export default function StoryGame() {
             power={MAX_POWER}
             skinPower={skinPower}
             powerMode={powerModeActive}
-            used={game.skinPowerUsedThisTurn}
+            used={false}
             locked={powerLocked}
             disabled={powerFrozen}
             frozen={powerFrozen}
             onFire={onFireSkinPower}
+            isGhostMimic={resolvedPower?.isMimic}
+            mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
+            mimicFromName={resolvedPower?.sourcePlayerName}
           />
         </div>
 
@@ -589,7 +606,7 @@ export default function StoryGame() {
               navigate("/story");
             } else {
               // lose — reset to play again
-              setGame(makeInitialGame(boss));
+              setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
               farkleShieldUsedRef.current = false;
               rewardsClaimedRef.current = false;
               setRewardSummary(null);
@@ -604,9 +621,13 @@ export default function StoryGame() {
 }
 
 // Build the initial game state — boss may have a head-start gimmick.
-function makeInitialGame(boss) {
+function makeInitialGame(boss, storyPlayerSkin, ownedSkins = [], ghostDisguiseId = null) {
   if (!boss) return null;
-  const state = createInitialState([PLAYER_NAME, boss.name]);
+  const playerSkins = [
+    assignPlayerSkin(storyPlayerSkin, ownedSkins, ghostDisguiseId),
+    assignPlayerSkin(boss.bossSkinId || "obsidian", ownedSkins),
+  ];
+  const state = createInitialState([PLAYER_NAME, boss.name], { playerSkins });
   if (boss.gimmick?.startScore) {
     state.players = state.players.map((p) =>
       p.name === boss.name

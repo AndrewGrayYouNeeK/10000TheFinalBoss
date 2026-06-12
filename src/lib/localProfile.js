@@ -12,6 +12,7 @@ const DEFAULT_PROFILE = {
   owned_badges: [],
   owned_felts: ["classic_green"],
   equipped_skin: "classic_white",
+  ghost_disguise: null,
   equipped_badge: "",
   equipped_felt: "classic_green",
   equipped_powers: [],
