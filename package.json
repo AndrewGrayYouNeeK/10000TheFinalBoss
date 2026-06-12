@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:fix": "bash scripts/ios-fix.sh",
+    "ios:build": "xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -destination \"platform=iOS Simulator,id=${IOS_SIMULATOR:-6DF39480-7916-493B-BA4B-D589206AE8FC}\" build",
     "ios:open": "open ios/App/App.xcworkspace",
     "ios:run": "npm run ios:sync && npx cap run ios --target \"${IOS_SIMULATOR:-6DF39480-7916-493B-BA4B-D589206AE8FC}\""
   },

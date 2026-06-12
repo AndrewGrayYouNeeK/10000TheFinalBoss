@@ -1,5 +1,5 @@
 // Core game state manipulation for Dice 10,000
-import { scoreSelection, hasAnyScore, sixOfAKindPoints } from "./scoring";
+import { scoreSelection, hasAnyScore, isSixOfAKind } from "./scoring";
 import { POWER_MODE_HOT_DICE } from "./powers";
 
 export const TARGET_SCORE = 10000;
@@ -157,31 +157,27 @@ export function getHeldInfo(state) {
 // Returns { state, instantWin }
 export function confirmAndReroll(state) {
   const held = getHeldInfo(state);
-  if (!held.valid || (held.score === 0 && !held.sixOfAKind)) return { state };
-
-  if (held.sixOfAKind) {
-    if (state.perfectTenKPending) {
-      const players = state.players.map((p, i) =>
-        i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
-      );
-      return {
-        state: {
-          ...state,
-          players,
-          winner: players[state.currentIndex],
-          perfectTenK: true,
-          perfectTenKPending: false,
-          message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
-          messageVariant: "success",
-        },
-        instantWin: true,
-      };
-    }
+  if (isSixOfAKind(held.held) && state.perfectTenKPending) {
+    const players = state.players.map((p, i) =>
+      i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
+    );
+    return {
+      state: {
+        ...state,
+        players,
+        winner: players[state.currentIndex],
+        perfectTenK: true,
+        perfectTenKPending: false,
+        message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
+        messageVariant: "success",
+      },
+      instantWin: true,
+    };
   }
 
-  const scored = held.sixOfAKind
-    ? { ...held, sixOfAKind: false, score: sixOfAKindPoints(held.face), valid: true }
-    : held;
+  if (!held.valid || held.score === 0) return { state };
+
+  const scored = held;
 
   // Mark held dice as used, add to turn score
   let newDice = state.dice.map(d => (d.held ? { ...d, used: true, held: false } : d));
@@ -284,7 +280,7 @@ export function consumeSkinPower(state) {
 export function bankAndPass(state) {
   const info = getHeldInfo(state);
 
-  if (info.sixOfAKind && state.perfectTenKPending) {
+  if (isSixOfAKind(info.held) && state.perfectTenKPending) {
     const players = state.players.map((p, i) =>
       i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
     );
@@ -303,8 +299,6 @@ export function bankAndPass(state) {
   let finalTurn = state.turnScore;
   if (info.valid && info.score > 0) {
     finalTurn += info.score;
-  } else if (info.sixOfAKind && !state.perfectTenKPending) {
-    finalTurn += sixOfAKindPoints(info.face);
   }
 
   const player = state.players[state.currentIndex];
