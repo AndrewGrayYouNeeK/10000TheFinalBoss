@@ -56,3 +56,11 @@ npm run ios:open   # builds in Xcode, run on simulator or device
 ```
 
 Bundle ID: `com.yourneek.neon10000`
+
+## Cursor Cloud specific instructions
+
+Standalone Vite + React app; npm only (a `package-lock.json` is committed). The startup update script runs `npm install`, so dependencies are already present — run/build/lint/test directly.
+
+- **Run / build / lint**: see the `## Commands` section above. Dev server is `npm run dev` → `http://localhost:5173`.
+- **iOS / Capacitor (`npm run ios:*`) does NOT work here.** It requires macOS + Xcode; this is a Linux VM. Skip all iOS commands and test the web app instead.
+- **Smoke test (`npm run smoke`)**: a Playwright script (`scripts/smoke-test.mjs`) that checks `/`, `/shop`, `/setup`, `/rules`. It needs (a) the Chromium browser installed once via `npx playwright install chromium`, and (b) a server reachable at `http://127.0.0.1:4173` (start with `npm run build` then `npm run preview -- --host 127.0.0.1 --port 4173 --strictPort`). Override the target with `BASE_URL`. It does NOT exercise the `/game` route.
