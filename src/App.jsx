@@ -14,6 +14,7 @@ const Setup = lazy(() => import('@/pages/Setup'));
 const Game = lazy(() => import('@/pages/Game'));
 const Rules = lazy(() => import('@/pages/Rules'));
 const PreviewDice = lazy(() => import('@/pages/PreviewDice'));
+const SkinPowerPreview = lazy(() => import('@/pages/SkinPowerPreview'));
 const HeldStylePreview = lazy(() => import('@/pages/HeldStylePreview'));
 const SoundwaveMicSettings = lazy(() => import('@/pages/SoundwaveMicSettings'));
 const About = lazy(() => import('@/pages/About'));
@@ -69,6 +70,7 @@ function App() {
             <Route path="/rules" element={<Rules />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/preview-dice" element={<PreviewDice />} />
+            <Route path="/preview/power-skins" element={<SkinPowerPreview />} />
             <Route path="/held-style" element={<HeldStylePreview />} />
             <Route path="/soundwave-mic" element={<SoundwaveMicSettings />} />
             <Route path="/about" element={<About />} />

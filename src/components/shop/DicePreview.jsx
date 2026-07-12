@@ -3,6 +3,7 @@ import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
+import { getSkin } from "@/lib/shopCatalog";
 import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
 
 function stableSeed(skinId) {
@@ -19,6 +20,9 @@ export default function DicePreview({
 }) {
   const { equippedFeltId } = useCosmetics();
   const felt = getFelt(equippedFeltId);
+  const skin = getSkin(skinId);
+  const hasPowerSprite = !!skin?.powerSpriteUrl;
+  const [powerMode, setPowerMode] = useState(false);
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
@@ -57,14 +61,28 @@ export default function DicePreview({
           compact={compact}
           innerClassName="flex items-center justify-center px-2 py-1.5"
         >
-          <div className="relative z-10">
+          <div className="relative z-10 flex flex-col items-center gap-1">
             <Die
-            value={value}
-            skinId={skinId}
-            size={size}
-            scoreFill={scoreFill}
-            dieSeed={stableSeed(skinId)}
-          />
+              value={value}
+              skinId={skinId}
+              size={size}
+              scoreFill={scoreFill}
+              dieSeed={stableSeed(skinId)}
+              powerMode={powerMode}
+            />
+            {hasPowerSprite && (
+              <button
+                type="button"
+                onClick={() => setPowerMode((p) => !p)}
+                className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                  powerMode
+                    ? "border-orange-400/60 text-orange-200 bg-orange-500/20"
+                    : "border-white/15 text-slate-500 bg-black/20"
+                }`}
+              >
+                {powerMode ? "⚡ Power" : "Power off"}
+              </button>
+            )}
           </div>
         </FeltTrayFrame>
       ) : (
