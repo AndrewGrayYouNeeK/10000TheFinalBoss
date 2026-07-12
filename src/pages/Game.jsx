@@ -451,6 +451,7 @@ export default function Game() {
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}
             lowPower={lowPower}
+            powerMode={powerModeActive}
           />
           {info.held.length > 0 && (
             <div className="mt-2 text-center text-sm">

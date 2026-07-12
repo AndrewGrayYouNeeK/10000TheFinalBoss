@@ -741,6 +741,20 @@ function Die({
           </div>
         )}
 
+        {/* Ragnarok — magma pulse when power is charged */}
+        {skin.id === "lava" && powerMode && !reduceEffects && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none mix-blend-screen"
+            style={{
+              borderRadius: radius,
+              background:
+                "radial-gradient(circle at 50% 55%, rgba(255,120,20,0.45), rgba(255,60,0,0.15) 55%, transparent 75%)",
+            }}
+            animate={{ opacity: [0.55, 0.95, 0.55] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+          />
+        )}
+
         {/* Corner shadow vignette — Chrome Silver only */}
         {skin.id === "silver" && (
           <div

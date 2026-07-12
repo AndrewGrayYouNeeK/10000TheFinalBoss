@@ -133,9 +133,10 @@ export const PRODUCTION_DICE_SKINS = [
     border: "border-orange-800",
     pipColor: "bg-yellow-200",
     glow: "shadow-orange-500/70",
-    description: "Molten hot dice.",
+    description: "Molten hot dice — cracks open when power is charged.",
     realistic: true,
-    spriteUrl: "/assets/d21426962_XCSnTqF8nVT8rvkZYlH5g_BYlXoewC.png",
+    spriteUrl: "/assets/lava/ragnarok_sprite.png",
+    powerSpriteUrl: "/assets/lava/ragnarok_power_sprite.png",
     spriteCrop: { stretch: 0.1, offsetY: 0.065, zoom: 1.16 },
   },
   {
