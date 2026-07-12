@@ -1,3 +1,5 @@
+import { STORY_VERSION } from "./storyBosses";
+
 const STORAGE_KEY = "dice10k_profile";
 
 const DEFAULT_PROFILE = {
@@ -17,10 +19,20 @@ const DEFAULT_PROFILE = {
   equipped_felt: "classic_green",
   equipped_powers: [],
   bosses_defeated: [],
+  story_version: STORY_VERSION,
   held_dice_style: "amber_glow",
   sfx_muted: false,
   opponent_sfx_muted: false,
 };
+
+function migrateStoryProgress(profile) {
+  if ((profile.story_version ?? 1) >= STORY_VERSION) return profile;
+  return {
+    ...profile,
+    story_version: STORY_VERSION,
+    bosses_defeated: [],
+  };
+}
 
 export function loadProfile() {
   try {
@@ -30,7 +42,10 @@ export function loadProfile() {
       saveProfile(profile);
       return profile;
     }
-    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    const merged = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    const migrated = migrateStoryProgress(merged);
+    if (migrated !== merged) saveProfile(migrated);
+    return migrated;
   } catch {
     return { ...DEFAULT_PROFILE };
   }

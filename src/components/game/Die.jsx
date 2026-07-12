@@ -44,6 +44,7 @@ function Die({
   heldStyleId = DEFAULT_HELD_DICE_STYLE,
   dieSeed,
   lowPower = false,
+  powerMode = false,
 }) {
   const stableSeedRef = React.useRef(Math.floor(Math.random() * 10000));
   const effectDieSeed = dieSeed ?? stableSeedRef.current;
@@ -54,6 +55,8 @@ function Die({
     else if (onToggleDie && dieId != null) onToggleDie(dieId);
   }, [onClick, onToggleDie, dieId]);
   const skin = getSkin(skinId);
+  const spriteUrl =
+    powerMode && skin.powerSpriteUrl ? skin.powerSpriteUrl : skin.spriteUrl;
   const isXray = skin.id === "pf_xray";
   const { displayLayout: xrayLayout } = useXrayMorphLayout(value, rolling, isXray);
   const layout = isXray ? xrayLayout : layoutGrid(value);
@@ -443,7 +446,7 @@ function Die({
         )}
 
         {/* Sprite sheet texture or pip grid */}
-        {skin.id !== "blue_gel" && skin.id !== "snow_globe" && skin.spriteUrl ?
+        {skin.id !== "blue_gel" && skin.id !== "snow_globe" && spriteUrl ?
         (() => {
           const cellW = size * 1.7;
           const cellH = size * 1.32;
@@ -700,7 +703,7 @@ function Die({
                 left: `${-size * 0.35 + xNudge - stretch}px`,
                 right: `${-size * 0.35 + xNudge - stretch}px`,
                 borderRadius: radius,
-                backgroundImage: `url(${skin.spriteUrl})`,
+                backgroundImage: `url(${spriteUrl})`,
                 backgroundSize: `${cellW * cols + stretch * 2}px ${cellH * rows + stretch * 2}px`,
                 backgroundPosition: `${-(col * (cellW + stretch * 2 / cols))}px ${-(row * (cellH + stretch * 2 / rows)) - spriteCropBgY}px`,
                 backgroundRepeat: 'no-repeat',
@@ -708,14 +711,20 @@ function Die({
           );
         })() :
 
-        (skin.experimental || (skin.id !== "blue_gel" && skin.id !== "snow_globe" && !skin.spriteUrl)) && renderPipGrid()}
+        (skin.experimental || (skin.id !== "blue_gel" && skin.id !== "snow_globe" && !spriteUrl)) && renderPipGrid()}
 
         {/* Radiation — pulsing pip glow overlay on sprite */}
         {skin.id === "toxic_plasma_v2" && renderPipGrid()}
 
         {/* Matrix — code rain overlay */}
         {skin.id === "matrix" && !reduceEffects && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-70 mix-blend-screen" style={{ borderRadius: radius }}>
+          <div
+            className="absolute inset-0 pointer-events-none overflow-hidden mix-blend-screen"
+            style={{
+              borderRadius: radius,
+              opacity: powerMode ? 0.95 : 0.7,
+            }}
+          >
             {Array.from({ length: 8 }).map((_, i) => (
               <motion.div
                 key={i}

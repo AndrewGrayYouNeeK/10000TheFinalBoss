@@ -17,6 +17,7 @@ function DiceTray({
   scoreFill = 0.5,
   heldStyleId,
   lowPower = false,
+  powerMode = false,
 }) {
   const felt = getFelt(feltId);
 
@@ -50,6 +51,7 @@ function DiceTray({
               dieSeed={d.id}
               heldStyleId={heldStyleId}
               lowPower={lowPower}
+              powerMode={powerMode}
               bigFishVariantIndex={[7, 1, 6, 3, 1, 4][idx]}
               bigFishExtraScale={idx === 0 ? 2.1 : idx === 4 ? 2.0 : 1.15}
             />

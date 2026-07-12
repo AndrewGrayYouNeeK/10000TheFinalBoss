@@ -341,6 +341,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Follow the white rabbit.",
     realistic: true,
     spriteUrl: "/assets/5784136aa_KkADf2cqhZJ_5eX9yaSRr_AbX94tDb1.png",
+    powerSpriteUrl: "/assets/story/matrix/power_sprite.png",
   },
   {
     id: "snow_globe",

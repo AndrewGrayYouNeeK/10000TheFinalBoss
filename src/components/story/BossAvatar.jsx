@@ -4,7 +4,9 @@ import React from "react";
 // sizeClass controls the wrapper box, emojiClass controls the text size.
 export default function BossAvatar({ boss, sizeClass = "w-14 h-14", emojiClass = "text-3xl", rounded = "rounded-xl" }) {
   if (!boss) return null;
-  const isImg = typeof boss.avatar === "string" && /^https?:\/\//.test(boss.avatar);
+  const isImg =
+    typeof boss.avatar === "string" &&
+    (/^https?:\/\//.test(boss.avatar) || boss.avatar.startsWith("/assets/"));
   return (
     <div
       className={`${sizeClass} ${rounded} flex items-center justify-center ${emojiClass} bg-gradient-to-br ${boss.color} flex-shrink-0 overflow-hidden`}

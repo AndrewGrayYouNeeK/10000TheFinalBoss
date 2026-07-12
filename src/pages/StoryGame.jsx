@@ -31,6 +31,8 @@ import BigPopup from "@/components/game/BigPopup";
 import BossDialogue from "@/components/story/BossDialogue";
 import BossAvatar from "@/components/story/BossAvatar";
 import BossRainBackground from "@/components/story/BossRainBackground";
+import StoryNeonBanner from "@/components/story/StoryNeonBanner";
+import StoryCutscene from "@/components/story/StoryCutscene";
 import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
@@ -51,7 +53,8 @@ export default function StoryGame() {
   const storyPlayerSkin = getStoryPlayerSkin(user?.bosses_defeated || []);
   const playDiceSound = useDiceSound();
 
-  const [dialogue, setDialogue] = useState("intro"); // "intro" | null | "win" | "lose"
+  const [cutscene, setCutscene] = useState(null); // "intro" | "victory" | "defeat"
+  const [dialogue, setDialogue] = useState(null); // "intro" | "win" | "lose"
   const [game, setGame] = useState(null);
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null);
@@ -63,6 +66,20 @@ export default function StoryGame() {
       ? resolvePlayerPower(game, game.currentIndex)
       : null;
   const skinPower = resolvedPower?.power ?? null;
+
+  useEffect(() => {
+    if (!boss) return;
+    if (boss.videos?.intro) {
+      setCutscene("intro");
+      setDialogue(null);
+    } else {
+      setCutscene(null);
+      setDialogue("intro");
+    }
+    farkleShieldUsedRef.current = false;
+    rewardsClaimedRef.current = false;
+    setRewardSummary(null);
+  }, [boss?.id]);
 
   useEffect(() => {
     if (boss) setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
@@ -82,7 +99,7 @@ export default function StoryGame() {
 
   // Auto-pass after player farkle — no manual "End Turn" button
   useEffect(() => {
-    if (!game?.farkle || game.winner || dialogue) return;
+    if (!game?.farkle || game.winner || dialogue || cutscene) return;
     if (game.players[game.currentIndex]?.name !== PLAYER_NAME) return;
     const timer = setTimeout(() => {
       setGame((g) =>
@@ -113,24 +130,76 @@ export default function StoryGame() {
     }
   };
 
-  // Detect winner and show appropriate end dialogue
-  useEffect(() => {
-    if (!game?.winner || dialogue) return;
-    const playerWon = game.winner.name === PLAYER_NAME;
-    if (playerWon) {
-      if (!rewardsClaimedRef.current) {
-        rewardsClaimedRef.current = true;
-        claimRewards();
-      }
-      setDialogue("win");
-    } else {
-      setDialogue("lose");
+  // Compute and award rewards on player win
+  const claimRewards = async () => {
+    const alreadyDefeated = (user?.bosses_defeated || []).includes(boss.id);
+    const multiplier = alreadyDefeated ? 0.5 : 1;
+    const coinGain = Math.max(5, Math.round((boss.rewards.coins * multiplier) / 10));
+    const xpGain = Math.round(boss.rewards.xp * multiplier);
+
+    const patch = {
+      coins: (user?.coins ?? 0) + coinGain,
+      xp: (user?.xp ?? 0) + xpGain,
+      wins: (user?.wins ?? 0) + 1,
+      games_finished: (user?.games_finished ?? 0) + 1,
+    };
+
+    if (!alreadyDefeated) {
+      patch.bosses_defeated = [...(user?.bosses_defeated || []), boss.id];
     }
-  }, [game?.winner, dialogue]);
+
+    let skinUnlocked = null;
+    if (!alreadyDefeated && boss.rewards.skin) {
+      const ownedSkinsList = user?.owned_skins || ["classic_white"];
+      if (!ownedSkinsList.includes(boss.rewards.skin)) {
+        patch.owned_skins = [...ownedSkinsList, boss.rewards.skin];
+        const { getSkin } = await import("@/lib/shopCatalog");
+        skinUnlocked = getSkin(boss.rewards.skin)?.name || boss.rewards.skin;
+      }
+    }
+
+    updateMe.mutate(patch);
+    setRewardSummary({
+      coins: coinGain,
+      xp: xpGain,
+      skinUnlocked,
+      alreadyClaimed: alreadyDefeated,
+    });
+  };
+
+  const beginPostMatchDialogue = useCallback(
+    (playerWon) => {
+      if (playerWon) {
+        if (!rewardsClaimedRef.current) {
+          rewardsClaimedRef.current = true;
+          claimRewards();
+        }
+        if (boss.videos?.victory) {
+          setCutscene("victory");
+          setDialogue(null);
+        } else {
+          setDialogue("win");
+        }
+      } else if (boss.videos?.defeat) {
+        setCutscene("defeat");
+        setDialogue(null);
+      } else {
+        setDialogue("lose");
+      }
+    },
+    [boss]
+  );
+
+  // Detect winner and show appropriate end dialogue / cutscene
+  useEffect(() => {
+    if (!game?.winner || dialogue || cutscene) return;
+    const playerWon = game.winner.name === PLAYER_NAME;
+    beginPostMatchDialogue(playerWon);
+  }, [game?.winner, dialogue, cutscene, beginPostMatchDialogue]);
 
   // Drive AI turn when it's the AI's turn
   useEffect(() => {
-    if (!game || game.winner || dialogue) return;
+    if (!game || game.winner || dialogue || cutscene) return;
     const currentPlayerName = game.players[game.currentIndex]?.name;
     if (currentPlayerName !== boss?.name) return;
 
@@ -152,7 +221,7 @@ export default function StoryGame() {
 
   // After AI has rolled and the dice have settled, decide hold + bank/roll
   useEffect(() => {
-    if (!game || game.winner || dialogue) return;
+    if (!game || game.winner || dialogue || cutscene) return;
     const currentPlayerName = game.players[game.currentIndex]?.name;
     if (currentPlayerName !== boss?.name) return;
     if (!game.hasRolled || rollAnim) return;
@@ -233,7 +302,7 @@ export default function StoryGame() {
     }, 900);
 
     return () => timers.forEach(clearTimeout);
-  }, [game?.hasRolled, game?.farkle, game?.currentIndex, rollAnim, game?.winner, dialogue, boss, playDiceSound]);
+  }, [game?.hasRolled, game?.farkle, game?.currentIndex, rollAnim, game?.winner, dialogue, cutscene, boss, playDiceSound]);
 
   const doAiRoll = () => {
     setRollAnim(true);
@@ -297,49 +366,47 @@ export default function StoryGame() {
     return { ...state, dice: newDice };
   }
 
-  // Compute and award rewards on player win
-  const claimRewards = async () => {
-    const alreadyDefeated = (user?.bosses_defeated || []).includes(boss.id);
-    const multiplier = alreadyDefeated ? 0.5 : 1;
-    // Coins are deflated 10× — Gray Quarters are the in-game currency and 100 GQ = $1.
-    // Players should need ~10 games to afford a Starter Vault.
-    const coinGain = Math.max(5, Math.round((boss.rewards.coins * multiplier) / 10));
-    const xpGain = Math.round(boss.rewards.xp * multiplier);
-
-    // Build the user patch
-    const patch = {
-      coins: (user?.coins ?? 0) + coinGain,
-      xp: (user?.xp ?? 0) + xpGain,
-      wins: (user?.wins ?? 0) + 1,
-      games_finished: (user?.games_finished ?? 0) + 1,
-    };
-
-    // Mark boss defeated (only once)
-    if (!alreadyDefeated) {
-      patch.bosses_defeated = [...(user?.bosses_defeated || []), boss.id];
-    }
-
-    // Skin reward (only first time)
-    let skinUnlocked = null;
-    if (!alreadyDefeated && boss.rewards.skin) {
-      const ownedSkins = user?.owned_skins || ["classic_white"];
-      if (!ownedSkins.includes(boss.rewards.skin)) {
-        patch.owned_skins = [...ownedSkins, boss.rewards.skin];
-        const { getSkin } = await import("@/lib/shopCatalog");
-        skinUnlocked = getSkin(boss.rewards.skin)?.name || boss.rewards.skin;
-      }
-    }
-
-    updateMe.mutate(patch);
-    setRewardSummary({
-      coins: coinGain,
-      xp: xpGain,
-      skinUnlocked,
-      alreadyClaimed: alreadyDefeated,
-    });
+  const handleCutsceneFinished = () => {
+    const mode = cutscene;
+    setCutscene(null);
+    if (mode === "intro") setDialogue("intro");
+    else if (mode === "victory") setDialogue("win");
+    else if (mode === "defeat") setDialogue("lose");
   };
 
-  if (!boss) return null;
+  const restartFight = () => {
+    setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+    farkleShieldUsedRef.current = false;
+    rewardsClaimedRef.current = false;
+    setRewardSummary(null);
+    if (boss.videos?.intro) {
+      setCutscene("intro");
+      setDialogue(null);
+    } else {
+      setCutscene(null);
+      setDialogue("intro");
+    }
+  };
+
+  const cutsceneSrc =
+    cutscene === "intro"
+      ? boss?.videos?.intro
+      : cutscene === "victory"
+      ? boss?.videos?.victory
+      : cutscene === "defeat"
+      ? boss?.videos?.defeat
+      : null;
+
+  const cutsceneLabel =
+    cutscene === "intro"
+      ? `Vs ${boss?.name}`
+      : cutscene === "victory"
+      ? "Victory"
+      : cutscene === "defeat"
+      ? "Defeat"
+      : "";
+
+  if (!boss || !game) return null;
 
   // Setup boss panel
   const heldInfo = getHeldInfo(game);
@@ -420,6 +487,11 @@ export default function StoryGame() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* YouNeeK 10,000 sign — loop video during the fight */}
+        <div className="px-3 pt-3">
+          <StoryNeonBanner videoSrc={boss.signVideo} />
         </div>
 
         <div className="p-3 space-y-2">
@@ -508,6 +580,7 @@ export default function StoryGame() {
               feltId={equippedFeltId}
               heldStyleId={heldDiceStyleId}
               lowPower={lowPower}
+              powerMode={myTurn && powerModeActive}
             />
             {heldInfo.held.length > 0 && (
               <div className="mt-2 text-center text-sm">
@@ -593,6 +666,15 @@ export default function StoryGame() {
         onClose={() => setPopup(null)}
       />
 
+      {cutscene && (
+        <StoryCutscene
+          src={cutsceneSrc}
+          label={cutsceneLabel}
+          onFinished={handleCutsceneFinished}
+          onSkip={handleCutsceneFinished}
+        />
+      )}
+
       {/* Boss dialogue overlays */}
       {dialogue && (
         <BossDialogue
@@ -605,12 +687,7 @@ export default function StoryGame() {
             } else if (dialogue === "win") {
               navigate("/story");
             } else {
-              // lose — reset to play again
-              setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
-              farkleShieldUsedRef.current = false;
-              rewardsClaimedRef.current = false;
-              setRewardSummary(null);
-              setDialogue("intro");
+              restartFight();
             }
           }}
           onExit={() => navigate("/story")}
