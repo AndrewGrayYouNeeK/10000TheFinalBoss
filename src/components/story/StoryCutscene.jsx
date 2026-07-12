@@ -6,7 +6,7 @@ import { SkipForward } from "lucide-react";
 /**
  * Full-screen story cutscene — intro before a fight or outro after win/lose.
  */
-export default function StoryCutscene({ src, label, onFinished, onSkip }) {
+export default function StoryCutscene({ src, label, onFinished }) {
   const videoRef = useRef(null);
   const [failed, setFailed] = useState(false);
 
@@ -35,6 +35,7 @@ export default function StoryCutscene({ src, label, onFinished, onSkip }) {
           src={src}
           className="flex-1 w-full object-cover"
           autoPlay
+          muted
           playsInline
           onEnded={finish}
           onError={() => {
@@ -57,10 +58,7 @@ export default function StoryCutscene({ src, label, onFinished, onSkip }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              onSkip?.();
-              finish();
-            }}
+            onClick={finish}
             className="ml-auto border-green-500/40 text-green-200 hover:bg-green-500/10"
           >
             <SkipForward className="w-4 h-4 mr-1" /> Skip

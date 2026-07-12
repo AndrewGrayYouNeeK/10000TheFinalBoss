@@ -109,7 +109,7 @@ export default function StoryGame() {
       );
     }, 1400);
     return () => clearTimeout(timer);
-  }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue]);
+  }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue, cutscene]);
 
   const onFireSkinPower = () => {
     if (!game || !skinPower || !isMyTurn() || !game.players[game.currentIndex]?.powerCharge) return;
@@ -217,7 +217,7 @@ export default function StoryGame() {
     };
     runAiTurn();
     return () => { cancelled = true; };
-  }, [game?.currentIndex, game?.winner, dialogue]);
+  }, [game?.currentIndex, game?.winner, dialogue, cutscene]);
 
   // After AI has rolled and the dice have settled, decide hold + bank/roll
   useEffect(() => {
@@ -671,7 +671,6 @@ export default function StoryGame() {
           src={cutsceneSrc}
           label={cutsceneLabel}
           onFinished={handleCutsceneFinished}
-          onSkip={handleCutsceneFinished}
         />
       )}
 
