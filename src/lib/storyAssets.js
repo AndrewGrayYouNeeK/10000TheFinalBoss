@@ -1,7 +1,17 @@
 /**
  * Story Mode v2 — media paths for cutscenes, banners, and boss portraits.
- * Drop your files into public/assets/story/ (see matrix/ subfolder).
- * Missing files fall back to static images or dialogue-only flow.
+ *
+ * HOW TO ADD YOUR VIDEOS (no in-app upload — files go in the project folder):
+ *   1. Copy your .mp4 files into:  public/assets/story/matrix/
+ *   2. Use these exact names (or change paths below):
+ *        intro.mp4       — plays before the Neo fight
+ *        victory.mp4     — plays after you win
+ *        defeat.mp4      — plays after you lose
+ *        sign_loop.mp4   — loops on the 10,000 sign during the match
+ *        neo_portrait.png
+ *        power_sprite.png
+ *   3. Restart the dev server (npm run dev) so Vite picks up new files.
+ *   4. For iOS: run npm run ios:sync after adding files.
  */
 
 const STORY_ROOT = "/assets/story";

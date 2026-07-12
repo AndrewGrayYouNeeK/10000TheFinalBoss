@@ -1,6 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import GlitchNeonBanner from "@/components/game/GlitchNeonBanner";
 import { STORY_ASSETS } from "@/lib/storyAssets";
+import { assetUrl } from "@/lib/assetUrl";
 
 /**
  * Looping YouNeeK 10,000 sign for story matches.
@@ -13,8 +14,14 @@ export default function StoryNeonBanner({
 }) {
   const videoRef = useRef(null);
   const [useFallback, setUseFallback] = useState(!videoSrc);
+  const resolvedVideo = videoSrc ? assetUrl(videoSrc) : null;
+  const resolvedFallback = assetUrl(fallbackSrc);
 
-  if (useFallback || !videoSrc) {
+  useEffect(() => {
+    setUseFallback(!resolvedVideo);
+  }, [resolvedVideo]);
+
+  if (useFallback || !resolvedVideo) {
     return (
       <div
         className="rounded-2xl overflow-hidden border-2"
@@ -24,7 +31,7 @@ export default function StoryNeonBanner({
         }}
       >
         <GlitchNeonBanner
-          src={fallbackSrc}
+          src={resolvedFallback}
           alt="YouNeeK 10000 sign"
           objectPosition={objectPosition}
         />
@@ -42,13 +49,14 @@ export default function StoryNeonBanner({
     >
       <video
         ref={videoRef}
-        src={videoSrc}
+        src={resolvedVideo}
         className="w-full h-48 sm:h-64 object-cover"
         style={{ objectPosition }}
         autoPlay
         loop
         muted
         playsInline
+        preload="auto"
         onError={() => setUseFallback(true)}
       />
       <div

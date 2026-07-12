@@ -41,6 +41,7 @@ import { assignPlayerSkin, resolvePlayerPower, getSkinLabel } from "@/lib/ghostD
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford } from "@/lib/powers";
 import { isLowPowerDevice } from "@/lib/platform";
+import { mediaExists } from "@/lib/assetUrl";
 
 const PLAYER_NAME = "You";
 
@@ -69,16 +70,27 @@ export default function StoryGame() {
 
   useEffect(() => {
     if (!boss) return;
-    if (boss.videos?.intro) {
-      setCutscene("intro");
-      setDialogue(null);
-    } else {
-      setCutscene(null);
-      setDialogue("intro");
-    }
+    let cancelled = false;
+
+    (async () => {
+      const introPath = boss.videos?.intro;
+      if (introPath && (await mediaExists(introPath))) {
+        if (!cancelled) {
+          setCutscene("intro");
+          setDialogue(null);
+        }
+      } else if (!cancelled) {
+        setCutscene(null);
+        setDialogue("intro");
+      }
+    })();
+
     farkleShieldUsedRef.current = false;
     rewardsClaimedRef.current = false;
     setRewardSummary(null);
+    return () => {
+      cancelled = true;
+    };
   }, [boss?.id]);
 
   useEffect(() => {
@@ -168,19 +180,19 @@ export default function StoryGame() {
   };
 
   const beginPostMatchDialogue = useCallback(
-    (playerWon) => {
+    async (playerWon) => {
       if (playerWon) {
         if (!rewardsClaimedRef.current) {
           rewardsClaimedRef.current = true;
           claimRewards();
         }
-        if (boss.videos?.victory) {
+        if (boss.videos?.victory && (await mediaExists(boss.videos.victory))) {
           setCutscene("victory");
           setDialogue(null);
         } else {
           setDialogue("win");
         }
-      } else if (boss.videos?.defeat) {
+      } else if (boss.videos?.defeat && (await mediaExists(boss.videos.defeat))) {
         setCutscene("defeat");
         setDialogue(null);
       } else {
@@ -374,12 +386,12 @@ export default function StoryGame() {
     else if (mode === "defeat") setDialogue("lose");
   };
 
-  const restartFight = () => {
+  const restartFight = async () => {
     setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
     farkleShieldUsedRef.current = false;
     rewardsClaimedRef.current = false;
     setRewardSummary(null);
-    if (boss.videos?.intro) {
+    if (boss.videos?.intro && (await mediaExists(boss.videos.intro))) {
       setCutscene("intro");
       setDialogue(null);
     } else {
