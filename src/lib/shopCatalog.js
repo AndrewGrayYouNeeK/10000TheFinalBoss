@@ -137,6 +137,8 @@ export const PRODUCTION_DICE_SKINS = [
     realistic: true,
     spriteUrl: "/assets/lava/ragnarok_sprite.png",
     powerSpriteUrl: "/assets/lava/ragnarok_power_sprite.png",
+    /** Fallback if ragnarok_sprite.png not added yet */
+    spriteFallbackUrl: "/assets/d21426962_XCSnTqF8nVT8rvkZYlH5g_BYlXoewC.png",
     spriteCrop: { stretch: 0.1, offsetY: 0.065, zoom: 1.16 },
   },
   {

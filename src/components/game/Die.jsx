@@ -10,6 +10,7 @@ import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } f
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
 import HeldDiceOverlay from "./HeldDiceOverlay";
 import { DEFAULT_HELD_DICE_STYLE } from "@/lib/heldDiceStyles";
+import { assetUrl } from "@/lib/assetUrl";
 
 function useRollVariants() {
   const ref = React.useRef(null);
@@ -55,8 +56,10 @@ function Die({
     else if (onToggleDie && dieId != null) onToggleDie(dieId);
   }, [onClick, onToggleDie, dieId]);
   const skin = getSkin(skinId);
-  const spriteUrl =
-    powerMode && skin.powerSpriteUrl ? skin.powerSpriteUrl : skin.spriteUrl;
+  const baseSprite = skin.spriteUrl || skin.spriteFallbackUrl;
+  const spriteUrl = assetUrl(
+    powerMode && skin.powerSpriteUrl ? skin.powerSpriteUrl : baseSprite
+  );
   const isXray = skin.id === "pf_xray";
   const { displayLayout: xrayLayout } = useXrayMorphLayout(value, rolling, isXray);
   const layout = isXray ? xrayLayout : layoutGrid(value);
