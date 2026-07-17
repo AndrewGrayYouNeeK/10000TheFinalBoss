@@ -40,6 +40,7 @@ const DEFAULT_PROFILE = {
   equipped_felt: "classic_green",
   equipped_powers: [],
   bosses_defeated: [],
+  story_active_boss: null,
   held_dice_style: "amber_glow",
   sfx_muted: false,
   opponent_sfx_muted: false,

@@ -1,6 +1,6 @@
 // Core game state manipulation for Dice 10,000
 import { scoreSelection, hasAnyScore, isSixOfAKind } from "./scoring";
-import { POWER_MODE_HOT_DICE } from "./powers";
+import { getPowerChargeHotDiceThreshold } from "./skinPowers";
 import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
 
 export const TARGET_SCORE = 10000;
@@ -9,9 +9,16 @@ export const ENTRY_THRESHOLD = 1000;
 export const PERFECT_TENK_ODDS = 1 / 10000;
 
 // Bust words — alternated on each bust for variety.
-const BUST_WORDS = ["YEEET!", "SKEERT!"];
+const BUST_WORDS = ["YEEEET!", "SKRRRT!"];
 function bustWord(count) {
   return BUST_WORDS[count % BUST_WORDS.length];
+}
+
+/** True for YEEEET / YEEET / SKRRRT / SKEERT style bust shouts. */
+export function isBustWord(word) {
+  if (!word || typeof word !== "string") return false;
+  const n = word.toUpperCase().replace(/[^A-Z]/g, "");
+  return /^Y+E+T$/.test(n) || /^SK+R+T$/.test(n);
 }
 
 /** Per-turn state cleared on bank or bust pass (power charge lives on the player). */
@@ -76,18 +83,23 @@ export function restoreSharkDice(state) {
 }
 
 export function createInitialState(playerNames, options = {}) {
-  const { playerSkins = [] } = options;
+  const { playerSkins = [], startScores = null } = options;
   return {
     players: playerNames.map((name, i) => {
       const skin = playerSkins[i] || { skinId: "classic_white" };
+      const startScore =
+        Array.isArray(startScores) && typeof startScores[i] === "number" && startScores[i] > 0
+          ? startScores[i]
+          : 0;
       return {
         name,
-        score: 0,
-        onBoard: false,
+        score: startScore,
+        onBoard: startScore >= ENTRY_THRESHOLD,
         debuffs: [],
         powerCharge: false,
         skinId: skin.skinId || "classic_white",
         ...(skin.trueSkinId ? { trueSkinId: skin.trueSkinId } : {}),
+        ...(skin.ghostBare ? { ghostBare: true } : {}),
       };
     }),
     currentIndex: 0,
@@ -371,7 +383,8 @@ export function confirmAndReroll(state) {
   }
 
   const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
-  const earnedCharge = allUsed && newHotCount >= POWER_MODE_HOT_DICE;
+  const hotDiceNeeded = getPowerChargeHotDiceThreshold(state.players[idx]);
+  const earnedCharge = allUsed && newHotCount >= hotDiceNeeded;
   const idx = state.currentIndex;
   const hadCharge = !!state.players[idx]?.powerCharge;
   const players = earnedCharge && !hadCharge

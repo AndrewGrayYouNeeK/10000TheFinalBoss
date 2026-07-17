@@ -17,7 +17,7 @@ import FeltThemeOverlay from "./FeltThemeOverlay";
 /**
  * Layered billiard-cloth surface: mottling → photo/cloth nap → theme → fibers → lighting.
  */
-export default function FeltSurface({ felt, compact = false }) {
+export default function FeltSurface({ felt, compact = false, intense = false }) {
   if (!felt) return null;
 
   const nap = getFeltNapLayers(felt, compact);
@@ -71,7 +71,7 @@ export default function FeltSurface({ felt, compact = false }) {
         </>
       )}
 
-      <FeltThemeOverlay felt={felt} compact={compact} />
+      <FeltThemeOverlay felt={felt} compact={compact} intense={intense} />
 
       {/* Wool fuzz — directional fiber noise */}
       <div

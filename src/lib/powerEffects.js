@@ -1,5 +1,6 @@
 import { TARGET_SCORE } from "@/lib/gameLogic";
 import { formatXraySummary, scanAllOpponents } from "@/lib/xrayScan";
+import { isFishDicePlayer } from "@/lib/fishDice";
 
 function opponentIndex(state) {
   if (state.players.length <= 1) return state.currentIndex;
@@ -278,6 +279,33 @@ export function applySkinPower(state, powerId) {
       if (already) {
         return { state, message: `${targetName} is already marked for a shark bite.`, variant: "warning" };
       }
+
+      // vs Angelfish / aquarium dice — sharks feast immediately and wipe their score.
+      if (isFishDicePlayer(state, targetIdx)) {
+        const wipedScore = state.players[targetIdx]?.score ?? 0;
+        const players = state.players.map((p, i) =>
+          i === targetIdx
+            ? { ...p, score: 0, onBoard: false, debuffs: [] }
+            : p
+        );
+        return {
+          state: {
+            ...state,
+            players,
+            sharkBiteFx: true,
+            sharkDiceHidden: true,
+            sharkFishFeast: true,
+            message:
+              wipedScore > 0
+                ? `🦈 Sharks devoured ${targetName}'s fish! Score back to 0 (−${wipedScore.toLocaleString()}).`
+                : `🦈 Sharks devoured ${targetName}'s fish! The tank runs red.`,
+            messageVariant: "success",
+          },
+          message: "Shark feeding frenzy!",
+          variant: "success",
+        };
+      }
+
       const players = addDebuff(state.players, targetIdx, "shark_bite", state.currentIndex);
       return {
         state: {

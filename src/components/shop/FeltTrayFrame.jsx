@@ -10,6 +10,7 @@ import FeltSurface from "./FeltSurface";
 export default function FeltTrayFrame({
   felt,
   compact = false,
+  intense = false,
   className = "",
   innerClassName = "",
   children,
@@ -45,7 +46,7 @@ export default function FeltTrayFrame({
               }
         }
       >
-        <FeltSurface felt={felt} compact={compact} />
+        <FeltSurface felt={felt} compact={compact} intense={intense} />
         {children}
       </div>
     </div>

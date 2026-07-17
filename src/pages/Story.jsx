@@ -4,7 +4,7 @@ import { Film, Swords } from "lucide-react";
 import { motion } from "framer-motion";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import { useCosmetics } from "@/hooks/useCosmetics";
-import { BOSSES, isBossUnlocked, isBossDefeated, getStoryPlayerSkin } from "@/lib/storyBosses";
+import { BOSSES, isBossUnlocked, isBossDefeated, getStoryPlayerSkin, resolveStoryActiveBoss } from "@/lib/storyBosses";
 import { getSkin } from "@/lib/shopCatalog";
 import BossCard from "@/components/story/BossCard";
 import CyberBackground from "@/components/game/CyberBackground";
@@ -17,6 +17,8 @@ export default function Story() {
   const { user, isLoading } = useCosmetics();
   const bossesDefeated = user?.bosses_defeated || [];
   const totalDefeated = BOSSES.filter((b) => bossesDefeated.includes(b.id)).length;
+  const activeBossId = resolveStoryActiveBoss(user?.story_active_boss, bossesDefeated);
+  const activeBoss = activeBossId ? BOSSES.find((b) => b.id === activeBossId) : null;
   const storyPlayerSkin = getStoryPlayerSkin(bossesDefeated);
   const storyPlayerSkinLabel = getSkin(storyPlayerSkin)?.name || storyPlayerSkin.replace(/_/g, " ");
   const lowPower = isLowPowerDevice();
@@ -105,6 +107,42 @@ export default function Story() {
             </div>
           </motion.div>
 
+          {activeBoss && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border p-4 text-left"
+              style={{
+                borderColor: "rgba(0,255,200,0.45)",
+                background: "rgba(0,255,200,0.08)",
+                boxShadow: "0 0 22px rgba(0,255,200,0.15)",
+              }}
+            >
+              <div className="text-[10px] uppercase tracking-widest font-bold text-cyan-300/90 mb-1">
+                Continue your climb
+              </div>
+              <div className="text-sm font-black text-white mb-3">
+                Fight {BOSSES.findIndex((b) => b.id === activeBoss.id) + 1} · {activeBoss.name}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/story/${activeBoss.id}`)}
+                className="w-full h-12 rounded-lg font-black text-sm flex items-center justify-center gap-2"
+                style={{
+                  background: "linear-gradient(135deg, #00ffc8 0%, #00b8ff 100%)",
+                  color: "#000",
+                  boxShadow: "0 0 18px rgba(0,255,200,0.35)",
+                }}
+              >
+                <Swords className="w-4 h-4" />
+                Continue vs {activeBoss.name}
+              </button>
+              <p className="text-[10px] text-slate-400 mt-2 text-center">
+                Exiting a fight saves your place on the ladder — the next match starts fresh.
+              </p>
+            </motion.div>
+          )}
+
           {/* Boss cards */}
           {!isLoading && (
             <div className="space-y-3">
@@ -117,6 +155,7 @@ export default function Story() {
                     boss={boss}
                     unlocked={unlocked}
                     defeated={defeated}
+                    active={boss.id === activeBossId}
                     onClick={() => navigate(`/story/${boss.id}`)}
                     index={i}
                   />

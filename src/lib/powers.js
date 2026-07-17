@@ -185,7 +185,7 @@ export const POWERS = [
     icon: "🦈",
     color: "#0ea5e9",
     description:
-      "Mark the next player — when they bank, a shark eats that round's points.",
+      "Mark the next player — when they bank, a shark eats that round's points. vs Angelfish / aquarium dice: sharks feast instantly and wipe their score to 0.",
     tagline: "Feeding frenzy.",
   },
 ];

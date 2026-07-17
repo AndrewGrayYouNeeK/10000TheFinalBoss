@@ -223,12 +223,13 @@ function matrixRainChar(col, row) {
   return MATRIX_RAIN_TEXT[(start + row) % MATRIX_RAIN_TEXT.length];
 }
 
-function MatrixRainOverlay({ compact }) {
-  const cols = compact ? 33 : 63;
-  const rows = compact ? 14 : 22;
-  const phases = matrixRainPhases(cols, MATRIX_RAIN_DURATION);
+function MatrixRainOverlay({ compact, intense = false }) {
+  const cols = compact ? (intense ? 40 : 33) : intense ? 78 : 63;
+  const rows = compact ? (intense ? 18 : 14) : intense ? 30 : 22;
+  const duration = intense ? 1.25 : MATRIX_RAIN_DURATION;
+  const phases = matrixRainPhases(cols, duration);
   return (
-    <Layer className="overflow-hidden opacity-80">
+    <Layer className={`overflow-hidden ${intense ? "opacity-95" : "opacity-80"}`}>
       {Array.from({ length: cols }).map((_, i) => {
         const bright = ((i * 13 + 7) % 9) === 0;
         return (
@@ -243,7 +244,7 @@ function MatrixRainOverlay({ compact }) {
             }}
             animate={{ top: ["-40%", "130%"] }}
             transition={{
-              duration: MATRIX_RAIN_DURATION,
+              duration,
               repeat: Infinity,
               delay: phases[i],
               ease: "linear",
@@ -829,7 +830,7 @@ const THEME_COMPONENTS = {
   solid: SolidEnhanceOverlay,
 };
 
-export default function FeltThemeOverlay({ felt, compact = false }) {
+export default function FeltThemeOverlay({ felt, compact = false, intense = false }) {
   if (!felt) return null;
   const theme = getFeltTheme(felt.id);
   if (theme === "casino") return null;
@@ -837,5 +838,5 @@ export default function FeltThemeOverlay({ felt, compact = false }) {
   const Component = THEME_COMPONENTS[theme];
   if (!Component) return null;
 
-  return <Component felt={felt} compact={compact} />;
+  return <Component felt={felt} compact={compact} intense={intense} />;
 }

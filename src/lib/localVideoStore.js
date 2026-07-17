@@ -2,6 +2,23 @@ const DB_NAME = "yourneek_assets";
 const DB_VERSION = 1;
 const STORE = "blobs";
 
+const VIDEO_SETTINGS_META_KEY = "yourneek_saved_video_keys";
+
+function backupVideoStorageKey(key) {
+  return `backup_vid_${key}`;
+}
+
+function clearVideoSavedFlag(key) {
+  try {
+    const raw = localStorage.getItem(VIDEO_SETTINGS_META_KEY);
+    const meta = raw ? JSON.parse(raw) : {};
+    delete meta[key];
+    localStorage.setItem(VIDEO_SETTINGS_META_KEY, JSON.stringify(meta));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** @deprecated legacy key — migrated to matrix_power on read */
 const LEGACY_MATRIX_KEY = "matrix_power_video";
 
@@ -131,6 +148,19 @@ function idbDelete(key) {
   );
 }
 
+/** All blob keys in IndexedDB — for upload recovery. */
+export function listAllLocalVideoKeys() {
+  return openDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, "readonly");
+        const req = tx.objectStore(STORE).getAllKeys();
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve(req.result.map((k) => String(k)));
+      })
+  );
+}
+
 async function migrateLegacyMatrixKey() {
   const legacy = await idbGet(LEGACY_MATRIX_KEY);
   if (!legacy) return;
@@ -138,7 +168,6 @@ async function migrateLegacyMatrixKey() {
   if (!current) {
     await idbPut(VIDEO_KEYS.MATRIX_POWER, legacy);
   }
-  await idbDelete(LEGACY_MATRIX_KEY);
 }
 
 /** Warm IndexedDB cache for a key. */
@@ -181,13 +210,54 @@ export async function saveLocalVideo(key, file) {
   const url = URL.createObjectURL(blob);
   cache.set(key, url);
   notify(key, url);
+  import("./spriteLabLockedVideos")
+    .then(({ mirrorUploadToSnapshots }) => mirrorUploadToSnapshots(key))
+    .catch(() => {});
   return url;
 }
 
 export async function clearLocalVideo(key) {
   await idbDelete(key);
+  await idbDelete(backupVideoStorageKey(key));
   revokeCached(key);
   notify(key, null);
+  clearVideoSavedFlag(key);
+}
+
+/** Raw blob from IndexedDB (no object URL). */
+export async function getLocalVideoBlob(key) {
+  if (key === VIDEO_KEYS.MATRIX_POWER) {
+    await migrateLegacyMatrixKey();
+  }
+  return idbGet(key);
+}
+
+/** Write blob to IndexedDB and refresh cache/listeners for the active key. */
+export async function putLocalVideoBlob(key, blob) {
+  if (!blob) {
+    await clearLocalVideo(key);
+    return null;
+  }
+  const normalized =
+    blob instanceof Blob ? blob : new Blob([blob], { type: blob.type || "video/mp4" });
+  await idbPut(key, normalized);
+  revokeCached(key);
+  const url = URL.createObjectURL(normalized);
+  cache.set(key, url);
+  notify(key, url);
+  return url;
+}
+
+/** Copy blob between IndexedDB keys — never deletes the target when the source is empty. */
+export async function copyLocalVideoBlob(fromKey, toKey) {
+  if (fromKey === toKey) return false;
+  if (fromKey === VIDEO_KEYS.MATRIX_POWER) {
+    await migrateLegacyMatrixKey();
+  }
+  const blob = await idbGet(fromKey);
+  if (!blob) return false;
+  await idbPut(toKey, blob);
+  return true;
 }
 
 export function subscribeLocalVideo(key, listener) {
@@ -216,5 +286,7 @@ export function preloadAllLocalVideos() {
         preloadStoryBossVideos(),
       ])
     )
+    .then(() => import("./spriteLabLockedVideos"))
+    .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
     .catch(() => Promise.all(Object.values(VIDEO_KEYS).map((key) => preloadLocalVideo(key))));
 }

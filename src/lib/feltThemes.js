@@ -67,6 +67,9 @@ export function getFeltTheme(feltId) {
     green_wood: "solid",
     red_wood: "solid",
     tiedye_neon: "solid",
+    iridescent_frame: "solid",
+    golden_frame: "solid",
+    stone_frame: "solid",
     amethyst_purple: "deep_glow",
   };
 

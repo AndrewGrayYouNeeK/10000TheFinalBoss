@@ -5,7 +5,13 @@ import React from "react";
  * Layers the same image 3 times with offset color channels + clip-path flickers
  * to produce a chromatic-aberration / RGB-split glitch effect.
  */
-export default function GlitchNeonBanner({ src, alt = "Neon sign", objectPosition = "center 30%" }) {
+export default function GlitchNeonBanner({
+  src,
+  alt = "Neon sign",
+  objectPosition = "center 30%",
+  objectFit = "cover",
+}) {
+  const objectClass = objectFit === "contain" ? "object-contain" : "object-cover";
   return (
     <>
       <style>{`
@@ -91,7 +97,7 @@ export default function GlitchNeonBanner({ src, alt = "Neon sign", objectPositio
         <img
           src={src}
           alt={alt}
-          className="absolute inset-0 w-full h-full object-cover billboard-blackout"
+          className={`absolute inset-0 w-full h-full ${objectClass} billboard-blackout`}
           style={{ objectPosition }}
         />
         {/* SVG edge-detection filter — extracts the bright neon outline of the billboard */}
@@ -124,7 +130,7 @@ export default function GlitchNeonBanner({ src, alt = "Neon sign", objectPositio
             src={src}
             alt=""
             aria-hidden
-            className="absolute inset-0 w-full h-full object-cover glitch-base"
+            className={`absolute inset-0 w-full h-full ${objectClass} glitch-base`}
             style={{
               objectPosition,
               mixBlendMode: "screen",
@@ -135,7 +141,7 @@ export default function GlitchNeonBanner({ src, alt = "Neon sign", objectPositio
             src={src}
             alt=""
             aria-hidden
-            className="absolute inset-0 w-full h-full object-cover glitch-r"
+            className={`absolute inset-0 w-full h-full ${objectClass} glitch-r`}
             style={{
               objectPosition,
               mixBlendMode: "screen",
@@ -146,7 +152,7 @@ export default function GlitchNeonBanner({ src, alt = "Neon sign", objectPositio
             src={src}
             alt=""
             aria-hidden
-            className="absolute inset-0 w-full h-full object-cover glitch-b"
+            className={`absolute inset-0 w-full h-full ${objectClass} glitch-b`}
             style={{
               objectPosition,
               mixBlendMode: "screen",

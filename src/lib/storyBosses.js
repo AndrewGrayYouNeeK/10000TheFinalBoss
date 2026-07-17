@@ -10,7 +10,7 @@ import { isDevUnlockAll } from "./devUnlock";
 // - holdGreedy: when true, AI holds ALL scoring dice for max points; when false, holds minimum
 
 // Helper to keep entries compact
-function fight({ id, name, title, avatar, color, isBoss = false, difficulty, gimmick = null, intro, winLine, loseLine, coins, xp, skin }) {
+function fight({ id, name, title, avatar, color, isBoss = false, difficulty, gimmick = null, intro, winLine, loseLine, coins, xp, skin, storyFeltId = "classic_green" }) {
   return {
     id,
     name,
@@ -25,6 +25,7 @@ function fight({ id, name, title, avatar, color, isBoss = false, difficulty, gim
     winLine,
     loseLine,
     bossSkinId: skin, // AI rolls with this skin
+    storyFeltId,
     rewards: { coins, xp, skin, felt: null },
   };
 }
@@ -94,7 +95,7 @@ const ALL_BOSSES = [
     intro: "Come closer. The cold won't bite. ...much.",
     winLine: "M-melted again. Until next snow...",
     loseLine: "Brrrr-eautiful play!",
-    coins: 320, xp: 400, skin: "snow_globe",
+    coins: 320, xp: 400, skin: "ice", storyFeltId: "frozen_lake",
   }),
   fight({
     id: "fisherman", name: "Marlin Joe", title: "Deep Sea Captain",
@@ -103,7 +104,7 @@ const ALL_BOSSES = [
     intro: "Caught bigger fish than you, kid. Cast your dice.",
     winLine: "Heh. Slippery one. Reel ya in next time.",
     loseLine: "Catch of the day! That's you.",
-    coins: 350, xp: 420, skin: "blue_gel",
+    coins: 350, xp: 420, skin: "blue_gel", storyFeltId: "underwater",
   }),
   fight({
     id: "shark", name: "Card Shark Cleo", title: "Casino Floor Legend",
@@ -165,7 +166,7 @@ const ALL_BOSSES = [
     intro: "...",
     winLine: "...impressive.",
     loseLine: "...as expected.",
-    coins: 550, xp: 700, skin: "amethyst",
+    coins: 550, xp: 700, skin: "amethyst", storyFeltId: "void_violet",
   }),
   fight({
     id: "ghost", name: "The Ghost", title: "Spectral Shade",
@@ -174,7 +175,7 @@ const ALL_BOSSES = [
     intro: "You can see right through me. That won't help you read my rolls.",
     winLine: "...vanished.",
     loseLine: "...always watching.",
-    coins: 600, xp: 750, skin: "ghost",
+    coins: 600, xp: 750, skin: "ghost", storyFeltId: "obsidian_glass",
   }),
   fight({
     id: "moon_priestess", name: "Lunara", title: "Tidekeeper",
@@ -203,7 +204,7 @@ const ALL_BOSSES = [
     intro: "The world ends in fire. Yours ends here.",
     winLine: "Even fire cools, it seems...",
     loseLine: "ASH! TO ASH!",
-    coins: 700, xp: 850, skin: "ragnarok",
+    coins: 700, xp: 850, skin: "ragnarok", storyFeltId: "lava_flow",
   }),
   fight({
     id: "dragon_knight", name: "Sir Scalewyrm", title: "Dragon Knight",
@@ -212,7 +213,7 @@ const ALL_BOSSES = [
     intro: "My scales have turned a thousand blades. Roll, mortal.",
     winLine: "A worthy duel. Your name will live on.",
     loseLine: "Steel cannot pierce me. Neither could you.",
-    coins: 750, xp: 900, skin: "dragon_scale",
+    coins: 750, xp: 900, skin: "dragon_scale", storyFeltId: "forest_floor",
   }),
   fight({
     id: "amber_collector", name: "Dr. Helix", title: "Resin Researcher",
@@ -333,7 +334,7 @@ const ALL_BOSSES = [
     intro: "I see the code now. Every roll, before it lands.",
     winLine: "You bent the spoon. Not me.",
     loseLine: "There is no try. Only one.",
-    coins: 2500, xp: 2700, skin: "matrix",
+    coins: 2500, xp: 2700, skin: "matrix", storyFeltId: "matrix_rain",
   }),
   fight({
     id: "toxin", name: "Vex the Toxic", title: "Containment Failure",
@@ -434,7 +435,7 @@ const ALL_BOSSES = [
     intro: "I am the cut before the diamond. Sharp. Polished. Final-adjacent.",
     winLine: "My brother... I have failed you. He's coming for you next.",
     loseLine: "Brilliant. As I am.",
-    coins: 4800, xp: 5400, skin: "crystal_cut",
+    coins: 4800, xp: 5400, skin: "crystal_cut", storyFeltId: "marble",
   }),
 
   // ── FINAL BOSS ─────────────────────────────────────────────────────────
@@ -455,16 +456,18 @@ const ALL_BOSSES = [
     intro: "So. You climbed the whole ladder just to lose to me. Cute. Sit down. Roll. I'll be brief.",
     winLine: "...you. You actually... did it. The diamonds are yours. The throne is yours. I'll see myself out.",
     loseLine: "Don't take it personally. Nobody beats GQ. That's why I'm GQ.",
-    coins: 10000, xp: 15000, skin: "crystal_cut",
+    coins: 10000, xp: 15000, skin: "crystal_cut", storyFeltId: "casino_vip",
   }),
 ];
 
 /** Active story ladder — add boss IDs here one at a time as they're ready. */
 export const STORY_LADDER_IDS = [
   "snowman",     // Frosty
+  "fisherman",   // Marlin Joe — unlocks Blue Gel (Angelfish) dice + Shark Bite
   "phantom",     // The Phantom
   "ghost",       // The Ghost
   "lavadragon",  // Ragnarok
+  "dragon_knight", // Sir Scalewyrm — unlocks Dragon Scale
   "neo",         // Matrix
   "diamond_cut", // Vitrea (diamond)
   "gq",          // GQ — final boss
@@ -474,6 +477,43 @@ export const BOSSES = STORY_LADDER_IDS.map((id) => ALL_BOSSES.find((b) => b.id =
 
 export function getBoss(id) {
   return BOSSES.find((b) => b.id === id) || null;
+}
+
+/** Story fights use the boss table felt — not the player's equipped felt. */
+export function getStoryBossFeltId(bossId) {
+  return getBossDefinition(bossId)?.storyFeltId ?? "classic_green";
+}
+
+/** Full roster lookup (includes bosses not yet on the active ladder). */
+export function getBossDefinition(id) {
+  return ALL_BOSSES.find((b) => b.id === id) ?? null;
+}
+
+/** Story fights: player slot 0 = you, slot 1 = boss. */
+export const STORY_OPPONENT_INDEX = 1;
+
+/** Banked score the boss starts with (head-start gimmick), or null. */
+export function getBossHeadStartScore(bossOrId) {
+  if (bossOrId && typeof bossOrId === "object") {
+    const direct = bossOrId.gimmick?.startScore;
+    if (typeof direct === "number" && direct > 0) return direct;
+    return getBossHeadStartScore(bossOrId.id);
+  }
+  const score = getBossDefinition(bossOrId)?.gimmick?.startScore;
+  return typeof score === "number" && score > 0 ? score : null;
+}
+
+/** Apply boss head-start gimmick onto createInitialState output. */
+export function applyStoryBossHeadStart(state, bossOrId) {
+  const startScore = getBossHeadStartScore(bossOrId);
+  if (!state?.players?.[STORY_OPPONENT_INDEX] || startScore == null) return state;
+  const players = [...state.players];
+  players[STORY_OPPONENT_INDEX] = {
+    ...players[STORY_OPPONENT_INDEX],
+    score: startScore,
+    onBoard: true,
+  };
+  return { ...state, players };
 }
 
 // Sequential ladder — previous fight must be cleared to unlock the next.
@@ -487,6 +527,30 @@ export function isBossUnlocked(bossId, bossesDefeated = []) {
 
 export function isBossDefeated(bossId, bossesDefeated = []) {
   return bossesDefeated.includes(bossId);
+}
+
+/** First unlocked boss the player has not cleared yet. */
+export function getNextUnbeatenBossId(bossesDefeated = []) {
+  for (const b of BOSSES) {
+    if (isBossUnlocked(b.id, bossesDefeated) && !bossesDefeated.includes(b.id)) {
+      return b.id;
+    }
+  }
+  return null;
+}
+
+/** Ladder bookmark — stay on last boss attempted, or the next unbeaten fight. */
+export function resolveStoryActiveBoss(savedBossId, bossesDefeated = []) {
+  const fallback = getNextUnbeatenBossId(bossesDefeated);
+  if (!fallback) return null;
+  if (
+    savedBossId &&
+    isBossUnlocked(savedBossId, bossesDefeated) &&
+    !bossesDefeated.includes(savedBossId)
+  ) {
+    return savedBossId;
+  }
+  return fallback;
 }
 
 // In Story Mode, the player's dice are forced — you start with Prison Dice ("paper")

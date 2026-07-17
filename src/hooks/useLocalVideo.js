@@ -11,7 +11,7 @@ import {
  * Resolves a video key to a playable src (local blob URL or catalog fallback).
  * Returns { src, hasLocal, fallbackPath, failed, onError }.
  */
-export function useLocalVideo(key, { enabled = true } = {}) {
+export function useLocalVideo(key, { enabled = true, fallbackPath: fallbackOverride = null } = {}) {
   const [localUrl, setLocalUrl] = useState(() => getCachedLocalVideoObjectUrl(key));
   const [failed, setFailed] = useState(false);
 
@@ -34,7 +34,7 @@ export function useLocalVideo(key, { enabled = true } = {}) {
     };
   }, [key, enabled]);
 
-  const fallbackPath = VIDEO_FALLBACK_PATHS[key] ?? null;
+  const fallbackPath = fallbackOverride ?? VIDEO_FALLBACK_PATHS[key] ?? null;
   const src = localUrl || (!failed ? fallbackPath : null);
 
   return {

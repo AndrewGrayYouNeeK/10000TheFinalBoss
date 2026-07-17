@@ -167,6 +167,7 @@ export function useCosmetics() {
     setSfxMuted,
     setOpponentSfxMuted,
     grantReward,
+    updateMe,
     isDevUnlockAll: isDevUnlockAll(),
     getSkinEffectivePrice: (skin) => (isDevUnlockAll() ? 0 : getSkinEffectivePrice(skin, xp)),
     isSkinUnlockedByTier: (skinId) => isDevUnlockAll() || isSkinUnlockedByTier(skinId, xp),

@@ -4,6 +4,7 @@ import {
   clearLocalVideo,
   getCachedLocalVideoObjectUrl,
   getLocalVideoObjectUrl,
+  hasLocalVideo,
   saveLocalVideo,
   subscribeLocalVideo,
   VIDEO_DESCRIPTIONS,
@@ -17,18 +18,28 @@ export default function VideoUploadCard({
   label: labelOverride,
   description: descriptionOverride,
   fallbackPath: fallbackOverride,
+  disabled = false,
+  /** When true, uploads stay enabled but Remove is blocked (locked dice). */
+  lockRemovesOnly = false,
 }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(() => getCachedLocalVideoObjectUrl(videoKey));
 
+  const blockUpload = disabled && !lockRemovesOnly;
+  const blockRemove = disabled || lockRemovesOnly;
+
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
-      const url = await getLocalVideoObjectUrl(videoKey);
+      await import("@/lib/spriteLabLockedVideos")
+        .then(({ recoverVideoKeyFromSnapshots }) => recoverVideoKeyFromSnapshots(videoKey))
+        .catch(() => false);
+      const hasUpload = await hasLocalVideo(videoKey);
+      const url = hasUpload ? await getLocalVideoObjectUrl(videoKey) : null;
       if (cancelled) return;
-      setLoaded(!!url);
+      setLoaded(hasUpload);
       setPreviewUrl(url);
     };
     refresh();
@@ -46,14 +57,14 @@ export default function VideoUploadCard({
   const handleUpload = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
+    if (!file || blockUpload) return;
     setUploading(true);
     try {
       await saveLocalVideo(videoKey, file);
       const url = await getLocalVideoObjectUrl(videoKey);
       setLoaded(!!url);
       setPreviewUrl(url);
-      toast.success(`${labelOverride ?? VIDEO_LABELS[videoKey] ?? "Video"} saved`);
+      toast.success(`${labelOverride ?? VIDEO_LABELS[videoKey] ?? "Video"} saved to this device`);
     } catch {
       toast.error("Could not save video — try a smaller MP4");
     } finally {
@@ -62,6 +73,7 @@ export default function VideoUploadCard({
   };
 
   const handleClear = async () => {
+    if (blockRemove) return;
     try {
       await clearLocalVideo(videoKey);
       setLoaded(false);
@@ -95,18 +107,19 @@ export default function VideoUploadCard({
         <Button
           type="button"
           size="sm"
-          disabled={uploading}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white"
+          disabled={uploading || blockUpload}
+          className="bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
           onClick={() => inputRef.current?.click()}
         >
-          {uploading ? "Saving…" : "Upload video"}
+          {uploading ? "Saving…" : blockUpload ? "Locked" : loaded ? "Replace video" : "Upload video"}
         </Button>
         {loaded && (
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="border-rose-500/40 text-rose-200"
+            disabled={blockRemove}
+            className="border-rose-500/40 text-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={handleClear}
           >
             Remove

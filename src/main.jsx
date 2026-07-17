@@ -4,7 +4,7 @@ import App from '@/App.jsx'
 import '@/index.css'
 import { preloadAllLocalVideos } from '@/lib/localVideoStore'
 
-preloadAllLocalVideos()
+preloadAllLocalVideos().catch(() => {})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />

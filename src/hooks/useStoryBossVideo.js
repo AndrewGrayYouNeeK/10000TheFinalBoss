@@ -1,42 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { getLocalVideoObjectUrl, subscribeLocalVideo } from "@/lib/localVideoStore";
+import { subscribeLocalVideo } from "@/lib/localVideoStore";
 import {
-  getStoryBossVideoGlobalKey,
-  resolveStoryBossVideoSrc,
-  storyBossPrimaryKey,
+  getStoryBossVideoWatchKeys,
+  resolveStoryBossVideoPlayback,
 } from "@/lib/storyBossVideos";
-
-async function resolveBossVideo(bossId, slot) {
-  if (!bossId) return { src: null, hasLocal: false };
-
-  const primaryKey = storyBossPrimaryKey(bossId, slot);
-  const primaryLocal = await getLocalVideoObjectUrl(primaryKey);
-  if (primaryLocal) {
-    return { src: primaryLocal, hasLocal: true };
-  }
-
-  // Intro: per-boss upload only — never reuse Story hub / Matrix / other clips.
-  if (slot === "intro") {
-    return { src: null, hasLocal: false };
-  }
-
-  const globalKey = getStoryBossVideoGlobalKey(bossId, slot);
-  if (globalKey) {
-    const globalLocal = await getLocalVideoObjectUrl(globalKey);
-    if (globalLocal) {
-      return { src: globalLocal, hasLocal: true };
-    }
-  }
-
-  const src = await resolveStoryBossVideoSrc(bossId, slot);
-  return { src, hasLocal: false };
-}
 
 /**
  * Resolves a story boss video with fallback:
- * intro: per-boss upload only (no shared Story hub / Matrix fallback).
- * win: per-boss → STORY_BOSS_WIN → catalog.
- * avatar: per-boss → neo GAMEPLAY_LOOP → null.
+ * intro: per-boss upload only.
+ * win: per-boss → STORY_BOSS_WIN → catalog (not sign clips).
+ * avatar: per-boss → intro (non-Neo) → Neo gameplay uploads only (never bundled 10,000 sign).
  */
 export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
   const [src, setSrc] = useState(null);
@@ -44,8 +17,7 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const primaryKey = bossId ? storyBossPrimaryKey(bossId, slot) : null;
-  const globalKey = bossId ? getStoryBossVideoGlobalKey(bossId, slot) : null;
+  const watchKeys = bossId && enabled ? getStoryBossVideoWatchKeys(bossId, slot) : [];
 
   const refresh = useCallback(async () => {
     if (!enabled || !bossId) {
@@ -55,7 +27,7 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
       setReady(true);
       return;
     }
-    const result = await resolveBossVideo(bossId, slot);
+    const result = await resolveStoryBossVideoPlayback(bossId, slot);
     setSrc(result.src);
     setHasLocal(result.hasLocal);
     setFailed(false);
@@ -82,7 +54,7 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
         }
         return;
       }
-      const result = await resolveBossVideo(bossId, slot);
+      const result = await resolveStoryBossVideoPlayback(bossId, slot);
       if (!cancelled) {
         setSrc(result.src);
         setHasLocal(result.hasLocal);
@@ -91,15 +63,13 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
       }
     })();
 
-    const unsubs = [];
-    if (enabled && primaryKey) unsubs.push(subscribeLocalVideo(primaryKey, refresh));
-    if (enabled && globalKey) unsubs.push(subscribeLocalVideo(globalKey, refresh));
+    const unsubs = watchKeys.map((key) => subscribeLocalVideo(key, refresh));
 
     return () => {
       cancelled = true;
       unsubs.forEach((unsub) => unsub());
     };
-  }, [bossId, slot, enabled, primaryKey, globalKey, refresh]);
+  }, [bossId, slot, enabled, watchKeys.join("|"), refresh]);
 
   const playableSrc = hasLocal ? src : failed ? null : src;
 

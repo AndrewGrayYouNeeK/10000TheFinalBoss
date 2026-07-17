@@ -5,7 +5,6 @@ import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt, getSkin, skinHasPowerSprite } from "@/lib/shopCatalog";
-import { useCosmetics } from "@/hooks/useCosmetics";
 import {
   buildCatalogSnippet,
   clearSpriteLabDraft,
@@ -13,10 +12,17 @@ import {
   emptyFaceMap,
   FACES,
   loadSpriteLabDraft,
+  saveLockedTuningSnapshot,
   saveSpriteLabDraft,
   tuningFileName,
   getSpriteLabSkins,
 } from "@/lib/spriteLab";
+import {
+  recoverLockedVideoSnapshots,
+  recoverMatrixVideosOnStartup,
+  recoverAllVideoSettings,
+  saveLockedVideoSnapshots,
+} from "@/lib/spriteLabLockedVideos";
 import {
   clearMatrixPowerVideo,
   getCachedMatrixPowerVideoObjectUrl,
@@ -37,6 +43,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Lock, Unlock } from "lucide-react";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
+import MatrixGameplayVideoUploads from "@/components/spriteLab/DiceGameplayVideoUploads";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import {
   getStoryBossVideoDescription,
@@ -90,6 +97,16 @@ import {
   lockAmethystTuning,
   unlockAmethystTuning,
 } from "@/lib/amethystTuningLock";
+import {
+  isPaperTuningLocked,
+  lockPaperTuning,
+  unlockPaperTuning,
+} from "@/lib/paperTuningLock";
+import {
+  isDragonScaleTuningLocked,
+  lockDragonScaleTuning,
+  unlockDragonScaleTuning,
+} from "@/lib/dragonScaleTuningLock";
 
 const TUNING_LOCK_SKINS = {
   matrix: {
@@ -119,7 +136,6 @@ const TUNING_LOCK_SKINS = {
     unlock: unlockIceTuning,
     tuningFile: "iceSpriteTuning.js",
     accent: "sky",
-    storyVideosLabel: "Glacia story videos still editable below",
   },
   snow_globe: {
     isLocked: isSnowGlobeTuningLocked,
@@ -157,6 +173,20 @@ const TUNING_LOCK_SKINS = {
     tuningFile: "amethystSpriteTuning.js",
     accent: "purple",
   },
+  paper: {
+    isLocked: isPaperTuningLocked,
+    lock: lockPaperTuning,
+    unlock: unlockPaperTuning,
+    tuningFile: "paperSpriteTuning.js",
+    accent: "stone",
+  },
+  dragon_scale: {
+    isLocked: isDragonScaleTuningLocked,
+    lock: lockDragonScaleTuning,
+    unlock: unlockDragonScaleTuning,
+    tuningFile: "dragonScaleSpriteTuning.js",
+    accent: "emerald",
+  },
 };
 
 const POWER_VIDEO_SKIN_CONFIG = {
@@ -185,8 +215,10 @@ const POWER_VIDEO_SKIN_CONFIG = {
 };
 
 const DIAMOND_CUT_BOSS_ID = "diamond_cut";
+const NEO_BOSS_ID = "neo";
 const FROSTY_BOSS_ID = "snowman";
 const ICE_WITCH_BOSS_ID = "ice_witch";
+const DRAGON_KNIGHT_BOSS_ID = "dragon_knight";
 
 function skinUsesTuningLock(skinId) {
   return skinId in TUNING_LOCK_SKINS;
@@ -264,19 +296,25 @@ function FaceNudgePanel({ face, nudge, onChange, onResetFace, onResetAll, modeLa
   );
 }
 
+const SPRITE_LAB_PREVIEW_FELT_ID = "classic_green";
+
+function defaultPowerVideoZoom(skinId, skin) {
+  if (skin?.powerVideoZoom != null) return skin.powerVideoZoom;
+  return skinId === "matrix" || skinId === "crystal_cut" ? 1.41 : 3;
+}
+
 export default function SpriteLab({ skinId }) {
   const navigate = useNavigate();
   const spriteLabSkins = useMemo(() => getSpriteLabSkins(), []);
-  const { equippedFeltId } = useCosmetics();
-  const felt = getFelt(equippedFeltId);
+  const felt = getFelt(SPRITE_LAB_PREVIEW_FELT_ID);
   const catalogSkin = getSkin(skinId);
   const hasSpriteSheet = !!catalogSkin.spriteUrl;
   const hasPowerSheet = skinHasPowerSprite(catalogSkin);
   const hasPowerVideo = !!catalogSkin.powerVideoUrl;
   const hasPowerSprite = !!catalogSkin.powerSpriteUrl;
-  const hasPowerEffect = !!catalogSkin.powerDice && !hasPowerSheet;
-  const hasPowerPreview = hasPowerSheet || hasPowerEffect;
   const powerUsesVideo = hasPowerVideo && !hasPowerSprite;
+  const hasPowerEffect = !!catalogSkin.powerDice && !hasPowerSheet;
+  const hasPowerPreview = hasPowerSheet || hasPowerEffect || powerUsesVideo;
   const lockConfig = TUNING_LOCK_SKINS[skinId];
   const powerVideoConfig = POWER_VIDEO_SKIN_CONFIG[skinId];
   const supportsPowerVideoUpload = !!powerVideoConfig;
@@ -308,7 +346,7 @@ export default function SpriteLab({ skinId }) {
   const powerVideoInputRef = useRef(null);
   const [powerVideoUploading, setPowerVideoUploading] = useState(false);
   const [powerVideoZoom, setPowerVideoZoom] = useState(
-    () => saved?.powerVideoZoom ?? catalogSkin.powerVideoZoom ?? (skinId === "matrix" ? 1 : 3)
+    () => saved?.powerVideoZoom ?? defaultPowerVideoZoom(skinId, catalogSkin)
   );
   const [powerVideoCrop, setPowerVideoCrop] = useState(
     () => saved?.powerVideoCrop ?? catalogSkin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 }
@@ -321,7 +359,7 @@ export default function SpriteLab({ skinId }) {
 
   const tunedSkin = useMemo(
     () => {
-      if (tuningLocked) return catalogSkin;
+      if (skinId === "matrix" && tuningLocked) return catalogSkin;
       return {
       ...catalogSkin,
       spriteCrop: regularCrop,
@@ -334,6 +372,7 @@ export default function SpriteLab({ skinId }) {
     };
     },
     [
+      skinId,
       tuningLocked,
       catalogSkin,
       regularCrop,
@@ -373,7 +412,7 @@ export default function SpriteLab({ skinId }) {
     setPowerCrop(catalogSkin.powerSpriteCrop ?? DEFAULT_SPRITE_CROP);
     setRegularFaces(emptyFaceMap(catalogSkin.spriteFaceOffsets?.regular));
     setPowerFaces(emptyFaceMap(catalogSkin.spriteFaceOffsets?.power));
-    setPowerVideoZoom(catalogSkin.powerVideoZoom ?? (skinId === "matrix" ? 1 : 3));
+    setPowerVideoZoom(defaultPowerVideoZoom(skinId, catalogSkin));
     setPowerVideoCrop(catalogSkin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 });
     toast.success("All tuning reset to defaults");
   };
@@ -423,23 +462,84 @@ export default function SpriteLab({ skinId }) {
     setPowerVideoCrop(lockedSkin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 });
   };
 
-  const handleLockTuning = () => {
+  const handleLockTuning = async () => {
     if (!lockConfig) return;
-    // Keep current slider values — never reset to catalog on Lock.
-    // Catalog file must already match (Copy JSON → paste into tuning file).
-    lockConfig.lock();
-    setTuningUnlocked(false);
-    toast.success(
-      `${catalogSkin.name} tuning locked — current values kept. Paste Copy JSON into ${lockConfig.tuningFile} if you haven’t yet.`
-    );
+    try {
+      const lockedVideos = await saveLockedVideoSnapshots(skinId);
+      if (skinId === "matrix") {
+        // Sprite tuning = catalog file; videos saved separately on device.
+      } else {
+        saveLockedTuningSnapshot(skinId, {
+          regularCrop,
+          powerCrop,
+          regularFaces,
+          powerFaces,
+          powerVideoZoom,
+          powerVideoCrop,
+          lockedVideos,
+        });
+      }
+      lockConfig.lock();
+      setTuningUnlocked(false);
+      toast.success(`${catalogSkin.name} tuning and videos saved and locked on this device.`);
+    } catch {
+      toast.error("Could not save video uploads — try again");
+    }
   };
 
   const handleUnlockTuning = () => {
     if (!lockConfig) return;
     lockConfig.unlock();
     setTuningUnlocked(true);
-    toast.success(`${catalogSkin.name} tuning unlocked — sliders are live`);
+    toast.success(`${catalogSkin.name} tuning and videos unlocked — sliders and uploads are live`);
   };
+
+  const handleRestoreUploads = async () => {
+    try {
+      const restored = await recoverAllVideoSettings();
+      if (restored > 0) {
+        toast.success(
+          `Restored ${restored} saved video${restored === 1 ? "" : "s"} on this device`
+        );
+      } else {
+        toast.message("All uploads already present", {
+          description: "Videos auto-save when you upload. Use Save all on Video Assets to refresh backups.",
+        });
+      }
+    } catch {
+      toast.error("Could not restore uploads");
+    }
+  };
+
+  useEffect(() => {
+    if (skinId !== "matrix" || !tuningLocked) return;
+    const locked = getSkin(skinId);
+    setRegularCrop(locked.spriteCrop ?? DEFAULT_SPRITE_CROP);
+    setRegularFaces(emptyFaceMap(locked.spriteFaceOffsets?.regular));
+    setPowerFaces(emptyFaceMap(locked.spriteFaceOffsets?.power));
+    setPowerVideoZoom(locked.powerVideoZoom ?? 1.41);
+    setPowerVideoCrop(locked.powerVideoCrop ?? { offsetX: 0, offsetY: 0 });
+    recoverMatrixVideosOnStartup()
+      .then(() => powerVideoConfig?.getUrl())
+      .then((url) => {
+        if (!powerVideoConfig) return;
+        setPowerVideoLoaded(!!url);
+        setPowerVideoPreviewUrl(powerVideoConfig.getCached());
+      })
+      .catch(() => {});
+  }, [skinId, tuningLocked, powerVideoConfig]);
+
+  useEffect(() => {
+    recoverLockedVideoSnapshots(skinId)
+      .then((restored) => {
+        if (restored > 0) {
+          toast.success(
+            `Restored ${restored} saved video${restored === 1 ? "" : "s"} for ${catalogSkin.name}`
+          );
+        }
+      })
+      .catch(() => {});
+  }, [skinId, catalogSkin.name]);
 
   useEffect(() => {
     if (tuningLocked) return;
@@ -457,6 +557,11 @@ export default function SpriteLab({ skinId }) {
     if (!powerVideoConfig) return undefined;
     let cancelled = false;
     const refresh = async () => {
+      await import("@/lib/spriteLabLockedVideos")
+        .then(({ recoverVideoKeyFromSnapshots }) =>
+          recoverVideoKeyFromSnapshots(powerVideoConfig.videoKey ?? "matrix_power")
+        )
+        .catch(() => false);
       const loaded = await powerVideoConfig.has();
       if (cancelled) return;
       setPowerVideoLoaded(loaded);
@@ -493,7 +598,7 @@ export default function SpriteLab({ skinId }) {
   };
 
   const handleClearPowerVideo = async () => {
-    if (!powerVideoConfig) return;
+    if (!powerVideoConfig || tuningLocked) return;
     try {
       await powerVideoConfig.clear();
       setPowerVideoLoaded(false);
@@ -590,14 +695,24 @@ export default function SpriteLab({ skinId }) {
                   </Button>
                 )
               )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-[10px] shrink-0 border-cyan-500/40 text-cyan-200"
+                onClick={handleRestoreUploads}
+              >
+                Restore uploads
+              </Button>
             </div>
+            <p className="text-[10px] text-slate-500">
+              Preview uses classic green felt — saved dice look the same on every table felt in-game.
+            </p>
             <p className="text-[10px] text-slate-400 truncate">
               {tuningLocked
                 ? lockConfig?.noSpriteTuning
-                  ? "Locked — Frosty story videos still editable below"
-                  : lockConfig?.storyVideosLabel
-                    ? `Locked — ${lockConfig.storyVideosLabel}`
-                    : "Locked — using saved catalog tuning only"
+                  ? "Locked — story videos saved with lock"
+                  : "Locked — tuning and videos saved on this device"
                 : skinId === "snow_globe"
                   ? "No sprite sheet — upload Frosty story videos below"
                   : skinId === "ice"
@@ -615,20 +730,14 @@ export default function SpriteLab({ skinId }) {
             <span>
               {lockConfig.noSpriteTuning ? (
                 <>
-                  {catalogSkin.name} Sprite Lab is <b>locked</b>. Tap <b>Unlock</b> when you need to tune future
-                  sprite settings. Frosty story video uploads below stay editable.
-                </>
-              ) : lockConfig.storyVideosLabel ? (
-                <>
-                  {catalogSkin.name} tuning is <b>locked</b>. Sliders are read-only until you tap <b>Unlock</b>.
-                  In-game dice use the saved values in{" "}
-                  <code className="text-amber-200">{lockConfig.tuningFile}</code>. {lockConfig.storyVideosLabel}.
+                  {catalogSkin.name} Sprite Lab is <b>locked</b>. Story video uploads are saved and
+                  read-only until you tap <b>Unlock</b>.
                 </>
               ) : (
                 <>
-                  {catalogSkin.name} tuning is <b>locked</b>. Sliders are read-only until you tap <b>Unlock</b>.
-                  In-game dice use the saved values in{" "}
-                  <code className="text-amber-200">{lockConfig.tuningFile}</code>.
+                  {catalogSkin.name} tuning and video uploads are <b>locked</b> and{" "}
+                  <b>saved on this device</b>. Sliders and video uploads are read-only until you tap{" "}
+                  <b>Unlock</b>.
                 </>
               )}
             </span>
@@ -639,14 +748,17 @@ export default function SpriteLab({ skinId }) {
           {skinId === "snow_globe" ? (
             <p className="text-slate-300">
               Snow Globe uses the Aquamarine glass shell with drifting snowflakes — no sprite sheet to tune.
-              Upload <b>Frosty story videos</b> below (intro, victory, avatar loop).
+              Upload <b>Frosty story videos</b> below (before match + after victory).
             </p>
           ) : (
             <ol className="list-decimal pl-4 space-y-1 text-slate-300">
               <li>Pick a face with the <b>1–6 buttons</b></li>
               <li>Drag <b>Nudge X / Y</b> — live preview updates instantly</li>
               <li>Tune global crop, then fine-tune each face</li>
-              <li>Copy JSON → paste into <code className="text-cyan-200">{tuningFileName(skinId)}</code></li>
+              <li>
+                Tap <b>Lock</b> to save tuning and video uploads on this device — use <b>Copy JSON</b> only if you
+                want to bake values into the repo
+              </li>
             </ol>
           )}
           {hasPowerVideo && (
@@ -822,7 +934,7 @@ export default function SpriteLab({ skinId }) {
                 disabled={tuningLocked}
                 onClick={() => {
                   setRegularCrop(catalogSkin.spriteCrop ?? DEFAULT_SPRITE_CROP);
-                  setPowerVideoZoom(catalogSkin.powerVideoZoom ?? (skinId === "matrix" ? 1 : 3));
+                  setPowerVideoZoom(defaultPowerVideoZoom(skinId, catalogSkin));
                   setPowerVideoCrop(catalogSkin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 });
                   toast.success("Crop reset to defaults");
                 }}
@@ -972,6 +1084,7 @@ export default function SpriteLab({ skinId }) {
                           type="button"
                           size="sm"
                           variant="outline"
+                          disabled={tuningLocked}
                           className={
                             skinId === "crystal_cut"
                               ? "border-cyan-500/40 text-cyan-200"
@@ -1029,43 +1142,29 @@ export default function SpriteLab({ skinId }) {
         </div>
         )}
 
-        {skinId === "matrix" && (
-          <div className="rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/15 p-4 space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-200">Scene videos</p>
-            <p className="text-[10px] text-slate-400">
-              <b>Story hub banner</b> is the ladder page only — not a boss intro.{" "}
-              <b>Boss defeated</b> is the shared victory fallback. Per-boss intros (including{" "}
-              <b>GQ</b>) live under <b>Video settings</b>. <b>Billboard</b> is the 10,000 sign in
-              local matches. Header loop is not shown above the sign anymore.
-            </p>
-            <VideoUploadCard videoKey={VIDEO_KEYS.STORY_MODE} />
-            <VideoUploadCard videoKey={VIDEO_KEYS.STORY_BOSS_WIN} />
-            <VideoUploadCard videoKey={VIDEO_KEYS.GAMEPLAY_BILLBOARD} />
-            <VideoUploadCard videoKey={VIDEO_KEYS.GAMEPLAY_LOOP} />
-          </div>
-        )}
-
         {skinId === "crystal_cut" && (
           <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
-              Vitrea — Diamond Cut story videos
+              Story mode — before &amp; after (Vitrea)
             </p>
             <p className="text-[10px] text-slate-400">
-              Per-boss uploads for <b>Vitrea</b> (The Diamond Sister). <b>Before match</b> plays
-              fullscreen once before the fight. <b>Victory cutscene</b> plays after you win.
-              <b> Avatar loop</b> replaces her emoji in dialogue when uploaded.
+              Only plays in <b>Story mode</b> fights against Vitrea. <b>Before match</b> fullscreen
+              intro when the fight starts. <b>After victory</b> when you win.
             </p>
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossIntroKey(DIAMOND_CUT_BOSS_ID)}
               label={getStoryBossVideoLabel(DIAMOND_CUT_BOSS_ID, "intro")}
               description={getStoryBossVideoDescription(DIAMOND_CUT_BOSS_ID, "intro")}
             />
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossWinKey(DIAMOND_CUT_BOSS_ID)}
               label={getStoryBossVideoLabel(DIAMOND_CUT_BOSS_ID, "win")}
               description={getStoryBossVideoDescription(DIAMOND_CUT_BOSS_ID, "win")}
             />
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossAvatarKey(DIAMOND_CUT_BOSS_ID)}
               label={getStoryBossVideoLabel(DIAMOND_CUT_BOSS_ID, "avatar")}
               description={getStoryBossVideoDescription(DIAMOND_CUT_BOSS_ID, "avatar")}
@@ -1073,7 +1172,7 @@ export default function SpriteLab({ skinId }) {
             <p className="text-[10px] text-slate-500 pt-1">
               Same slots are under <b>Vitrea</b> in{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
-                Video Assets → Story Boss Videos
+                Video Assets → Story mode
               </Link>
               .
             </p>
@@ -1083,24 +1182,27 @@ export default function SpriteLab({ skinId }) {
         {skinId === "snow_globe" && (
           <div className="rounded-xl border border-sky-500/30 bg-sky-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-sky-200">
-              Frosty — Snow Globe story videos
+              Story mode — Frosty videos
             </p>
             <p className="text-[10px] text-slate-400">
-              Per-boss uploads for <b>Frosty</b> (Winter Wanderer). <b>Before match</b> plays
-              fullscreen once before the fight. <b>Victory cutscene</b> plays after you win.
-              <b> Avatar loop</b> replaces his emoji in dialogue when uploaded.
+              <b>Before match</b> fullscreen intro · <b>After victory</b> win cutscene ·{" "}
+              <b>Avatar loop</b> large video above the table during the fight (Before match is
+              used if Avatar loop is empty).
             </p>
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossIntroKey(FROSTY_BOSS_ID)}
               label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "intro")}
               description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "intro")}
             />
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossWinKey(FROSTY_BOSS_ID)}
               label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "win")}
               description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "win")}
             />
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossAvatarKey(FROSTY_BOSS_ID)}
               label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "avatar")}
               description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "avatar")}
@@ -1108,7 +1210,7 @@ export default function SpriteLab({ skinId }) {
             <p className="text-[10px] text-slate-500 pt-1">
               Same slots are under <b>Frosty</b> in{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
-                Video Assets → Story Boss Videos
+                Video Assets → Story mode
               </Link>
               .
             </p>
@@ -1118,24 +1220,26 @@ export default function SpriteLab({ skinId }) {
         {skinId === "ice" && (
           <div className="rounded-xl border border-sky-500/30 bg-sky-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-sky-200">
-              Glacia — Frozen Ice story videos
+              Story mode — before &amp; after (Glacia)
             </p>
             <p className="text-[10px] text-slate-400">
-              Per-boss uploads for <b>Glacia</b> (Frostbite Queen). <b>Before match</b> plays
-              fullscreen once before the fight. <b>Victory cutscene</b> plays after you win.
-              <b> Avatar loop</b> replaces her emoji in dialogue when uploaded.
+              Only plays in <b>Story mode</b> fights against Glacia. <b>Before match</b> fullscreen
+              intro when the fight starts. <b>After victory</b> when you win.
             </p>
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossIntroKey(ICE_WITCH_BOSS_ID)}
               label={getStoryBossVideoLabel(ICE_WITCH_BOSS_ID, "intro")}
               description={getStoryBossVideoDescription(ICE_WITCH_BOSS_ID, "intro")}
             />
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossWinKey(ICE_WITCH_BOSS_ID)}
               label={getStoryBossVideoLabel(ICE_WITCH_BOSS_ID, "win")}
               description={getStoryBossVideoDescription(ICE_WITCH_BOSS_ID, "win")}
             />
             <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
               videoKey={storyBossAvatarKey(ICE_WITCH_BOSS_ID)}
               label={getStoryBossVideoLabel(ICE_WITCH_BOSS_ID, "avatar")}
               description={getStoryBossVideoDescription(ICE_WITCH_BOSS_ID, "avatar")}
@@ -1143,11 +1247,90 @@ export default function SpriteLab({ skinId }) {
             <p className="text-[10px] text-slate-500 pt-1">
               Same slots are under <b>Glacia</b> in{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
-                Video Assets → Story Boss Videos
+                Video Assets → Story mode
               </Link>
               .
             </p>
           </div>
+        )}
+
+        {skinId === "dragon_scale" && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/15 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-200">
+              Story mode — before &amp; after (Sir Scalewyrm)
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Only plays in <b>Story mode</b> fights against Sir Scalewyrm. <b>Before match</b>{" "}
+              fullscreen intro when the fight starts. <b>After victory</b> when you win.
+            </p>
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossIntroKey(DRAGON_KNIGHT_BOSS_ID)}
+              label={getStoryBossVideoLabel(DRAGON_KNIGHT_BOSS_ID, "intro")}
+              description={getStoryBossVideoDescription(DRAGON_KNIGHT_BOSS_ID, "intro")}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossWinKey(DRAGON_KNIGHT_BOSS_ID)}
+              label={getStoryBossVideoLabel(DRAGON_KNIGHT_BOSS_ID, "win")}
+              description={getStoryBossVideoDescription(DRAGON_KNIGHT_BOSS_ID, "win")}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossAvatarKey(DRAGON_KNIGHT_BOSS_ID)}
+              label={getStoryBossVideoLabel(DRAGON_KNIGHT_BOSS_ID, "avatar")}
+              description={getStoryBossVideoDescription(DRAGON_KNIGHT_BOSS_ID, "avatar")}
+            />
+            <p className="text-[10px] text-slate-500 pt-1">
+              Same slots are under <b>Sir Scalewyrm</b> in{" "}
+              <Link to="/video-assets" className="text-cyan-400 underline">
+                Video Assets → Story mode
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
+        {skinId === "matrix" && (
+          <div className="rounded-xl border border-green-500/30 bg-green-950/15 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-green-200">
+              Story mode — Neo videos
+            </p>
+            <p className="text-[10px] text-slate-400">
+              <b>Before match</b> intro · <b>After victory</b> win cutscene ·{" "}
+              <b>Avatar loop</b> = large video during Neo fights (upload your Matrix clip here —
+              not the static 10,000 sign).
+            </p>
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossIntroKey(NEO_BOSS_ID)}
+              label={getStoryBossVideoLabel(NEO_BOSS_ID, "intro")}
+              description="Story mode only — fullscreen intro before fighting Neo. Does not play in local games."
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossWinKey(NEO_BOSS_ID)}
+              label={getStoryBossVideoLabel(NEO_BOSS_ID, "win")}
+              description="Story mode only — victory cutscene after you beat Neo. Does not play in local games."
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossAvatarKey(NEO_BOSS_ID)}
+              label={getStoryBossVideoLabel(NEO_BOSS_ID, "avatar")}
+              description={getStoryBossVideoDescription(NEO_BOSS_ID, "avatar")}
+            />
+            <p className="text-[10px] text-slate-500 pt-1">
+              Same slots are under <b>Neo</b> in{" "}
+              <Link to="/video-assets" className="text-cyan-400 underline">
+                Video Assets → Story mode
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
+        {skinId === "matrix" && (
+          <MatrixGameplayVideoUploads lockRemovesOnly={tuningLocked} />
         )}
       </div>
     </div>

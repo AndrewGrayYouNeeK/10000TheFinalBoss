@@ -7,6 +7,52 @@ import { isGalaxyTuningLocked } from "@/lib/galaxyTuningLock";
 import { isFluoriteTuningLocked } from "@/lib/fluoriteTuningLock";
 import { isAmberWaspTuningLocked } from "@/lib/amberWaspTuningLock";
 import { isAmethystTuningLocked } from "@/lib/amethystTuningLock";
+import { isPaperTuningLocked } from "@/lib/paperTuningLock";
+import { isDragonScaleTuningLocked } from "@/lib/dragonScaleTuningLock";
+import { isSnowGlobeTuningLocked } from "@/lib/snowGlobeTuningLock";
+
+const TUNING_LOCK_CHECKERS = {
+  matrix: isMatrixTuningLocked,
+  crystal_cut: isDiamondCutTuningLocked,
+  ice: isIceTuningLocked,
+  ragnarok: isRagnarokTuningLocked,
+  galaxy: isGalaxyTuningLocked,
+  fluorite: isFluoriteTuningLocked,
+  amber_wasp: isAmberWaspTuningLocked,
+  amethyst: isAmethystTuningLocked,
+  paper: isPaperTuningLocked,
+  dragon_scale: isDragonScaleTuningLocked,
+  snow_globe: isSnowGlobeTuningLocked,
+};
+
+export function isSpriteTuningLocked(skinId) {
+  return TUNING_LOCK_CHECKERS[skinId]?.() ?? false;
+}
+
+export const SPRITE_TUNING_LOCK_SKIN_IDS = Object.keys(TUNING_LOCK_CHECKERS);
+
+export function lockedTuningStorageKey(skinId) {
+  return `yourneek_locked_tuning_${skinId}`;
+}
+
+/** Persist slider values when the user taps Lock in Sprite Lab. */
+export function saveLockedTuningSnapshot(skinId, payload) {
+  try {
+    localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(payload));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+export function loadLockedTuningSnapshot(skinId) {
+  try {
+    const raw = localStorage.getItem(lockedTuningStorageKey(skinId));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 /** Featured skins — shop category headers link to these labs first */
 export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe"];
@@ -45,8 +91,9 @@ export function emptyFaceMap(source) {
 }
 
 /** Keep catalog per-face nudges unless the lab draft has a non-zero override. */
-export function mergeSpriteLabFaceOffsets(catalogOffsets = {}, draftOffsets) {
+export function mergeSpriteLabFaceOffsets(catalogOffsets = {}, draftOffsets, { fullReplace = false } = {}) {
   if (!draftOffsets) return catalogOffsets;
+  if (fullReplace) return draftOffsets;
   const merged = { ...catalogOffsets };
   for (const face of FACES) {
     const draft = draftOffsets[face] ?? draftOffsets[String(face)];
@@ -58,23 +105,43 @@ export function mergeSpriteLabFaceOffsets(catalogOffsets = {}, draftOffsets) {
 }
 
 const MATRIX_DRAFT_RESET_FLAG = "yourneek_sprite_lab_matrix_reset_v4";
+const MATRIX_LOCKED_SNAPSHOT_RESET_FLAG = "yourneek_locked_tuning_matrix_reset_v1";
+const PAPER_DRAFT_RESET_FLAG = "yourneek_sprite_lab_paper_reset_v1";
+const DRAGON_SCALE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_dragon_scale_reset_v1";
 
 export function loadSpriteLabDraft(skinId) {
   try {
-    if (skinId === "matrix" && isMatrixTuningLocked()) return null;
-    if (skinId === "crystal_cut" && isDiamondCutTuningLocked()) return null;
-    if (skinId === "ice" && isIceTuningLocked()) return null;
-    if (skinId === "ragnarok" && isRagnarokTuningLocked()) return null;
-    if (skinId === "galaxy" && isGalaxyTuningLocked()) return null;
-    if (skinId === "fluorite" && isFluoriteTuningLocked()) return null;
-    if (skinId === "amber_wasp" && isAmberWaspTuningLocked()) return null;
-    if (skinId === "amethyst" && isAmethystTuningLocked()) return null;
+    if (isSpriteTuningLocked(skinId)) {
+      // Matrix locked = catalog file only; drop stale device snapshots once.
+      if (skinId === "matrix") {
+        if (localStorage.getItem(MATRIX_LOCKED_SNAPSHOT_RESET_FLAG) !== "1") {
+          localStorage.removeItem(lockedTuningStorageKey("matrix"));
+          localStorage.setItem(MATRIX_LOCKED_SNAPSHOT_RESET_FLAG, "1");
+        }
+        return null;
+      }
+      return loadLockedTuningSnapshot(skinId);
+    }
 
     // One-time nuke of the Matrix draft: months of broken crop/nudge values
     // accumulated in localStorage. Clear once, then the lab works from a clean slate.
     if (skinId === "matrix" && localStorage.getItem(MATRIX_DRAFT_RESET_FLAG) !== "1") {
       localStorage.removeItem(spriteLabStorageKey("matrix"));
       localStorage.setItem(MATRIX_DRAFT_RESET_FLAG, "1");
+      return null;
+    }
+
+    // Prison Dice: old drafts override the locked catalog alignment.
+    if (skinId === "paper" && localStorage.getItem(PAPER_DRAFT_RESET_FLAG) !== "1") {
+      localStorage.removeItem(spriteLabStorageKey("paper"));
+      localStorage.setItem(PAPER_DRAFT_RESET_FLAG, "1");
+      return null;
+    }
+
+    // Dragon Scale: old drafts override the locked catalog alignment.
+    if (skinId === "dragon_scale" && localStorage.getItem(DRAGON_SCALE_DRAFT_RESET_FLAG) !== "1") {
+      localStorage.removeItem(spriteLabStorageKey("dragon_scale"));
+      localStorage.setItem(DRAGON_SCALE_DRAFT_RESET_FLAG, "1");
       return null;
     }
 
@@ -92,14 +159,7 @@ export function loadSpriteLabDraft(skinId) {
 
 export function saveSpriteLabDraft(skinId, payload) {
   try {
-    if (skinId === "matrix" && isMatrixTuningLocked()) return;
-    if (skinId === "crystal_cut" && isDiamondCutTuningLocked()) return;
-    if (skinId === "ice" && isIceTuningLocked()) return;
-    if (skinId === "ragnarok" && isRagnarokTuningLocked()) return;
-    if (skinId === "galaxy" && isGalaxyTuningLocked()) return;
-    if (skinId === "fluorite" && isFluoriteTuningLocked()) return;
-    if (skinId === "amber_wasp" && isAmberWaspTuningLocked()) return;
-    if (skinId === "amethyst" && isAmethystTuningLocked()) return;
+    if (isSpriteTuningLocked(skinId)) return;
     localStorage.setItem(spriteLabStorageKey(skinId), JSON.stringify(payload));
   } catch {
     /* ignore quota errors */

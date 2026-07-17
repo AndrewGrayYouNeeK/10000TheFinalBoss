@@ -7,18 +7,13 @@ import { RAGNAROK_SPRITE_TUNING } from "./ragnarokSpriteTuning";
 import { MATRIX_SPRITE_TUNING } from "./matrixSpriteTuning";
 import { CRYSTAL_CUT_SPRITE_TUNING } from "./crystalCutSpriteTuning";
 import { GALAXY_SPRITE_TUNING } from "./galaxySpriteTuning";
+import { PAPER_SPRITE_TUNING } from "./paperSpriteTuning";
+import { DRAGON_SCALE_SPRITE_TUNING } from "./dragonScaleSpriteTuning";
 import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
 import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
 import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
-import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets } from "./spriteLab";
+import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, lockedTuningStorageKey } from "./spriteLab";
 import { isMatrixTuningLocked } from "./matrixTuningLock";
-import { isDiamondCutTuningLocked } from "./diamondCutTuningLock";
-import { isIceTuningLocked } from "./iceTuningLock";
-import { isRagnarokTuningLocked } from "./ragnarokTuningLock";
-import { isGalaxyTuningLocked } from "./galaxyTuningLock";
-import { isFluoriteTuningLocked } from "./fluoriteTuningLock";
-import { isAmberWaspTuningLocked } from "./amberWaspTuningLock";
-import { isAmethystTuningLocked } from "./amethystTuningLock";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -132,6 +127,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Iridescent dragon hide.",
     realistic: true,
     spriteUrl: "/assets/0b8e61811_XeN1JIPeKj6ML7YQ3gk99_VqSR7BSl.png",
+    ...DRAGON_SCALE_SPRITE_TUNING,
   },
   {
     id: "amethyst",
@@ -303,6 +299,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Hand-rolled behind bars.",
     realistic: true,
     spriteUrl: "/assets/f059af972_CLC6gYkVPlWgxZQOsp_68_4WosypFv.png",
+    ...PAPER_SPRITE_TUNING,
   },
   {
     id: "neon_grid",
@@ -814,9 +811,48 @@ export const FELT_COLORS = [
     mid: "#2a8a3a",
     outer: "#0a2a14",
     border: "border-amber-900/70",
-    description: "Psychedelic neon green tie-dye with a glowing frame.",
+    description: "Psychedelic tie-dye spiral in a polished wood rail.",
     premium: true,
-    textureUrl: "/assets/felt_tiedye_neon.png",
+    textureUrl: "/assets/felt_tiedye_spiral.png",
+    includesFrame: true,
+  },
+  {
+    id: "iridescent_frame",
+    name: "Iridescent",
+    price: 850,
+    inner: "#c084fc",
+    mid: "#6366f1",
+    outer: "#1e1b4b",
+    border: "border-amber-900/70",
+    description: "Shifting rainbow shimmer in a wood frame.",
+    premium: true,
+    textureUrl: "/assets/felt_iridescent_frame.png",
+    includesFrame: true,
+  },
+  {
+    id: "golden_frame",
+    name: "Golden Felt",
+    price: 600,
+    inner: "#d4a017",
+    mid: "#a67c00",
+    outer: "#5c4200",
+    border: "border-amber-900/70",
+    description: "Rich gold ochre felt with a warm wood rail.",
+    premium: true,
+    textureUrl: "/assets/felt_golden_frame.png",
+    includesFrame: true,
+  },
+  {
+    id: "stone_frame",
+    name: "Stone & Wood",
+    price: 700,
+    inner: "#8a9098",
+    mid: "#5a6068",
+    outer: "#2a2e34",
+    border: "border-amber-900/70",
+    description: "Weathered grey stone inset in polished wood.",
+    premium: true,
+    textureUrl: "/assets/felt_stone_frame.png",
     includesFrame: true,
   },
 ];
@@ -843,6 +879,14 @@ export const RAGNAROK_LEGACY_SKIN_IDS = ["lava", "ragnarok_regular"];
 export function normalizeSkinId(id) {
   if (RAGNAROK_LEGACY_SKIN_IDS.includes(id)) return "ragnarok";
   return id;
+}
+
+/** Locked snapshots saved before zoom fix used 1.0 — keep catalog tuning instead. */
+function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
+  if (!locked) return draftZoom ?? catalogZoom;
+  if (draftZoom == null) return catalogZoom;
+  if (draftZoom === 1 && catalogZoom > 1.2) return catalogZoom;
+  return draftZoom;
 }
 
 /** Active sprite sheet for a skin — regular by default, power sheet when charged. */
@@ -878,11 +922,18 @@ export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = t
 
 export function getSkin(id) {
   const skin = DICE_SKINS.find((s) => s.id === normalizeSkinId(id)) || DICE_SKINS[0];
+
+  if (skin.id === "matrix" && isMatrixTuningLocked()) return skin;
+
   const draft = loadSpriteLabDraft(skin.id);
   if (!draft) return skin;
+  const locked = isSpriteTuningLocked(skin.id);
+  const mergeRegular = (base) =>
+    mergeSpriteLabFaceOffsets(base, draft.regularFaces, { fullReplace: locked });
+  const mergePower = (base) =>
+    mergeSpriteLabFaceOffsets(base, draft.powerFaces, { fullReplace: locked });
 
   if (skin.id === "matrix") {
-    if (isMatrixTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
@@ -890,98 +941,113 @@ export function getSkin(id) {
       powerVideoCrop: draft.powerVideoCrop ?? skin.powerVideoCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
-        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+        power: mergePower(skin.spriteFaceOffsets?.power),
       },
     };
   }
 
   if (skin.id === "crystal_cut") {
-    if (isDiamondCutTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
-      powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
+      powerVideoZoom: resolveLockedPowerVideoZoom(draft.powerVideoZoom, skin.powerVideoZoom, locked),
       powerVideoCrop: draft.powerVideoCrop ?? skin.powerVideoCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
-        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+        power: mergePower(skin.spriteFaceOffsets?.power),
       },
     };
   }
 
   if (skin.id === "ice") {
-    if (isIceTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
-        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+        power: mergePower(skin.spriteFaceOffsets?.power),
       },
     };
   }
 
   if (skin.id === "ragnarok") {
-    if (isRagnarokTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       powerSpriteCrop: draft.powerCrop ?? skin.powerSpriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
-        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+        power: mergePower(skin.spriteFaceOffsets?.power),
       },
     };
   }
 
   if (skin.id === "galaxy") {
-    if (isGalaxyTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
       },
     };
   }
 
   if (skin.id === "fluorite") {
-    if (isFluoriteTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
       },
     };
   }
 
   if (skin.id === "amber_wasp") {
-    if (isAmberWaspTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
       },
     };
   }
 
   if (skin.id === "amethyst") {
-    if (isAmethystTuningLocked()) return skin;
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "paper") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "dragon_scale") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
       },
     };
   }
@@ -993,8 +1059,8 @@ export function getSkin(id) {
       powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
-        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
-        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+        power: mergePower(skin.spriteFaceOffsets?.power),
       },
     };
   }

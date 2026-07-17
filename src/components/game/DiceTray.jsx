@@ -18,6 +18,7 @@ function DiceTray({
   disabled,
   skinId,
   feltId = "classic_green",
+  feltIntense = false,
   scoreFill = 0.5,
   heldStyleId,
   lowPower = false,
@@ -27,6 +28,8 @@ function DiceTray({
   sharkDiceHidden = false,
   bloodWaterLocked = false,
   onBloodWaterSettled,
+  /** Show in-die shark feast on fish dice (after a fish-hunt shark bite). */
+  fishFeastMode = false,
 }) {
   const felt = getFelt(feltId);
   const [diceEaten, setDiceEaten] = useState(false);
@@ -61,7 +64,7 @@ function DiceTray({
   const jellyDieId = dice.find((d) => !d.used && (d.value ?? 0) >= 2)?.id ?? null;
 
   return (
-    <FeltTrayFrame felt={felt} innerClassName="p-6">
+    <FeltTrayFrame felt={felt} innerClassName="p-6" intense={feltIntense}>
       <div className="relative grid grid-cols-3 gap-3 sm:gap-6 justify-items-center sm:grid-cols-6">
         {dice.map((d, idx) => {
           // Pull each die toward the tray center as the shark chomps. The dice
@@ -99,7 +102,7 @@ function DiceTray({
               heldStyleId={heldStyleId}
               lowPower={lowPower}
               // Shark bite uses the fullscreen over-gameplay shark; in-die feast is power mode only.
-              powerMode={powerMode && !sharkBiteFx}
+              powerMode={(powerMode || fishFeastMode) && !sharkBiteFx}
               sharkBiteFx={false}
               bloodWaterLocked={bloodWaterLocked}
               onBloodWaterSettled={onBloodWaterSettled}

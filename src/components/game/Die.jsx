@@ -365,8 +365,6 @@ function Die({
             const crop = skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 };
             const cropX = (crop.offsetX || 0) * size;
             const cropY = (crop.offsetY || 0) * size;
-            // Scale so each column is (size * z) wide; height follows the real
-            // aspect so cells never distort. Element aspect == video aspect.
             const elW = cols * size * z;
             const elH = elW / ratio;
             const cellW = elW / cols;

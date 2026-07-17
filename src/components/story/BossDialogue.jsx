@@ -1,144 +1,10 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Swords, Play, X } from "lucide-react";
+import { Swords, X } from "lucide-react";
 import BossAvatar from "./BossAvatar";
 import { useStoryBossVideo } from "@/hooks/useStoryBossVideo";
-
-function FullscreenCutsceneVideo({ src, onDone, label = "Skip" }) {
-  const videoRef = React.useRef(null);
-  const onDoneRef = React.useRef(onDone);
-  const [needsTapToPlay, setNeedsTapToPlay] = React.useState(false);
-
-  onDoneRef.current = onDone;
-
-  React.useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src) return undefined;
-
-    let cancelled = false;
-    setNeedsTapToPlay(false);
-
-    const waitUntilCanPlay = () =>
-      new Promise((resolve, reject) => {
-        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          resolve();
-          return;
-        }
-        const onReady = () => {
-          cleanup();
-          resolve();
-        };
-        const onError = () => {
-          cleanup();
-          reject(video.error ?? new Error("Video failed to load"));
-        };
-        const cleanup = () => {
-          video.removeEventListener("loadeddata", onReady);
-          video.removeEventListener("canplay", onReady);
-          video.removeEventListener("error", onError);
-        };
-        video.addEventListener("loadeddata", onReady);
-        video.addEventListener("canplay", onReady);
-        video.addEventListener("error", onError);
-        // Kick loading in case the browser deferred it.
-        try {
-          video.load();
-        } catch {
-          /* ignore */
-        }
-      });
-
-    const startPlayback = async () => {
-      try {
-        await waitUntilCanPlay();
-      } catch {
-        if (!cancelled) onDoneRef.current?.();
-        return;
-      }
-      if (cancelled) return;
-
-      // Cutscenes are silent — muted autoplay is reliable and skips the sound prompt.
-      video.muted = true;
-      video.volume = 0;
-      try {
-        await video.play();
-      } catch {
-        // Never skip the cutscene just because autoplay was blocked —
-        // keep the frame up and ask the player to tap.
-        if (!cancelled) setNeedsTapToPlay(true);
-      }
-    };
-
-    startPlayback();
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
-
-  const startFromTap = async (event) => {
-    event?.stopPropagation?.();
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.muted = true;
-    video.volume = 0;
-    try {
-      await video.play();
-      setNeedsTapToPlay(false);
-    } catch {
-      setNeedsTapToPlay(true);
-    }
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] bg-black"
-    >
-      <video
-        ref={videoRef}
-        key={src}
-        src={src}
-        muted
-        playsInline
-        preload="auto"
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ maxWidth: "none", maxHeight: "none" }}
-        onEnded={() => onDoneRef.current?.()}
-        onError={() => onDoneRef.current?.()}
-      />
-
-      {needsTapToPlay && (
-        <button
-          type="button"
-          aria-label="Tap to play"
-          onClick={startFromTap}
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/50 text-white cursor-pointer"
-        >
-          <span className="flex items-center justify-center w-16 h-16 rounded-full bg-white/15 border border-white/30 backdrop-blur-sm">
-            <Play className="w-8 h-8 fill-white" />
-          </span>
-          <span className="text-sm font-bold tracking-wide drop-shadow-lg">
-            Tap to play
-          </span>
-        </button>
-      )}
-
-      <div className="absolute inset-x-0 bottom-0 z-20 p-4 pb-8 flex justify-center bg-gradient-to-t from-black/80 to-transparent">
-        <Button
-          type="button"
-          onClick={() => onDoneRef.current?.()}
-          className="bg-white/15 hover:bg-white/25 text-white border border-white/30 backdrop-blur-sm font-bold"
-        >
-          {label}
-        </Button>
-      </div>
-    </motion.div>
-  );
-}
+import FullscreenCutsceneVideo from "@/components/video/FullscreenCutsceneVideo";
 
 // A pre-fight or post-fight dialogue overlay.
 // mode: "intro" | "win" | "lose"
@@ -155,7 +21,7 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
   React.useEffect(() => {
     setIntroVideoDone(false);
     setWinVideoDone(false);
-  }, [storyVideoSrc, winVideoSrc, mode, boss?.id]);
+  }, [mode, boss?.id]);
 
   if (!boss) return null;
 

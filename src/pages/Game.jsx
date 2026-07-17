@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dices, PiggyBank } from "lucide-react";
+import { Dices, PiggyBank, Film, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   createInitialState,
@@ -25,6 +25,7 @@ import TurnBanner from "@/components/game/TurnBanner";
 import GameOverDialog from "@/components/game/GameOverDialog";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import RulesSheet from "@/components/game/RulesSheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import BigPopup from "@/components/game/BigPopup";
 import CyberBackground from "@/components/game/CyberBackground";
 import GameplayBillboard from "@/components/game/GameplayBillboard";
@@ -38,7 +39,7 @@ import { enterGamePlaySession } from "@/lib/gameAudioSettings";
 import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID, pickTrueSkinForGhost } from "@/lib/ghostDisguise";
 import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
 import { applySkinPower } from "@/lib/powerEffects";
-import { canAfford } from "@/lib/powers";
+import { canAfford, getPower } from "@/lib/powers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
 import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
@@ -47,9 +48,12 @@ import {
 } from "@/components/game/BlueGelPowerFX";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
 import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
+import PowerModePracticeBar, {
+  skinPracticeVariant,
+  practicePreviewSkinId,
+} from "@/components/game/PowerModePracticeBar";
 import { isLowPowerDevice } from "@/lib/platform";
 import { Link } from "react-router-dom";
-import { Film } from "lucide-react";
 
 export default function Game() {
   const navigate = useNavigate();
@@ -61,6 +65,9 @@ export default function Game() {
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
   const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
+  const [practiceSharkVideo, setPracticeSharkVideo] = useState(false);
+  const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
   const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, setGhostDisguise, isLoading } = useCosmetics();
   const playDiceSound = useDiceSound();
@@ -100,6 +107,7 @@ export default function Game() {
   useEffect(() => {
     if (!previewSharkBite || !state || previewBiteFiredRef.current) return undefined;
     previewBiteFiredRef.current = true;
+    practiceSharkBiteRef.current = true;
     const t = setTimeout(() => {
       setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
     }, 600);
@@ -107,6 +115,7 @@ export default function Game() {
   }, [previewSharkBite, state]);
 
   const replaySharkBitePreview = useCallback(() => {
+    practiceSharkBiteRef.current = true;
     setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
   }, []);
 
@@ -129,14 +138,14 @@ export default function Game() {
     return leave;
   }, []);
 
-  // Show big pop-up when bust count increases
+  // Full-screen YEEEET! / SKRRRT! on bust (opening roll or re-roll)
   useEffect(() => {
-    if (!state) return;
-    if ((state.bustCount || 0) > prevBustRef.current && state.lastBustWord) {
-      setPopup({ word: state.lastBustWord, variant: "danger" });
-      prevBustRef.current = state.bustCount;
-    }
-  }, [state]);
+    if (!state?.farkle || !state.lastBustWord) return;
+    const n = state.bustCount || 0;
+    if (n <= prevBustRef.current) return;
+    prevBustRef.current = n;
+    setPopup({ word: state.lastBustWord, variant: "bust", burstKey: n });
+  }, [state?.farkle, state?.lastBustWord, state?.bustCount]);
 
   // Shark Bite FX cleared via SharkBiteScreenFX onComplete (video or SVG)
   // (popup fires on chomp from the same component)
@@ -148,7 +157,7 @@ export default function Game() {
       skinPower?.id === "plasma_cut" &&
       !!state.players[state.currentIndex]?.powerCharge &&
       canUsePlasmaCut(state);
-    const delay = canRescue ? 5000 : 1400;
+    const delay = canRescue ? 5000 : 1650;
     const timer = setTimeout(() => {
       setState((s) => (s?.farkle ? passAfterFarkle(s) : s));
     }, delay);
@@ -392,6 +401,29 @@ export default function Game() {
     (skinPower?.id !== "plasma_cut" || state.hasRolled);
 
   const lowPower = isLowPowerDevice();
+  const practiceVariant =
+    skinPracticeVariant(equippedSkinId) || (previewSharkBite ? "marlin" : null);
+  const previewSkinId = practicePreviewSkinId(practiceVariant);
+  const practiceTraySkinId =
+    practicePowerPreview && previewSkinId ? previewSkinId : activeSkinId;
+  const practiceSkinPower =
+    practiceVariant === "marlin"
+      ? getPower("shark_bite")
+      : practiceVariant === "gq"
+        ? getPower("siphon")
+        : null;
+  const trayPowerMode = !!currentPlayer?.powerCharge || practicePowerPreview;
+  const panelPowerMode = powerModeActive || practicePowerPreview;
+  const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
+  const fishFeastOnTray =
+    (bloodWaterLocked && equippedSkinId === "blue_gel") ||
+    (practicePowerPreview && practiceVariant === "marlin");
+  const showSharkVideo =
+    !lowPower &&
+    !state.sharkBiteFx &&
+    ((powerModeActive && skinPower?.id === "shark_bite") ||
+      (practiceSharkVideo && practiceVariant === "marlin") ||
+      (previewSharkBite && practiceVariant === "marlin"));
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-6 relative">
@@ -413,7 +445,36 @@ export default function Game() {
           label="Back"
           confirmMessage={state.winner ? undefined : "Leave this game and go home?"}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {state.players.length >= 2 && (
+            <GameAudioControls
+              compact
+              sfxMuted={sfxMuted}
+              opponentSfxMuted={opponentSfxMuted}
+              onToggleSfx={() => setSfxMuted(!sfxMuted)}
+              onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
+            />
+          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-amber-300 hover:text-amber-200 hover:bg-white/10"
+                aria-label="Held dice glow styles"
+                title="Held dice glow"
+              >
+                <Sparkles className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-[min(20rem,calc(100vw-1.5rem))] border-amber-500/30 bg-slate-950/95 p-0"
+            >
+              <HeldDiceStylePicker value={heldDiceStyleId} onChange={setHeldDiceStyle} />
+            </PopoverContent>
+          </Popover>
           <Link
             to="/video-assets"
             className="text-slate-400 hover:text-cyan-300 p-1"
@@ -426,7 +487,7 @@ export default function Game() {
         </div>
       </div>
 
-      {/* YouNeeK 10000 sign banner — looping video when uploaded */}
+      {/* YouNeeK 10000 sign banner — static neon sign (no loop video) */}
       <div className="px-3 pt-3">
         <div
           className="relative w-full h-28 sm:h-36 max-h-[22vh] rounded-2xl overflow-hidden border-2"
@@ -435,7 +496,7 @@ export default function Game() {
             boxShadow: "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6)",
           }}
         >
-          <GameplayBillboard enabled={!lowPower} />
+          <GameplayBillboard source="static" />
         </div>
       </div>
 
@@ -447,23 +508,11 @@ export default function Game() {
           obscuredIndices={obscuredScores}
           xrayReveals={state.xrayReveals}
         />
-        <HeldDiceStylePicker
-          value={heldDiceStyleId}
-          onChange={setHeldDiceStyle}
-        />
         {equippedSkinId === GHOST_SKIN_ID && (
           <GhostDisguisePicker
             ownedSkins={ownedSkins}
             selectedId={ghostDisguiseId}
             onSelect={setGhostDisguise}
-          />
-        )}
-        {state.players.length >= 2 && (
-          <GameAudioControls
-            sfxMuted={sfxMuted}
-            opponentSfxMuted={opponentSfxMuted}
-            onToggleSfx={() => setSfxMuted(!sfxMuted)}
-            onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
           />
         )}
       </div>
@@ -474,13 +523,13 @@ export default function Game() {
         <PrisonDiceStatus state={state} currentIndex={state.currentIndex} />
         <SkinPowerPanel
           power={MAX_POWER}
-          skinPower={skinPower}
-          powerMode={powerModeActive}
+          skinPower={panelSkinPower}
+          powerMode={panelPowerMode}
           used={false}
           locked={powerLocked}
-          disabled={powerFrozen}
+          disabled={powerFrozen || practicePowerPreview}
           frozen={powerFrozen}
-          onFire={onFireSkinPower}
+          onFire={practicePowerPreview ? undefined : onFireSkinPower}
           isGhostMimic={resolvedPower?.isMimic}
           mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
           mimicFromName={resolvedPower?.sourcePlayerName}
@@ -545,39 +594,36 @@ export default function Game() {
 
       {/* Dice tray */}
       <div className="px-3 flex-[0.85] flex items-center justify-center">
-        <div
-          className="w-full rounded-2xl p-2"
-          style={{
+        <div className="w-full rounded-2xl p-2 space-y-2" style={{
             border: "2px solid #ff00ea",
             boxShadow:
               "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6), inset 0 0 0 1px rgba(255,255,255,0.06)",
             background: "rgba(8,2,20,0.45)",
-          }}
-        >
-          {previewSharkBite && (
-            <div className="mb-2 flex items-center justify-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={!!state.sharkBiteFx}
-                className="bg-rose-600 hover:bg-rose-500 text-white font-bold"
-                onClick={replaySharkBitePreview}
-              >
-                {state.sharkBiteFx ? "Shark biting…" : "▶ Replay shark bite"}
-              </Button>
-            </div>
+          }}>
+          {practiceVariant && (
+            <PowerModePracticeBar
+              variant={practiceVariant}
+              disabled={!!state.winner || rollAnim}
+              powerPreview={practicePowerPreview}
+              onPowerPreviewChange={setPracticePowerPreview}
+              sharkVideoPreview={practiceSharkVideo}
+              onSharkVideoPreviewChange={setPracticeSharkVideo}
+              onReplaySharkBite={replaySharkBitePreview}
+              sharkBiteActive={!!state.sharkBiteFx}
+            />
           )}
           <DiceTray
             dice={state.dice}
             rolling={rollAnim}
             onToggle={onToggleDie}
             disabled={!state.hasRolled || state.farkle || !!state.winner || rollAnim}
-            skinId={activeSkinId}
+            skinId={practiceTraySkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}
             lowPower={lowPower}
-            powerMode={!!currentPlayer?.powerCharge}
+            powerMode={trayPowerMode}
+            fishFeastMode={fishFeastOnTray}
             sharkBiteFx={!!state.sharkBiteFx}
             sharkDiceHidden={!!state.sharkDiceHidden}
             bloodWaterLocked={bloodWaterLocked}
@@ -697,22 +743,15 @@ export default function Game() {
         onPlayAgain={playAgain}
       />
 
-      <BlueGelPowerVideoScreen
-        active={
-          powerModeActive &&
-          skinPower?.id === "shark_bite" &&
-          !state.sharkBiteFx &&
-          !lowPower
-        }
-        loop
-      />
+      <BlueGelPowerVideoScreen active={showSharkVideo} loop />
       <SharkBiteScreenFX
         active={!!state.sharkBiteFx}
         onComplete={() =>
           setState((s) => {
             const cleared = clearSharkBiteFx(s);
-            // Preview has no following roll — restore dice when FX ends.
-            return previewSharkBite ? restoreSharkDice(cleared) : cleared;
+            const wasPractice = practiceSharkBiteRef.current || previewSharkBite;
+            practiceSharkBiteRef.current = false;
+            return wasPractice ? restoreSharkDice(cleared) : cleared;
           })
         }
       />
@@ -721,6 +760,7 @@ export default function Game() {
         open={!!popup}
         word={popup?.word}
         variant={popup?.variant}
+        burstKey={popup?.burstKey}
         onClose={() => setPopup(null)}
       />
 

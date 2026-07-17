@@ -28,6 +28,9 @@ const PHOTO_TEXTURE_FELT_IDS = new Set([
   "red_wood",
   "galaxy_window",
   "tiedye_neon",
+  "iridescent_frame",
+  "golden_frame",
+  "stone_frame",
 ]);
 
 /** Dedicated photo scans — skip fabric nap / hue-shift recycling. */
@@ -38,6 +41,9 @@ const DEDICATED_PHOTO_FELT_IDS = new Set([
   "red_wood",
   "galaxy_window",
   "tiedye_neon",
+  "iridescent_frame",
+  "golden_frame",
+  "stone_frame",
 ]);
 
 function hashId(id) {

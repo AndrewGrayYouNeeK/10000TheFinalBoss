@@ -11,23 +11,43 @@ export default function BossAvatar({
   rounded = "rounded-xl",
   videoKey = null,
   useBossAvatarVideo = false,
+  /** Story gameplay loops stay silent even when game sound is on. */
+  silent = false,
 }) {
   const bossVideo = useStoryBossVideo(boss?.id, "avatar", {
-    enabled: useBossAvatarVideo && !videoKey,
+    enabled: useBossAvatarVideo && !videoKey && !!boss,
   });
   const directVideo = useLocalVideo(videoKey, { enabled: !!videoKey });
   const videoSrc = videoKey ? directVideo.src : bossVideo.src;
   const onError = videoKey ? directVideo.onError : bossVideo.onError;
   const [videoFailed, setVideoFailed] = React.useState(false);
+  const videoRef = React.useRef(null);
 
   React.useEffect(() => {
     setVideoFailed(false);
   }, [videoSrc, videoKey]);
 
+  const showVideo =
+    !!boss &&
+    !!(videoKey || useBossAvatarVideo) &&
+    !!videoSrc &&
+    !videoFailed;
+
+  React.useEffect(() => {
+    if (!showVideo) return undefined;
+    const video = videoRef.current;
+    if (!video) return undefined;
+    if (silent) {
+      video.muted = true;
+      video.volume = 0;
+    }
+    video.play().catch(() => {});
+    return undefined;
+  }, [silent, videoSrc, showVideo]);
+
   if (!boss) return null;
 
   const isImg = typeof boss.avatar === "string" && /^(https?:\/\/|\/assets\/)/.test(boss.avatar);
-  const showVideo = !!(videoKey || useBossAvatarVideo) && !!videoSrc && !videoFailed;
 
   return (
     <div
@@ -36,6 +56,7 @@ export default function BossAvatar({
     >
       {showVideo ? (
         <video
+          ref={videoRef}
           key={videoSrc}
           src={videoSrc}
           autoPlay

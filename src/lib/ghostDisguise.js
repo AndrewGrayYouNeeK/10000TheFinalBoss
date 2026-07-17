@@ -14,6 +14,7 @@ export function isGhostPlayer(player) {
 /** Resolve saved/profile disguise for a Ghost player. */
 export function resolveGhostDisguise(player, { ghostDisguiseId = null, ownedSkins = [] } = {}) {
   if (!isGhostPlayer(player)) return null;
+  if (player.ghostBare) return null;
   return player.trueSkinId || ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
 }
 
@@ -49,9 +50,10 @@ function pickAiDisguise(pool, seed) {
 }
 
 /** Build skin + optional hidden disguise when using Ghost dice. */
-export function assignPlayerSkin(skinId, ownedSkins = [], disguiseSkinId = null) {
+export function assignPlayerSkin(skinId, ownedSkins = [], disguiseSkinId = null, options = {}) {
   const id = skinId || "classic_white";
   if (id === GHOST_SKIN_ID) {
+    if (options.bareGhost) return { skinId: GHOST_SKIN_ID, ghostBare: true };
     const trueSkinId = disguiseSkinId || pickTrueSkinForGhost(ownedSkins);
     return { skinId: GHOST_SKIN_ID, trueSkinId };
   }

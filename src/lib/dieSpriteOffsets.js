@@ -2,6 +2,12 @@
  * Per-skin sprite face alignment for photorealistic dice sheets.
  * Pixel nudges were tuned at DIE_SPRITE_REF_SIZE — scaled for any render size.
  */
+import { getPaperSpriteXNudge, getPaperSpriteYNudge } from "./paperSpriteTuning";
+import {
+  getDragonScaleSpriteXNudge,
+  getDragonScaleSpriteYNudge,
+} from "./dragonScaleSpriteTuning";
+
 export const DIE_SPRITE_REF_SIZE = 64;
 
 export function dieRefPx(px, size) {
@@ -28,22 +34,12 @@ const SKIN_X = {
   silver: (v, s) => pick({ 1: (sz) => sz * 0.02, 2: (sz) => sz * 0.02, 3: (sz) => sz * 0.02, 4: (sz) => sz * 0.02, 5: (sz) => sz * 0.02, 6: (sz) => sz * 0.02 }, v, s, faceX(v, s)),
   // Galaxy uses matrix-style centered crop + catalog face offsets (absolute).
   galaxy: () => 0,
-  dragon_scale: (v, s) => pick({ 2: (sz) => sz * 0.015, 3: (sz) => sz * 0.015, 5: (sz) => sz * 0.01, 6: (sz) => sz * 0.015 }, v, s, faceX(v, s)),
+  dragon_scale: (v, s) => getDragonScaleSpriteXNudge(v, s) ?? faceX(v, s),
   amethyst: (v, s) => pick({ 2: (sz) => sz * 0.015, 3: (sz) => -sz * 0.005, 6: (sz) => sz * 0.015 }, v, s, faceX(v, s)),
   moonstone: (v, s) => pick({ 1: (sz) => sz * 0.03, 2: (sz) => sz * 0.035, 3: (sz) => sz * 0.035, 4: (sz) => sz * 0.04, 5: (sz) => sz * 0.035, 6: (sz) => sz * 0.035 }, v, s, faceX(v, s)),
   lava: (v, s) => pick({ 2: (sz) => -sz * 0.005, 3: (sz) => -sz * 0.005, 5: () => 0, 6: () => 0 }, v, s, faceX(v, s)),
   plasma: (v, s) => pick({ 1: (sz) => -sz * 0.03, 2: (sz) => -sz * 0.06, 3: (sz) => -sz * 0.11, 4: (sz) => -sz * 0.02, 5: (sz) => -sz * 0.085, 6: (sz) => -sz * 0.12 }, v, s, faceX(v, s)),
-  paper: (v, s) => {
-    const m = {
-      1: () => dieRefPx(-2, s),
-      2: () => s * 0.01 + dieRefPx(-11, s),
-      3: () => s * 0.01 + dieRefPx(-18, s),
-      4: () => dieRefPx(-3, s),
-      5: () => s * 0.01 + dieRefPx(-12, s),
-      6: () => s * 0.01 + dieRefPx(-19, s),
-    };
-    return m[v]?.() ?? faceX(v, s);
-  },
+  paper: (v, s) => getPaperSpriteXNudge(v, s) ?? faceX(v, s),
   teal_crackle: (v, s) => pick({ 2: (sz) => sz * 0.01, 3: (sz) => sz * 0.01, 5: (sz) => sz * 0.01, 6: (sz) => sz * 0.01 }, v, s, faceX(v, s)),
   love_is_love: (v, s) => {
     const m = {
@@ -75,21 +71,11 @@ const SKIN_Y = {
   wood: (v, s) => pick({ 1: (sz) => -sz * 0.02, 2: (sz) => -sz * 0.02, 3: (sz) => -sz * 0.025, 5: (sz) => -sz * 0.035, 6: (sz) => -sz * 0.02 }, v, s, faceY(v, s)),
   silver: (v, s) => pick({ 1: (sz) => -sz * 0.015, 2: (sz) => -sz * 0.015, 3: (sz) => -sz * 0.015 }, v, s, faceY(v, s)),
   galaxy: () => 0,
-  dragon_scale: (v, s) => pick({ 5: (sz) => -sz * 0.025 }, v, s, faceY(v, s)),
+  dragon_scale: (v, s) => getDragonScaleSpriteYNudge(v, s) ?? faceY(v, s),
   amethyst: (v, s) => pick({ 1: (sz) => -sz * 0.025, 2: (sz) => -sz * 0.025, 3: (sz) => -sz * 0.025, 4: (sz) => -sz * 0.035, 5: (sz) => -sz * 0.035, 6: (sz) => -sz * 0.035 }, v, s, faceY(v, s)),
   moonstone: (v, s) => pick({ 1: (sz) => sz * 0.01, 2: (sz) => sz * 0.005, 3: (sz) => sz * 0.0075, 4: (sz) => sz * 0.003, 5: (sz) => sz * 0.003, 6: (sz) => sz * 0.003 }, v, s, faceY(v, s)),
   plasma: (v, s) => pick({ 1: (sz) => sz * 0.01, 2: (sz) => sz * 0.02, 3: (sz) => sz * 0.02, 4: (sz) => -sz * 0.06, 5: (sz) => -sz * 0.06, 6: (sz) => -sz * 0.045 }, v, s, faceY(v, s)),
-  paper: (v, s) => {
-    const m = {
-      1: () => -s * 0.015 + dieRefPx(2, s),
-      2: () => -s * 0.015 + dieRefPx(3, s),
-      3: () => -s * 0.02 + dieRefPx(3, s),
-      4: () => -s * 0.04 + dieRefPx(-3, s),
-      5: () => -s * 0.04 + dieRefPx(-3, s),
-      6: () => -s * 0.04 + dieRefPx(-4, s),
-    };
-    return m[v]?.() ?? faceY(v, s);
-  },
+  paper: (v, s) => getPaperSpriteYNudge(v, s) ?? faceY(v, s),
   teal_crackle: (v, s) => pick({ 1: (sz) => -sz * 0.015, 2: (sz) => -sz * 0.015, 3: (sz) => -sz * 0.02, 4: (sz) => -sz * 0.04, 5: (sz) => -sz * 0.04, 6: (sz) => -sz * 0.04 }, v, s, faceY(v, s)),
   love_is_love: (v, s) => pick({ 1: (sz) => -sz * 0.005, 2: (sz) => -sz * 0.005, 3: (sz) => -sz * 0.005, 4: (sz) => -sz * 0.05, 5: (sz) => -sz * 0.05, 6: (sz) => -sz * 0.04 }, v, s, faceY(v, s)),
   ice: (v, s) => pick({ 1: (sz) => -sz * 0.005, 2: (sz) => -sz * 0.005, 3: (sz) => -sz * 0.005, 4: (sz) => -sz * 0.035, 5: (sz) => -sz * 0.045, 6: (sz) => -sz * 0.04 }, v, s, faceY(v, s)),

@@ -1,4 +1,4 @@
-import { getPower, BASE_POWERS, SABO_POWERS } from "@/lib/powers";
+import { getPower, BASE_POWERS, SABO_POWERS, POWER_MODE_HOT_DICE } from "@/lib/powers";
 import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
 
 /**
@@ -62,8 +62,22 @@ export function getSkinPower(skinId) {
   return pool[Math.abs(h) % pool.length];
 }
 
-/** All power ids you can assign in SKIN_POWER_MAP (for dev tooling). */
+/** Assignable power ids (for dev tooling). */
 export const ASSIGNABLE_SKIN_POWER_IDS = [
   ...BASE_POWERS.map((p) => p.id),
   ...SABO_POWERS.map((p) => p.id),
 ];
+
+/** Skins / powers that earn a charge on the 2nd Hot Dice (not the 3rd). */
+const FAST_CHARGE_SKIN_IDS = new Set(["blue_gel", "crystal_cut"]);
+const FAST_CHARGE_POWER_IDS = new Set(["shark_bite"]);
+
+/** Hot dice clears needed this turn before earning a power charge. */
+export function getPowerChargeHotDiceThreshold(player) {
+  if (!player) return POWER_MODE_HOT_DICE;
+  const skinId = player.trueSkinId || player.skinId;
+  if (FAST_CHARGE_SKIN_IDS.has(skinId)) return 2;
+  const powerId = player.chargePowerId || getSkinPower(skinId)?.id;
+  if (powerId && FAST_CHARGE_POWER_IDS.has(powerId)) return 2;
+  return POWER_MODE_HOT_DICE;
+}

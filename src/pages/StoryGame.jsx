@@ -15,31 +15,38 @@ import {
   bankAndPass,
   passAfterFarkle,
   clearSharkBiteFx,
+  restoreSharkDice,
   TARGET_SCORE,
   ENTRY_THRESHOLD,
   getObscuredScoreIndices,
   consumeSkinPower,
 } from "@/lib/gameLogic";
 import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
-import { getBoss, getStoryPlayerSkin } from "@/lib/storyBosses";
+import {
+  getBoss,
+  getBossDefinition,
+  getStoryPlayerSkin,
+  getStoryBossFeltId,
+  getNextUnbeatenBossId,
+  applyStoryBossHeadStart,
+} from "@/lib/storyBosses";
 import { getSkin } from "@/lib/shopCatalog";
 import { chooseDiceToHold, chooseBankOrRoll } from "@/lib/aiOpponent";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { useDiceSound } from "@/lib/useDiceSound";
 import DiceTray from "@/components/game/DiceTray";
+import StoryBossFightVideo from "@/components/story/StoryBossFightVideo";
 import ScorePanel from "@/components/game/ScorePanel";
 import TurnBanner from "@/components/game/TurnBanner";
 import BigPopup from "@/components/game/BigPopup";
 import BossDialogue from "@/components/story/BossDialogue";
 import BossAvatar from "@/components/story/BossAvatar";
 import BossRainBackground from "@/components/story/BossRainBackground";
-import GameAudioControls from "@/components/game/GameAudioControls";
-import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { assignPlayerSkin, resolvePlayerPower, getSkinLabel, getDisplaySkinId } from "@/lib/ghostDisguise";
+import { assignPlayerSkin, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID } from "@/lib/ghostDisguise";
 import { applySkinPower } from "@/lib/powerEffects";
-import { canAfford } from "@/lib/powers";
+import { canAfford, getPower } from "@/lib/powers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
 import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
@@ -48,7 +55,13 @@ import {
 } from "@/components/game/BlueGelPowerFX";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
 import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
+import PowerModePracticeBar, {
+  storyBossPracticeVariant,
+  practicePreviewSkinId,
+} from "@/components/game/PowerModePracticeBar";
 import { isLowPowerDevice } from "@/lib/platform";
+import { isFishDiceSkin } from "@/lib/fishDice";
+import { abandonStoryFight, clearStoryFight } from "@/lib/storyGameSave";
 
 const PLAYER_NAME = "You";
 
@@ -56,43 +69,78 @@ export default function StoryGame() {
   const { bossId } = useParams();
   const navigate = useNavigate();
   const boss = getBoss(bossId);
-  const { user, equippedFeltId, updateMe, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId } = useCosmetics();
-  // In Story Mode you can't pick your dice — they're forced by your ladder progress.
-  // Matrix Rain felt only when fighting Neo (the Matrix character).
-  const storyFeltId = bossId === "neo" ? "matrix_rain" : equippedFeltId;
+  const { user, updateMe, sfxMuted, heldDiceStyleId, ownedSkins, ghostDisguiseId } = useCosmetics();
+  // Each boss brings their own table felt — no player choice in story mode.
+  const storyFeltId = getStoryBossFeltId(bossId);
   const storyPlayerSkin = getStoryPlayerSkin(user?.bosses_defeated || []);
   const storyPlayerSkinLabel = getSkin(storyPlayerSkin)?.name || storyPlayerSkin.replace(/_/g, " ");
   const playDiceSound = useDiceSound();
 
   const [dialogue, setDialogue] = useState("intro"); // "intro" | null | "win" | "lose"
-  const [activePlayerSkin, setActivePlayerSkin] = useState(null);
-  const resolvedPlayerSkin = activePlayerSkin ?? storyPlayerSkin;
   const [game, setGame] = useState(null);
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null);
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
   const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
+  const [practiceSharkVideo, setPracticeSharkVideo] = useState(false);
+  const practiceSharkBiteRef = useRef(false);
+  const replayPracticeSharkBite = useCallback(() => {
+    practiceSharkBiteRef.current = true;
+    setGame((g) => (g ? { ...g, sharkBiteFx: true, sharkDiceHidden: true } : g));
+  }, []);
   const [rewardSummary, setRewardSummary] = useState(null);
   const farkleShieldUsedRef = useRef(false);
   const rewardsClaimedRef = useRef(false);
+  const prevBustRef = useRef(0);
   const resolvedPower =
     game?.players[game.currentIndex]?.name === PLAYER_NAME
       ? resolvePlayerPower(game, game.currentIndex)
       : null;
-  const skinPower = resolvedPower?.power ?? null;
+  /** vs Marlin Joe — Shark Bite is always available (without swapping your story dice to Angelfish). */
+  const skinPower =
+    bossId === "fisherman"
+      ? getPower("shark_bite")
+      : resolvedPower?.power ?? null;
+
+  const exitToLadder = useCallback(() => {
+    if (boss?.id) {
+      abandonStoryFight(boss.id);
+      updateMe.mutate({ story_active_boss: boss.id });
+    }
+    navigate("/story");
+  }, [boss?.id, navigate, updateMe]);
 
   useEffect(() => {
-    setActivePlayerSkin(null);
+    const fightBoss = getBoss(bossId);
+    if (!bossId || !fightBoss) return;
+
+    abandonStoryFight(fightBoss.id);
+    updateMe.mutate({ story_active_boss: fightBoss.id });
+
+    prevBustRef.current = 0;
     setDialogue("intro");
     rewardsClaimedRef.current = false;
     farkleShieldUsedRef.current = false;
     setRewardSummary(null);
-  }, [boss?.id]);
+    setBloodWaterLocked(false);
+    setPracticePowerPreview(false);
+    setPracticeSharkVideo(false);
+    practiceSharkBiteRef.current = false;
+    setGame(makeInitialGame(fightBoss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+    // Fresh fight when bossId changes only — avoid resetting mid-match on profile/cosmetics updates.
+  }, [bossId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Full-screen YEEEET! / SKRRRT! on player bust only (not when boss busts)
   useEffect(() => {
-    if (boss) setGame(makeInitialGame(boss, resolvedPlayerSkin, ownedSkins, ghostDisguiseId));
-  }, [boss, resolvedPlayerSkin, ownedSkins, ghostDisguiseId]);
+    if (!game?.farkle || !game.lastBustWord) return;
+    const n = game.bustCount || 0;
+    if (n <= prevBustRef.current) return;
+    prevBustRef.current = n;
+    if (game.players[game.currentIndex]?.name !== PLAYER_NAME) return;
+    setPopup({ word: game.lastBustWord, variant: "bust", burstKey: n });
+  }, [game?.farkle, game?.lastBustWord, game?.bustCount, game?.currentIndex]);
 
   // Boss may not exist
   useEffect(() => {
@@ -116,7 +164,7 @@ export default function StoryGame() {
       skinPower?.id === "plasma_cut" &&
       !!game.players[game.currentIndex]?.powerCharge &&
       canUsePlasmaCut(game);
-    const delay = canRescue ? 5000 : 1400;
+    const delay = canRescue ? 5000 : 1650;
     const timer = setTimeout(() => {
       setGame((g) =>
         g?.farkle && g.players[g.currentIndex]?.name === PLAYER_NAME
@@ -125,7 +173,7 @@ export default function StoryGame() {
       );
     }, delay);
     return () => clearTimeout(timer);
-  }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue, skinPower?.id, plasmaCutOpen, game]);
+  }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue, skinPower?.id, plasmaCutOpen]);
 
   const onFireSkinPower = () => {
     if (!game || !skinPower || !isMyTurn() || !game.players[game.currentIndex]?.powerCharge) return;
@@ -265,11 +313,15 @@ export default function StoryGame() {
 
     const heldInfo = getHeldInfo(g);
     const projectedTurnScore = g.turnScore + heldSelectionPoints(heldInfo, g.perfectTenKPending);
-    const decision = chooseBankOrRoll(
-      { ...g, turnScore: projectedTurnScore },
-      boss.difficulty,
-      g.players[g.currentIndex]
-    );
+    const activeDice = g.dice.filter((d) => !d.used);
+    const hotDicePending = activeDice.length > 0 && activeDice.every((d) => d.held);
+    const decision = hotDicePending
+      ? "roll"
+      : chooseBankOrRoll(
+          { ...g, turnScore: projectedTurnScore },
+          boss.difficulty,
+          g.players[g.currentIndex]
+        );
 
     schedule(() => {
       if (decision === "bank") {
@@ -383,6 +435,9 @@ export default function StoryGame() {
       patch.bosses_defeated = [...(user?.bosses_defeated || []), boss.id];
     }
 
+    const defeatedList = patch.bosses_defeated || user?.bosses_defeated || [];
+    patch.story_active_boss = getNextUnbeatenBossId(defeatedList);
+
     // Skin reward (only first time)
     let skinUnlocked = null;
     let storySkinEquipped = null;
@@ -440,6 +495,33 @@ export default function StoryGame() {
     !game.winner &&
     (skinPower?.id !== "plasma_cut" || game.hasRolled);
   const lowPower = isLowPowerDevice();
+  const traySkinId = getPrisonTraySkinId(
+    game,
+    game.currentIndex,
+    getDisplaySkinId(game.players[game.currentIndex], { ghostDisguiseId, ownedSkins })
+  );
+  const practiceVariant = storyBossPracticeVariant(bossId);
+  const previewSkinId = practicePreviewSkinId(practiceVariant);
+  const practiceTraySkinId =
+    practicePowerPreview && previewSkinId ? previewSkinId : traySkinId;
+  const fishFeastOnTray =
+    (bloodWaterLocked && isFishDiceSkin(traySkinId)) ||
+    (practicePowerPreview && practiceVariant === "marlin");
+  const practiceSkinPower =
+    practiceVariant === "marlin"
+      ? getPower("shark_bite")
+      : practiceVariant === "gq"
+        ? getPower("siphon")
+        : null;
+  const trayPowerMode =
+    (myTurn && !!currentPlayer?.powerCharge) || practicePowerPreview;
+  const panelPowerMode = powerModeActive || practicePowerPreview;
+  const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
+  const showSharkVideo =
+    !lowPower &&
+    !game?.sharkBiteFx &&
+    ((powerModeActive && skinPower?.id === "shark_bite") ||
+      (practiceSharkVideo && practiceVariant === "marlin"));
 
   return (
     <div className="min-h-screen text-white pb-6 flex flex-col relative">
@@ -457,7 +539,7 @@ export default function StoryGame() {
         >
           <BackButton
             label="Back"
-            onClick={() => navigate("/story")}
+            onClick={exitToLadder}
             confirmMessage={
               game.winner || dialogue ? undefined : "Forfeit this fight and return to the ladder?"
             }
@@ -470,6 +552,8 @@ export default function StoryGame() {
           </div>
           <div className="w-16" aria-hidden />
         </div>
+
+        <StoryBossFightVideo bossId={bossId} enabled={!lowPower} />
 
         {/* Boss banner */}
         <div className="px-3 pt-3 space-y-2">
@@ -496,6 +580,7 @@ export default function StoryGame() {
               emojiClass="text-2xl"
               rounded="rounded-lg"
               useBossAvatarVideo
+              silent
             />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-white truncate">{boss.name}</div>
@@ -516,16 +601,6 @@ export default function StoryGame() {
             obscuredIndices={obscuredScores}
             xrayReveals={game.xrayReveals}
           />
-          <HeldDiceStylePicker
-            value={heldDiceStyleId}
-            onChange={setHeldDiceStyle}
-          />
-          <GameAudioControls
-            sfxMuted={sfxMuted}
-            opponentSfxMuted={opponentSfxMuted}
-            onToggleSfx={() => setSfxMuted(!sfxMuted)}
-            onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
-          />
         </div>
 
         <div className="px-3 mb-2 space-y-2">
@@ -540,13 +615,13 @@ export default function StoryGame() {
           <PrisonDiceStatus state={game} currentIndex={game.currentIndex} />
           <SkinPowerPanel
             power={MAX_POWER}
-            skinPower={skinPower}
-            powerMode={powerModeActive}
+            skinPower={panelSkinPower}
+            powerMode={panelPowerMode}
             used={false}
             locked={powerLocked}
-            disabled={powerFrozen}
+            disabled={powerFrozen || practicePowerPreview}
             frozen={powerFrozen}
-            onFire={onFireSkinPower}
+            onFire={practicePowerPreview ? undefined : onFireSkinPower}
             isGhostMimic={resolvedPower?.isMimic}
             mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
             mimicFromName={resolvedPower?.sourcePlayerName}
@@ -586,21 +661,31 @@ export default function StoryGame() {
         </div>
 
         <div className="px-3 flex-1 flex items-center justify-center">
-          <div className="w-full">
+          <div className="w-full space-y-2">
+            {practiceVariant && !dialogue && (
+              <PowerModePracticeBar
+                variant={practiceVariant}
+                disabled={!!game.winner || rollAnim}
+                powerPreview={practicePowerPreview}
+                onPowerPreviewChange={setPracticePowerPreview}
+                sharkVideoPreview={practiceSharkVideo}
+                onSharkVideoPreviewChange={setPracticeSharkVideo}
+                onReplaySharkBite={replayPracticeSharkBite}
+                sharkBiteActive={!!game.sharkBiteFx}
+              />
+            )}
             <DiceTray
               dice={game.dice}
               rolling={rollAnim}
               onToggle={handleToggle}
               disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner || rollAnim}
-              skinId={getPrisonTraySkinId(
-                game,
-                game.currentIndex,
-                getDisplaySkinId(game.players[game.currentIndex], { ghostDisguiseId, ownedSkins })
-              )}
+              skinId={practiceTraySkinId}
               feltId={storyFeltId}
+              feltIntense={bossId === "neo"}
               heldStyleId={heldDiceStyleId}
               lowPower={lowPower}
-              powerMode={myTurn && !!currentPlayer?.powerCharge}
+              powerMode={trayPowerMode}
+              fishFeastMode={fishFeastOnTray}
               sharkBiteFx={!!game.sharkBiteFx}
               sharkDiceHidden={!!game.sharkDiceHidden}
               bloodWaterLocked={bloodWaterLocked}
@@ -703,24 +788,25 @@ export default function StoryGame() {
         onCancel={() => setPlasmaCutOpen(false)}
       />
 
-      <BlueGelPowerVideoScreen
-        active={
-          powerModeActive &&
-          skinPower?.id === "shark_bite" &&
-          !game?.sharkBiteFx &&
-          !lowPower
-        }
-        loop
-      />
+      <BlueGelPowerVideoScreen active={showSharkVideo} loop />
       <SharkBiteScreenFX
         active={!!game?.sharkBiteFx}
-        onComplete={() => setGame((g) => clearSharkBiteFx(g))}
+        onComplete={() => {
+          const wasPractice = practiceSharkBiteRef.current;
+          practiceSharkBiteRef.current = false;
+          setGame((g) => {
+            const cleared = clearSharkBiteFx(g);
+            return wasPractice ? restoreSharkDice(cleared) : cleared;
+          });
+          if (!wasPractice) lockBloodWater();
+        }}
       />
 
       <BigPopup
         open={!!popup}
         word={popup?.word}
         variant={popup?.variant}
+        burstKey={popup?.burstKey}
         onClose={() => setPopup(null)}
       />
 
@@ -733,20 +819,21 @@ export default function StoryGame() {
           summary={dialogue === "win" ? rewardSummary : null}
           onContinue={() => {
             if (dialogue === "intro") {
-              setActivePlayerSkin(storyPlayerSkin);
               setDialogue(null);
             } else if (dialogue === "win") {
+              clearStoryFight(boss.id);
               navigate("/story");
             } else {
-              // lose — reset to play again
-              setGame(makeInitialGame(boss, resolvedPlayerSkin, ownedSkins, ghostDisguiseId));
+              // lose — reset to play again (skip intro video on rematch)
+              setBloodWaterLocked(false);
               farkleShieldUsedRef.current = false;
               rewardsClaimedRef.current = false;
               setRewardSummary(null);
-              setDialogue("intro");
+              setDialogue(null);
+              setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
             }
           }}
-          onExit={() => navigate("/story")}
+          onExit={exitToLadder}
         />
       )}
     </div>
@@ -755,17 +842,22 @@ export default function StoryGame() {
 
 // Build the initial game state — boss may have a head-start gimmick.
 function makeInitialGame(boss, storyPlayerSkin, ownedSkins = [], ghostDisguiseId = null) {
-  if (!boss) return null;
+  if (!boss?.id) return null;
+  const bossDef = getBossDefinition(boss.id) ?? boss;
   const playerSkins = [
     assignPlayerSkin(storyPlayerSkin, ownedSkins, ghostDisguiseId),
-    assignPlayerSkin(boss.bossSkinId || "obsidian", ownedSkins),
+    assignPlayerSkin(bossDef.bossSkinId || "obsidian", ownedSkins, null, {
+      bareGhost: bossDef.bossSkinId === GHOST_SKIN_ID,
+    }),
   ];
-  const state = createInitialState([PLAYER_NAME, boss.name], { playerSkins });
-  if (boss.gimmick?.startScore) {
-    state.players = state.players.map((p) =>
-      p.name === boss.name
-        ? { ...p, score: boss.gimmick.startScore, onBoard: true }
-        : p
+  const headStart = bossDef.gimmick?.startScore;
+  const startScores =
+    typeof headStart === "number" && headStart > 0 ? [0, headStart] : null;
+  let state = createInitialState([PLAYER_NAME, bossDef.name], { playerSkins, startScores });
+  state = applyStoryBossHeadStart(state, bossDef.id);
+  if (bossDef.id === "fisherman") {
+    state.players = state.players.map((p, i) =>
+      i === 0 ? { ...p, chargePowerId: "shark_bite" } : p
     );
   }
   return state;
