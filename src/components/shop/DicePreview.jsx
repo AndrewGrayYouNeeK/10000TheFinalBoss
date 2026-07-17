@@ -3,7 +3,7 @@ import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
-import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
+import { resolveDiceSkinId } from "@/lib/ghostDisguise";
 
 function stableSeed(skinId) {
   return [...String(skinId)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
@@ -17,8 +17,9 @@ export default function DicePreview({
   scoreFill = 0.5,
   compact = true,
 }) {
-  const { equippedFeltId } = useCosmetics();
+  const { equippedFeltId, ghostDisguiseId, ownedSkins } = useCosmetics();
   const felt = getFelt(equippedFeltId);
+  const renderSkinId = resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins });
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
@@ -60,10 +61,10 @@ export default function DicePreview({
           <div className="relative z-10">
             <Die
             value={value}
-            skinId={skinId}
+            skinId={renderSkinId}
             size={size}
             scoreFill={scoreFill}
-            dieSeed={stableSeed(skinId)}
+            dieSeed={stableSeed(renderSkinId)}
           />
           </div>
         </FeltTrayFrame>

@@ -86,7 +86,7 @@ export default function GlitchNeonBanner({ src, alt = "Neon sign", objectPositio
           animation: glitch-scanline 3s linear infinite;
         }
       `}</style>
-      <div className="relative w-full h-48 sm:h-64 overflow-hidden bg-black">
+      <div className="absolute inset-0 w-full h-full overflow-hidden bg-black">
         {/* Base image — flickers/blackouts periodically */}
         <img
           src={src}

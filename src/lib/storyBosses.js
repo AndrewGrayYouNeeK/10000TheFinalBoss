@@ -1,5 +1,7 @@
 // Boss Ladder — Story Mode
-// 36 fights total, scaling from a fresh rookie up to GQ, the Diamond Overlord.
+// Full roster lives in ALL_BOSSES; STORY_LADDER_IDS controls what appears in Story Mode.
+
+import { isDevUnlockAll } from "./devUnlock";
 // Each opponent rolls with the same dice skin they unlock for you on defeat.
 //
 // Difficulty controls how the AI decides to bank vs. push for hot dice.
@@ -27,7 +29,7 @@ function fight({ id, name, title, avatar, color, isBoss = false, difficulty, gim
   };
 }
 
-export const BOSSES = [
+const ALL_BOSSES = [
   // ── Tier 1: Street rats (easy) ─────────────────────────────────────────
   fight({
     id: "rookie", name: "The Rookie", title: "Back-Alley Beginner",
@@ -166,6 +168,15 @@ export const BOSSES = [
     coins: 550, xp: 700, skin: "amethyst",
   }),
   fight({
+    id: "ghost", name: "The Ghost", title: "Spectral Shade",
+    avatar: "🫥", color: "from-slate-400 to-slate-800",
+    difficulty: { bankThreshold: 875, greed: 0.34, holdGreedy: true },
+    intro: "You can see right through me. That won't help you read my rolls.",
+    winLine: "...vanished.",
+    loseLine: "...always watching.",
+    coins: 600, xp: 750, skin: "ghost",
+  }),
+  fight({
     id: "moon_priestess", name: "Lunara", title: "Tidekeeper",
     avatar: "🌙", color: "from-slate-200 to-indigo-300",
     difficulty: { bankThreshold: 850, greed: 0.32, holdGreedy: true },
@@ -192,7 +203,7 @@ export const BOSSES = [
     intro: "The world ends in fire. Yours ends here.",
     winLine: "Even fire cools, it seems...",
     loseLine: "ASH! TO ASH!",
-    coins: 700, xp: 850, skin: "lava",
+    coins: 700, xp: 850, skin: "ragnarok",
   }),
   fight({
     id: "dragon_knight", name: "Sir Scalewyrm", title: "Dragon Knight",
@@ -317,7 +328,7 @@ export const BOSSES = [
   }),
   fight({
     id: "neo", name: "Neo", title: "The One",
-    avatar: "🕶️", color: "from-green-500 to-slate-950",
+    avatar: "/assets/neo_avatar.jpg", color: "from-green-500 to-slate-950",
     difficulty: { bankThreshold: 1350, greed: 0.5, holdGreedy: true },
     intro: "I see the code now. Every roll, before it lands.",
     winLine: "You bent the spoon. Not me.",
@@ -448,12 +459,26 @@ export const BOSSES = [
   }),
 ];
 
+/** Active story ladder — add boss IDs here one at a time as they're ready. */
+export const STORY_LADDER_IDS = [
+  "snowman",     // Frosty
+  "phantom",     // The Phantom
+  "ghost",       // The Ghost
+  "lavadragon",  // Ragnarok
+  "neo",         // Matrix
+  "diamond_cut", // Vitrea (diamond)
+  "gq",          // GQ — final boss
+];
+
+export const BOSSES = STORY_LADDER_IDS.map((id) => ALL_BOSSES.find((b) => b.id === id)).filter(Boolean);
+
 export function getBoss(id) {
   return BOSSES.find((b) => b.id === id) || null;
 }
 
 // Sequential ladder — previous fight must be cleared to unlock the next.
 export function isBossUnlocked(bossId, bossesDefeated = []) {
+  if (isDevUnlockAll()) return true;
   const idx = BOSSES.findIndex((b) => b.id === bossId);
   if (idx <= 0) return true;
   const prev = BOSSES[idx - 1];

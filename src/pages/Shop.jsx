@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -19,6 +19,8 @@ import { isPreviewSkin } from "@/lib/previewSkins";
 import { getHeldDiceStyle } from "@/lib/heldDiceStyles";
 import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
 import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
+import { SPRITE_LAB_SKIN_IDS } from "@/lib/spriteLab";
+import { cn } from "@/lib/utils";
 
 const showPreviewLab = true;
 
@@ -62,6 +64,9 @@ export default function Shop() {
           <Sparkles className="w-5 h-5 text-amber-400 shrink-0" /> Shop
         </h1>
         <div className="flex items-center gap-2 shrink-0">
+          <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-green-500/40 text-green-200 px-2">
+            <Link to="/sprite-lab">Sprite Lab</Link>
+          </Button>
           <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 rounded-full px-3 py-1.5">
             <Coins className="w-4 h-4 text-amber-400" />
             <span className="font-black tabular-nums text-amber-300">
@@ -159,14 +164,24 @@ export default function Shop() {
             {(() => {
               const dupes = getDuplicateGroups(DICE_SKINS);
               const PINNED_FIRST = ["pride", "ruby"];
-              const PINNED_LAST = ["gold", "lava", "dragon_scale", "circuit_board", "galaxy", "snow_globe", "blue_gel"];
+              const PINNED_FIRST_BY_CAT = { power: ["ragnarok"] };
+              const PINNED_LAST = ["gold", "dragon_scale", "circuit_board", "galaxy", "snow_globe", "blue_gel"];
               const firstRank = (id) => PINNED_FIRST.indexOf(id);
               const lastRank = (id) => PINNED_LAST.indexOf(id);
 
               return SHOP_DICE_CATEGORIES.map((cat) => {
+              const catPinnedFirst = PINNED_FIRST_BY_CAT[cat.id] ?? [];
+              const catFirstRank = (id) => catPinnedFirst.indexOf(id);
               const sortedSkins = [...DICE_SKINS]
                 .filter((s) => !s.customDice && !s.preview && getSkinShopCategory(s.id) === cat.id)
                 .sort((a, b) => {
+                  const aCatFirst = catFirstRank(a.id);
+                  const bCatFirst = catFirstRank(b.id);
+                  if (aCatFirst !== -1 || bCatFirst !== -1) {
+                    if (aCatFirst === -1) return 1;
+                    if (bCatFirst === -1) return -1;
+                    return aCatFirst - bCatFirst;
+                  }
                   const aFirst = firstRank(a.id);
                   const bFirst = firstRank(b.id);
                   if (aFirst !== -1 || bFirst !== -1) {
@@ -189,7 +204,35 @@ export default function Shop() {
               return (
                 <section key={cat.id} className="mb-6">
                   <div className="mb-3">
-                    <h2 className="text-sm font-black uppercase tracking-wider text-amber-200">{cat.label}</h2>
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-sm font-black uppercase tracking-wider text-amber-200">{cat.label}</h2>
+                      {SPRITE_LAB_SKIN_IDS.some((id) => getSkinShopCategory(id) === cat.id) && (
+                        <div className="flex flex-wrap gap-1 justify-end">
+                          {SPRITE_LAB_SKIN_IDS.filter((id) => getSkinShopCategory(id) === cat.id).map((id) => (
+                            <Button
+                              key={id}
+                              asChild
+                              size="sm"
+                              variant="outline"
+                              className={cn(
+                                "h-7 text-[10px] capitalize",
+                                id === "matrix"
+                                  ? "border-green-500/40 text-green-200"
+                                  : id === "crystal_cut"
+                                    ? "border-cyan-500/40 text-cyan-200"
+                                    : id === "ice"
+                                      ? "border-sky-500/40 text-sky-200"
+                                      : id === "snow_globe"
+                                        ? "border-sky-500/40 text-sky-200"
+                                        : "border-orange-500/40 text-orange-200"
+                              )}
+                            >
+                              <Link to={`/sprite-lab/${id}`}>{getSkin(id)?.name || id} lab</Link>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-500">{cat.blurb}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -249,6 +292,9 @@ export default function Shop() {
           </TabsContent>
 
           <TabsContent value="felts" className="mt-4">
+            <p className="text-[10px] text-slate-400 mb-3 text-center">
+              Each card shows the real table surface — scroll to match names to looks.
+            </p>
             <div className="grid grid-cols-2 gap-3">
               {FELT_COLORS.map(felt => (
                 <ShopItemCard

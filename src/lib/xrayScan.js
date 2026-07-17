@@ -14,6 +14,7 @@ const DEBUFF_REVEALS = {
   blackout: { icon: "🌑", text: "Their score hidden from you (Blackout — this turn)" },
   freeze: { icon: "❄️", text: "Power bar frozen (Freeze — this turn)" },
   lockout: { icon: "🔒", text: "Powers locked out (Lockout — this turn)" },
+  shark_bite: { icon: "🦈", text: "Marked for Shark Bite — next bank will be eaten" },
 };
 
 function addFinding(findings, seen, icon, text) {

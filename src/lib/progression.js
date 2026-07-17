@@ -33,7 +33,7 @@ export const SKIN_TIERS = {
   // Gold (tier 2)
   gold: 2,
   silver: 2,
-  lava: 2,
+  ragnarok: 2,
   fluorite: 2,
   labradorite: 2,
   labradorite_polished: 2,

@@ -63,6 +63,10 @@ export function getFeltTheme(feltId) {
     blood_moon: "blood_moon",
     sapphire_abyss: "deep_glow",
     void_violet: "deep_glow",
+    galaxy_window: "solid",
+    green_wood: "solid",
+    red_wood: "solid",
+    tiedye_neon: "solid",
     amethyst_purple: "deep_glow",
   };
 

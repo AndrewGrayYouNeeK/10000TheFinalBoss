@@ -1,5 +1,28 @@
 const STORAGE_KEY = "dice10k_profile";
 
+const RAGNAROK_LEGACY_SKINS = ["lava", "ragnarok_regular"];
+
+function migrateProfile(profile) {
+  const next = { ...profile };
+  let owned = [...(next.owned_skins ?? ["classic_white"])];
+  if (owned.some((id) => RAGNAROK_LEGACY_SKINS.includes(id))) {
+    owned = [...new Set([...owned.filter((id) => !RAGNAROK_LEGACY_SKINS.includes(id)), "ragnarok"])];
+    next.owned_skins = owned;
+  }
+  if (RAGNAROK_LEGACY_SKINS.includes(next.equipped_skin)) {
+    next.equipped_skin = "ragnarok";
+  }
+  if (RAGNAROK_LEGACY_SKINS.includes(next.ghost_disguise)) {
+    next.ghost_disguise = "ragnarok";
+  }
+  // Story default felt — grant Matrix Rain if missing.
+  const felts = [...(next.owned_felts ?? ["classic_green"])];
+  if (!felts.includes("matrix_rain")) {
+    next.owned_felts = [...felts, "matrix_rain"];
+  }
+  return next;
+}
+
 const DEFAULT_PROFILE = {
   email: "local@player",
   full_name: "Player",
@@ -10,7 +33,7 @@ const DEFAULT_PROFILE = {
   intro_seen: false,
   owned_skins: ["classic_white"],
   owned_badges: [],
-  owned_felts: ["classic_green"],
+  owned_felts: ["classic_green", "matrix_rain"],
   equipped_skin: "classic_white",
   ghost_disguise: null,
   equipped_badge: "",
@@ -30,7 +53,12 @@ export function loadProfile() {
       saveProfile(profile);
       return profile;
     }
-    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    const parsed = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    const migrated = migrateProfile(parsed);
+    if (JSON.stringify(migrated) !== JSON.stringify(parsed)) {
+      saveProfile(migrated);
+    }
+    return migrated;
   } catch {
     return { ...DEFAULT_PROFILE };
   }

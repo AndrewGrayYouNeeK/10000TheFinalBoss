@@ -1,7 +1,6 @@
 /** Procedural felt surface helpers — nap, mottling, wood rail, lighting. */
 
 const FABRIC_FELT_IDS = new Set([
-  "classic_green",
   "royal_blue",
   "crimson_red",
   "midnight_black",
@@ -22,7 +21,24 @@ const FABRIC_FELT_IDS = new Set([
   "velvet_royal",
 ]);
 
-const PHOTO_TEXTURE_FELT_IDS = new Set(["classic_green", "wolf_fur"]);
+const PHOTO_TEXTURE_FELT_IDS = new Set([
+  "classic_green",
+  "wolf_fur",
+  "green_wood",
+  "red_wood",
+  "galaxy_window",
+  "tiedye_neon",
+]);
+
+/** Dedicated photo scans — skip fabric nap / hue-shift recycling. */
+const DEDICATED_PHOTO_FELT_IDS = new Set([
+  "classic_green",
+  "wolf_fur",
+  "green_wood",
+  "red_wood",
+  "galaxy_window",
+  "tiedye_neon",
+]);
 
 function hashId(id) {
   let h = 0;
@@ -55,6 +71,20 @@ export function isFabricFelt(feltId) {
 
 export function usesPhotoFeltTexture(feltId) {
   return PHOTO_TEXTURE_FELT_IDS.has(feltId) || isFabricFelt(feltId);
+}
+
+export function isDedicatedPhotoFelt(feltId) {
+  return DEDICATED_PHOTO_FELT_IDS.has(feltId);
+}
+
+function dedicatedPhotoStyle(compact = false) {
+  return {
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    mixBlendMode: "normal",
+    opacity: compact ? 0.92 : 0.88,
+    filter: "none",
+  };
 }
 
 /** Slightly irregular base — real felt is never a perfect radial wash. */
@@ -192,24 +222,12 @@ export function getWoodGrainOverlay() {
 
 /** Photo texture tint — shift green casino scan toward each felt color. */
 export function getPhotoTextureStyle(felt, compact = false) {
-  const filters = {
-    classic_green: "none",
-    wolf_fur: "saturate(1.05) contrast(1.08)",
-  };
-
   const id = felt?.id;
-  if (id === "wolf_fur") {
-    return {
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      mixBlendMode: "normal",
-      opacity: compact ? 0.92 : 0.88,
-      filter: filters.wolf_fur,
-    };
+  if (isDedicatedPhotoFelt(id)) {
+    return dedicatedPhotoStyle(compact);
   }
 
   const hueMap = {
-    classic_green: "saturate(1.05) contrast(1.08)",
     royal_blue: "hue-rotate(185deg) saturate(1.1)",
     crimson_red: "hue-rotate(255deg) saturate(1.15)",
     midnight_black: "saturate(0.15) brightness(0.55) contrast(1.2)",
@@ -233,7 +251,7 @@ export function getPhotoTextureStyle(felt, compact = false) {
   return {
     backgroundSize: compact ? "180%" : "140%",
     backgroundPosition: "center",
-    mixBlendMode: id === "wolf_fur" ? "normal" : "multiply",
+    mixBlendMode: "multiply",
     opacity: compact ? 0.72 : 0.58,
     filter: hueMap[id] || "saturate(0.85) contrast(1.05)",
   };
@@ -241,7 +259,7 @@ export function getPhotoTextureStyle(felt, compact = false) {
 
 /** Themed felts still sit on cloth — subtle grain underneath. */
 export function getThemedFabricUnderlayOpacity(feltId) {
+  if (isDedicatedPhotoFelt(feltId)) return 0;
   if (isFabricFelt(feltId)) return 1;
-  if (feltId === "wolf_fur") return 0;
   return 0.22;
 }

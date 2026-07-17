@@ -1,4 +1,4 @@
-import { getSkin } from "@/lib/shopCatalog";
+import { getSkin, normalizeSkinId } from "@/lib/shopCatalog";
 import { getSkinPower } from "@/lib/skinPowers";
 
 export const GHOST_SKIN_ID = "ghost";
@@ -11,18 +11,29 @@ export function isGhostPlayer(player) {
   return player?.skinId === GHOST_SKIN_ID;
 }
 
-/** The skin a player is pretending to be (disguise for Ghost, face skin for everyone else). */
-export function getPretendSkin(player) {
-  if (!player) return "classic_white";
-  if (player.skinId === GHOST_SKIN_ID && player.trueSkinId) {
-    return player.trueSkinId;
-  }
-  return player.skinId || "classic_white";
+/** Resolve saved/profile disguise for a Ghost player. */
+export function resolveGhostDisguise(player, { ghostDisguiseId = null, ownedSkins = [] } = {}) {
+  if (!isGhostPlayer(player)) return null;
+  return player.trueSkinId || ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
 }
 
-/** Dice on the table — Ghost looks like its disguise so opponents can't tell. */
-export function getDisplaySkinId(player) {
-  return getPretendSkin(player);
+/** The skin a player is pretending to be (disguise for Ghost, face skin for everyone else). */
+export function getPretendSkin(player, options) {
+  if (!player) return "classic_white";
+  const disguise = resolveGhostDisguise(player, options);
+  if (disguise) return normalizeSkinId(disguise);
+  return normalizeSkinId(player.skinId || "classic_white");
+}
+
+/** Dice on the table — Ghost shows its chosen disguise (not the invisible ghost body). */
+export function getDisplaySkinId(player, options) {
+  return getPretendSkin(player, options);
+}
+
+/** Shop/home previews — render the disguise when previewing or equipping Ghost. */
+export function resolveDiceSkinId(skinId, { ghostDisguiseId = null, ownedSkins = [] } = {}) {
+  if (skinId !== GHOST_SKIN_ID) return normalizeSkinId(skinId);
+  return normalizeSkinId(ghostDisguiseId || pickTrueSkinForGhost(ownedSkins));
 }
 
 export function pickTrueSkinForGhost(ownedSkins = []) {

@@ -3,6 +3,22 @@
 
 import { EXPERIMENTAL_DICE } from "./experimentalDice";
 import { assetUrl } from "./assetUrl";
+import { RAGNAROK_SPRITE_TUNING } from "./ragnarokSpriteTuning";
+import { MATRIX_SPRITE_TUNING } from "./matrixSpriteTuning";
+import { CRYSTAL_CUT_SPRITE_TUNING } from "./crystalCutSpriteTuning";
+import { GALAXY_SPRITE_TUNING } from "./galaxySpriteTuning";
+import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
+import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
+import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
+import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets } from "./spriteLab";
+import { isMatrixTuningLocked } from "./matrixTuningLock";
+import { isDiamondCutTuningLocked } from "./diamondCutTuningLock";
+import { isIceTuningLocked } from "./iceTuningLock";
+import { isRagnarokTuningLocked } from "./ragnarokTuningLock";
+import { isGalaxyTuningLocked } from "./galaxyTuningLock";
+import { isFluoriteTuningLocked } from "./fluoriteTuningLock";
+import { isAmberWaspTuningLocked } from "./amberWaspTuningLock";
+import { isAmethystTuningLocked } from "./amethystTuningLock";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -16,6 +32,21 @@ export const PRODUCTION_DICE_SKINS = [
     description: "The original. Timeless.",
     realistic: true,
     spriteUrl: "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
+  },
+  {
+    id: "ragnarok",
+    name: "Ragnarok",
+    price: 600,
+    gradient: "from-stone-800 via-red-900 to-black",
+    border: "border-orange-800",
+    pipColor: "bg-red-800",
+    glow: "shadow-orange-500/70",
+    description: "Stone dice that crack open with molten power — Hot Streak.",
+    realistic: true,
+    powerDice: true,
+    spriteUrl: "/assets/ragnarok_regular_dice.png",
+    powerSpriteUrl: "/assets/d21426962_XCSnTqF8nVT8rvkZYlH5g_BYlXoewC.png",
+    ...RAGNAROK_SPRITE_TUNING,
   },
   {
     id: "obsidian",
@@ -81,13 +112,14 @@ export const PRODUCTION_DICE_SKINS = [
     id: "galaxy",
     name: "Galaxy",
     price: 750,
-    gradient: "from-purple-600 via-fuchsia-600 to-indigo-900",
+    gradient: "from-indigo-950 via-violet-900 to-slate-950",
     border: "border-purple-900",
     pipColor: "bg-white",
     glow: "shadow-fuchsia-500/60",
     description: "Cosmic energy.",
     realistic: true,
-    spriteUrl: "/assets/49f5502e7_qT4RfNfgMat_WgdmZ9UA-_0jGTKBXb.png",
+    spriteUrl: "/assets/galaxy_dice_blackhole.png",
+    ...GALAXY_SPRITE_TUNING,
   },
   {
     id: "dragon_scale",
@@ -112,6 +144,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Royal crystal.",
     realistic: true,
     spriteUrl: "/assets/7b99943e9_387TtzBbla0juqzqDSGfg_FgHZypft.png",
+    ...AMETHYST_SPRITE_TUNING,
   },
   {
     id: "moonstone",
@@ -124,19 +157,6 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Iridescent shimmer.",
     realistic: true,
     spriteUrl: "/assets/09a488969_Ub3rBdwrMd_RZcipohKxd_EQnQspfS1.png",
-  },
-  {
-    id: "lava",
-    name: "Ragnarok",
-    price: 600,
-    gradient: "from-orange-400 via-red-600 to-black",
-    border: "border-orange-800",
-    pipColor: "bg-yellow-200",
-    glow: "shadow-orange-500/70",
-    description: "Molten hot dice.",
-    realistic: true,
-    spriteUrl: "/assets/d21426962_XCSnTqF8nVT8rvkZYlH5g_BYlXoewC.png",
-    spriteCrop: { stretch: 0.1, offsetY: 0.065, zoom: 1.16 },
   },
   {
     id: "tesla",
@@ -173,6 +193,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Color-shifting crystal.",
     realistic: true,
     spriteUrl: "/assets/8a42482c0_1smJEOhdbLDK2gpXtyFY-_ziAmwBIP.png",
+    ...FLUORITE_SPRITE_TUNING,
   },
   {
     id: "aquamarine",
@@ -257,6 +278,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Brilliant faceted crystal. The legendary tier.",
     realistic: true,
     spriteUrl: "/assets/823a86262_zIRb81kXhGo3xU-pd4xpr_yf8rZsgh.png",
+    ...CRYSTAL_CUT_SPRITE_TUNING,
   },
   {
     id: "love_is_love",
@@ -317,6 +339,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Prehistoric wasp frozen in amber.",
     realistic: true,
     spriteUrl: "/assets/ed83ab294_PFl9loYMeN6_jAsrcx6Ah_o55139sM.png",
+    ...AMBER_WASP_SPRITE_TUNING,
   },
   {
     id: "toxic_plasma_v2",
@@ -340,7 +363,9 @@ export const PRODUCTION_DICE_SKINS = [
     glow: "shadow-green-500/70",
     description: "Follow the white rabbit.",
     realistic: true,
-    spriteUrl: "/assets/5784136aa_KkADf2cqhZJ_5eX9yaSRr_AbX94tDb1.png",
+    powerDice: true,
+    spriteUrl: "/assets/matrix_dice.png",
+    ...MATRIX_SPRITE_TUNING,
   },
   {
     id: "snow_globe",
@@ -361,7 +386,7 @@ export const PRODUCTION_DICE_SKINS = [
     border: "border-blue-500",
     pipColor: "bg-white",
     glow: "shadow-blue-400/60",
-    description: "A big angelfish circling the pips.",
+    description: "Gel aquarium dice — Shark Bite power eats the opponent's next bank.",
     realistic: true,
     spriteUrl: "/assets/999d8760b_generated_image.png",
   },
@@ -376,7 +401,6 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Live plasma energy.",
     realistic: true,
     spriteUrl: "/assets/2557270d2_25tUwCJ15TdeszFvoq7X3_u7DNsem8.png",
-    videoUrl: "/assets/31dadb6ba_602de551430041e3ade1c21d529bc5c0.mp4",
   },
   {
     id: "cyber_neon",
@@ -397,6 +421,7 @@ export const PRODUCTION_DICE_SKINS = [
 /** Shop dice sections */
 export const SHOP_DICE_CATEGORIES = [
   { id: "regular", label: "Regular", blurb: "Classic, gold, chrome & prison dice" },
+  { id: "power", label: "Power", blurb: "Secret powers — charge on your 3rd Hot Dice" },
   { id: "gemstone", label: "Gemstones", blurb: "Gems, materials & standard sets" },
   { id: "exotic", label: "Exotic", blurb: "Cosmic, tech, themed & wild" },
 ];
@@ -406,6 +431,10 @@ const REGULAR_SKIN_IDS = new Set([
   "gold",
   "silver",
   "paper",
+]);
+
+const POWER_SKIN_IDS = new Set([
+  "ragnarok",
 ]);
 
 const GEMSTONE_SKIN_IDS = new Set([
@@ -431,7 +460,6 @@ const EXOTIC_SKIN_IDS = new Set([
   "amber_wasp",
   "galaxy",
   "dragon_scale",
-  "lava",
   "tesla",
   "neon_grid",
   "circuit_board",
@@ -444,6 +472,7 @@ const EXOTIC_SKIN_IDS = new Set([
 
 export function getSkinShopCategory(skinId) {
   if (REGULAR_SKIN_IDS.has(skinId)) return "regular";
+  if (POWER_SKIN_IDS.has(skinId)) return "power";
   if (EXOTIC_SKIN_IDS.has(skinId)) return "exotic";
   if (GEMSTONE_SKIN_IDS.has(skinId)) return "gemstone";
   return "regular";
@@ -483,7 +512,7 @@ export const FELT_COLORS = [
     outer: "#226a3b",
     border: "border-amber-900/70",
     description: "Traditional casino felt.",
-    textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png",
+    textureUrl: "/assets/felt_green_mat.png",
   },
   {
     id: "royal_blue",
@@ -691,7 +720,7 @@ export const FELT_COLORS = [
 
   // ===== ⚡ CYBERPUNK / NEON =====
   { id: "tron_grid",       name: "Tron Grid",       price: 1100, inner: "#1ce6ff", mid: "#0a4060", outer: "#020812", border: "border-amber-900/70", description: "Glowing cyan grid on the void.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
-  { id: "matrix_rain",     name: "Matrix Rain",     price: 1100, inner: "#3afa6a", mid: "#0a4a1a", outer: "#020a04", border: "border-amber-900/70", description: "Falling green code in the dark.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
+  { id: "matrix_rain",     name: "Matrix Rain",     price: 1100, inner: "#3afa6a", mid: "#0a4a1a", outer: "#020a04", border: "border-amber-900/70", description: "ANDREW GRAY cascading down in green code rain.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
   { id: "synthwave",       name: "Synthwave Sunset",price: 1200, inner: "#ff4a9e", mid: "#7a2a8a", outer: "#1a0a3a", border: "border-amber-900/70", description: "Retro 80s magenta horizon.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
   { id: "circuit_board",   name: "Circuit Board",   price: 1000, inner: "#2ea860", mid: "#0e5028", outer: "#04140a", border: "border-amber-900/70", description: "PCB traces and solder joints.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
   { id: "glitch",          name: "Glitch",          price: 1150, inner: "#ff2a6d", mid: "#1ce6ff", outer: "#0a0a14", border: "border-amber-900/70", description: "RGB-split scanline corruption.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
@@ -737,7 +766,59 @@ export const FELT_COLORS = [
   { id: "phoenix_fire",    name: "Phoenix Fire",    price: 1500, inner: "#ffb43a", mid: "#c4341a", outer: "#3a0a08", border: "border-amber-900/70", description: "Flickering flames around the edges.", premium: true, textureUrl: "/assets/c668f8a5c_ziA4KOYCS_QY2BcnEzQGb_sNgQTA4n.png" },
 
   // ===== 🐺 FUR =====
-  { id: "wolf_fur",        name: "Fur",             price: 1200, inner: "#a07a4a", mid: "#5a3a1e", outer: "#1a0e06", border: "border-amber-900/70", description: "Thick, wild pelt.", premium: true, textureUrl: "/assets/3a7017943_IMG_1494.jpg" },
+  { id: "wolf_fur",        name: "Fur",             price: 1200, inner: "#a07a4a", mid: "#5a3a1e", outer: "#1a0e06", border: "border-amber-900/70", description: "Thick, wild pelt.", premium: true, textureUrl: "/assets/felt_brown_fur.png" },
+
+  // ===== 📷 PHOTO FELTS =====
+  {
+    id: "green_wood",
+    name: "Green & Wood",
+    price: 500,
+    inner: "#3ea863",
+    mid: "#2f8b4f",
+    outer: "#226a3b",
+    border: "border-amber-900/70",
+    description: "Classic green felt in a warm wood rail.",
+    textureUrl: "/assets/felt_green_wood.png",
+    includesFrame: true,
+  },
+  {
+    id: "red_wood",
+    name: "Red & Wood",
+    price: 550,
+    inner: "#d4625f",
+    mid: "#a83a3a",
+    outer: "#7d2424",
+    border: "border-amber-900/70",
+    description: "Crimson felt framed in polished wood.",
+    textureUrl: "/assets/felt_red_frame.png",
+    includesFrame: true,
+  },
+  {
+    id: "galaxy_window",
+    name: "Galaxy Window",
+    price: 750,
+    inner: "#6a4a9e",
+    mid: "#3a2a6a",
+    outer: "#120a28",
+    border: "border-amber-900/70",
+    description: "Deep-space nebula through a wood-framed window.",
+    premium: true,
+    textureUrl: "/assets/felt_galaxy_window.png",
+    includesFrame: true,
+  },
+  {
+    id: "tiedye_neon",
+    name: "Tie-Dye Neon",
+    price: 650,
+    inner: "#5afa6a",
+    mid: "#2a8a3a",
+    outer: "#0a2a14",
+    border: "border-amber-900/70",
+    description: "Psychedelic neon green tie-dye with a glowing frame.",
+    premium: true,
+    textureUrl: "/assets/felt_tiedye_neon.png",
+    includesFrame: true,
+  },
 ];
 
 // Level badges — IDs `level_1` … `level_100`. The badge you own = your current level.
@@ -757,8 +838,168 @@ export const BADGES = Array.from({ length: 100 }, (_, i) => {
   };
 });
 
+export const RAGNAROK_LEGACY_SKIN_IDS = ["lava", "ragnarok_regular"];
+
+export function normalizeSkinId(id) {
+  if (RAGNAROK_LEGACY_SKIN_IDS.includes(id)) return "ragnarok";
+  return id;
+}
+
+/** Active sprite sheet for a skin — regular by default, power sheet when charged. */
+export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = true } = {}) {
+  if (!skin) return null;
+  if (powerMode && allowPowerVideo && skin.powerVideoUrl) return null;
+  if (powerMode && skin.powerSpriteUrl) {
+    return {
+      spriteUrl: skin.powerSpriteUrl,
+      spriteCrop: skin.powerSpriteCrop ?? skin.spriteCrop,
+      offsetSkinId: "lava",
+    };
+  }
+  if (!skin.spriteUrl) return null;
+  return {
+    spriteUrl: skin.spriteUrl,
+    spriteCrop: skin.spriteCrop,
+    offsetSkinId: skin.id,
+  };
+}
+
+export function skinHasPowerSprite(skin) {
+  return !!skin?.powerSpriteUrl || !!skin?.powerVideoUrl;
+}
+
+/** Video URL for the current mode (power video when charged, else static videoUrl). */
+export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = true } = {}) {
+  if (!skin) return null;
+  if (powerMode && allowPowerVideo && skin.powerVideoUrl) return skin.powerVideoUrl;
+  if (!powerMode && skin.videoUrl) return skin.videoUrl;
+  return null;
+}
+
 export function getSkin(id) {
-  return DICE_SKINS.find(s => s.id === id) || DICE_SKINS[0];
+  const skin = DICE_SKINS.find((s) => s.id === normalizeSkinId(id)) || DICE_SKINS[0];
+  const draft = loadSpriteLabDraft(skin.id);
+  if (!draft) return skin;
+
+  if (skin.id === "matrix") {
+    if (isMatrixTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
+      powerVideoCrop: draft.powerVideoCrop ?? skin.powerVideoCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+      },
+    };
+  }
+
+  if (skin.id === "crystal_cut") {
+    if (isDiamondCutTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
+      powerVideoCrop: draft.powerVideoCrop ?? skin.powerVideoCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+      },
+    };
+  }
+
+  if (skin.id === "ice") {
+    if (isIceTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+      },
+    };
+  }
+
+  if (skin.id === "ragnarok") {
+    if (isRagnarokTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      powerSpriteCrop: draft.powerCrop ?? skin.powerSpriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+      },
+    };
+  }
+
+  if (skin.id === "galaxy") {
+    if (isGalaxyTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+      },
+    };
+  }
+
+  if (skin.id === "fluorite") {
+    if (isFluoriteTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+      },
+    };
+  }
+
+  if (skin.id === "amber_wasp") {
+    if (isAmberWaspTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+      },
+    };
+  }
+
+  if (skin.id === "amethyst") {
+    if (isAmethystTuningLocked()) return skin;
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+      },
+    };
+  }
+
+  if (skin.spriteCrop) {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.regular, draft.regularFaces),
+        power: mergeSpriteLabFaceOffsets(skin.spriteFaceOffsets?.power, draft.powerFaces),
+      },
+    };
+  }
+
+  return skin;
 }
 export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;

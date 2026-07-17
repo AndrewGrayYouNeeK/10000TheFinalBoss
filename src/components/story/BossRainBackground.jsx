@@ -22,6 +22,7 @@ const THEMES = {
   teal_priest:  { glyphs: ["◊","◇","✦","∴","☸"], color: "rgba(120,230,220,0.9)", glow: "rgba(60,200,200,0.5)", bg: "#04120f" },
   ice_archer:   { glyphs: ["➳","↟","✦","❄"], color: "rgba(180,230,255,0.9)", glow: "rgba(120,200,255,0.5)", bg: "#04101a" },
   phantom:      { glyphs: ["†","✦","◊","○","●"], color: "rgba(200,140,255,0.85)", glow: "rgba(160,80,255,0.5)", bg: "#08040e" },
+  ghost:        { glyphs: ["○","◌","◦","·","∘"], color: "rgba(200,210,230,0.75)", glow: "rgba(160,170,200,0.45)", bg: "#06080c" },
   moon_priestess:{glyphs: ["☾","✦","✧","·","∘"], color: "rgba(220,220,255,0.9)", glow: "rgba(180,180,255,0.5)", bg: "#06081a" },
 
   // Tier 4
@@ -63,27 +64,50 @@ const DEFAULT_THEME = { glyphs: ["⚀","⚁","⚂","⚃","⚄","⚅"], color: "r
 
 function randomBetween(a, b) { return a + Math.random() * (b - a); }
 
-export default function BossRainBackground({ bossId }) {
+function BossRainStatic({ theme }) {
+  return (
+    <div
+      className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+      style={{ background: theme.bg }}
+    >
+      <div
+        className="absolute inset-0 opacity-30"
+        style={{
+          background: `radial-gradient(ellipse at 50% 0%, ${theme.glow} 0%, transparent 55%)`,
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%)",
+        }}
+      />
+    </div>
+  );
+}
+
+export default function BossRainBackground({ bossId, lite = false }) {
   const canvasRef = useRef(null);
   const theme = THEMES[bossId] || DEFAULT_THEME;
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    if (lite) return undefined;
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-    };
-    resize();
-    window.addEventListener("resize", resize);
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
 
     const COUNT = isLowPowerDevice() ? 18 : 90;
+    let particles = [];
+    let frame;
+
     const spawn = (initial = false) => ({
-      x: randomBetween(0, canvas.width),
-      y: initial ? randomBetween(0, canvas.height) : randomBetween(-canvas.height * 0.4, -20),
+      x: randomBetween(0, Math.max(canvas.width, 1)),
+      y: initial
+        ? randomBetween(0, Math.max(canvas.height, 1))
+        : randomBetween(-Math.max(canvas.height, 1) * 0.4, -20),
       vy: randomBetween(1.2, 3.8),
       glyph: theme.glyphs[Math.floor(Math.random() * theme.glyphs.length)],
       size: randomBetween(14, 28),
@@ -91,14 +115,36 @@ export default function BossRainBackground({ bossId }) {
       flipTimer: Math.floor(randomBetween(20, 120)),
     });
 
-    let particles = Array.from({ length: COUNT }, () => spawn(true));
-    let frame;
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect.width));
+      const h = Math.max(1, Math.round(rect.height));
+      if (canvas.width === w && canvas.height === h && particles.length > 0) return;
+      canvas.width = w;
+      canvas.height = h;
+      ctx.fillStyle = theme.bg;
+      ctx.fillRect(0, 0, w, h);
+      particles = Array.from({ length: COUNT }, () => spawn(true));
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const ro = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => resize())
+      : null;
+    ro?.observe(canvas);
 
     const draw = () => {
       if (document.hidden) {
         frame = requestAnimationFrame(draw);
         return;
       }
+      if (canvas.width < 2 || canvas.height < 2) {
+        frame = requestAnimationFrame(draw);
+        return;
+      }
+
       // Light trail effect — fill with a low-alpha bg color each frame.
       ctx.fillStyle = "rgba(0,0,0,0.15)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -133,11 +179,19 @@ export default function BossRainBackground({ bossId }) {
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      ro?.disconnect();
     };
-  }, [bossId]);
+  }, [bossId, lite]);
+
+  if (lite) {
+    return <BossRainStatic theme={theme} />;
+  }
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ background: theme.bg }}>
+    <div
+      className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+      style={{ background: theme.bg }}
+    >
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       {/* Vignette so dice/UI stay readable */}
       <div

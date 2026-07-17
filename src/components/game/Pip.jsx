@@ -404,29 +404,6 @@ export default function Pip({
     );
   }
 
-  // --- RADIATION: pulsing on/off glow (Radiation skin overlay) ---
-  if (animationEffect === "radiationPulse") {
-    return (
-      <motion.div
-        style={{
-          ...baseStyle,
-          background: "radial-gradient(circle at 38% 32%, #fef08a 0%, #84cc16 40%, #a855f7 85%)",
-          mixBlendMode: "screen",
-        }}
-        animate={{
-          opacity: [0.15, 1, 0.15],
-          boxShadow: [
-            "0 0 4px 1px rgba(132,204,52,0.3)",
-            "0 0 18px 6px rgba(168,85,247,0.85), 0 0 28px rgba(132,204,52,0.5)",
-            "0 0 4px 1px rgba(132,204,52,0.3)",
-          ],
-          scale: [0.92, 1.08, 0.92],
-        }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-      />
-    );
-  }
-
   // --- RADAR REVEAL: invisible until horizontal sweep passes ---
   if (animationEffect === "radarReveal") {
     return <RadarRevealPip baseStyle={baseStyle} pipCol={pipCol} />;

@@ -1,5 +1,5 @@
 import React from "react";
-import { DEFAULT_MIC_SETTINGS, MIC_PRESETS } from "@/lib/soundwaveMicSettings";
+import { MIC_PRESETS } from "@/lib/soundwaveMicSettings";
 
 function InputLevelMeter({ level, live, synthetic, debug }) {
   const pct = Math.round(Math.min(1, Math.max(0, level ?? 0)) * 100);

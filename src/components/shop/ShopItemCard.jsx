@@ -32,7 +32,7 @@ export default function ShopItemCard({
           EQUIPPED
         </div>
       )}
-      <div className="flex items-center justify-center min-h-[108px] mb-3 relative">
+      <div className="flex items-center justify-center min-h-[120px] mb-3 relative w-full">
         {preview}
         {tierLocked && !owned && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">

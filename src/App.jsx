@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
@@ -14,6 +14,7 @@ const Setup = lazy(() => import('@/pages/Setup'));
 const Game = lazy(() => import('@/pages/Game'));
 const Rules = lazy(() => import('@/pages/Rules'));
 const PreviewDice = lazy(() => import('@/pages/PreviewDice'));
+const SpriteLabPage = lazy(() => import('@/pages/SpriteLabPage'));
 const HeldStylePreview = lazy(() => import('@/pages/HeldStylePreview'));
 const SoundwaveMicSettings = lazy(() => import('@/pages/SoundwaveMicSettings'));
 const About = lazy(() => import('@/pages/About'));
@@ -22,6 +23,8 @@ const Privacy = lazy(() => import('@/pages/Privacy'));
 const OnlineUnavailable = lazy(() => import('@/pages/OnlineUnavailable'));
 const Story = lazy(() => import('@/pages/Story'));
 const StoryGame = lazy(() => import('@/pages/StoryGame'));
+const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
+const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
 
 function PageLoader() {
   return (
@@ -69,6 +72,9 @@ function App() {
             <Route path="/rules" element={<Rules />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/preview-dice" element={<PreviewDice />} />
+            <Route path="/ragnarok-sprites" element={<Navigate to="/sprite-lab/matrix" replace />} />
+            <Route path="/sprite-lab" element={<SpriteLabPage />} />
+            <Route path="/sprite-lab/:skinId" element={<SpriteLabPage />} />
             <Route path="/held-style" element={<HeldStylePreview />} />
             <Route path="/soundwave-mic" element={<SoundwaveMicSettings />} />
             <Route path="/about" element={<About />} />
@@ -78,6 +84,8 @@ function App() {
             <Route path="/online/:matchId" element={<OnlineUnavailable />} />
             <Route path="/story" element={<Story />} />
             <Route path="/story/:bossId" element={<StoryGame />} />
+            <Route path="/video-assets" element={<VideoAssets />} />
+            <Route path="/fish-showcase" element={<FishShowcase />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
           </RouteErrorBoundary>

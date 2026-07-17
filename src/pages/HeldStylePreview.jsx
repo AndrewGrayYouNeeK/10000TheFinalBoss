@@ -6,7 +6,7 @@ import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { HELD_DICE_STYLES, HELD_STYLE_SECTIONS } from "@/lib/heldDiceStyles";
-import { toast } from "sonner";
+import { resolveDiceSkinId } from "@/lib/ghostDisguise";
 
 function StyleCard({ style, selected, onSelect, skinId, face, felt }) {
   return (
@@ -34,8 +34,9 @@ function StyleCard({ style, selected, onSelect, skinId, face, felt }) {
 }
 
 export default function HeldStylePreview() {
-  const { equippedSkinId, equippedFeltId, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
+  const { equippedSkinId, equippedFeltId, heldDiceStyleId, setHeldDiceStyle, ghostDisguiseId, ownedSkins } = useCosmetics();
   const felt = getFelt(equippedFeltId);
+  const renderSkinId = resolveDiceSkinId(equippedSkinId, { ghostDisguiseId, ownedSkins });
   const [face, setFace] = useState(5);
   const [previewStyle, setPreviewStyle] = useState(heldDiceStyleId);
 
@@ -86,13 +87,13 @@ export default function HeldStylePreview() {
             <FeltTrayFrame felt={felt} innerClassName="flex items-center justify-center gap-10 py-6 px-6">
               <div className="text-center relative z-10">
                 <p className="text-[10px] text-slate-400 mb-2">Not held</p>
-                <Die value={face} skinId={equippedSkinId} size={size} heldStyleId={previewStyle} />
+                <Die value={face} skinId={renderSkinId} size={size} heldStyleId={previewStyle} />
               </div>
               <div className="text-center relative z-10">
                 <p className="text-[10px] text-amber-300 mb-2 font-bold">Held</p>
                 <Die
                   value={face}
-                  skinId={equippedSkinId}
+                  skinId={renderSkinId}
                   size={size}
                   held
                   heldStyleId={previewStyle}
@@ -147,7 +148,7 @@ export default function HeldStylePreview() {
                     style={style}
                     selected={previewStyle === style.id}
                     onSelect={() => applyStyle(style.id)}
-                    skinId={equippedSkinId}
+                    skinId={renderSkinId}
                     face={face}
                     felt={felt}
                   />

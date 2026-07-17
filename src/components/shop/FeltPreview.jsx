@@ -2,12 +2,15 @@ import React from "react";
 import FeltTrayFrame from "./FeltTrayFrame";
 
 /**
- * Small swatch preview of a felt color used in the shop card.
- * Mirrors the in-game DiceTray surface treatment in miniature.
+ * Shop felt swatch — real tray surface so names match what you see in-game.
+ * Outer wrapper sets height; FeltSurface is absolute so the frame must fill it.
  */
 export default function FeltPreview({ felt }) {
   if (!felt) return null;
+
   return (
-    <FeltTrayFrame felt={felt} compact className="w-32 h-20" />
+    <div className="w-full max-w-[11.5rem] h-[5.75rem]">
+      <FeltTrayFrame felt={felt} compact className="w-full h-full" innerClassName="h-full" />
+    </div>
   );
 }
