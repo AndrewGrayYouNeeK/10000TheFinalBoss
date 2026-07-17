@@ -4,11 +4,7 @@ import { EdgeFrame, NoiseFilm } from "./primitives";
 import { usePortfolioDie } from "./PortfolioDieContext";
 import { useAudioLevels } from "./useAudioLevels";
 import SoundwaveBarDisplay from "./SoundwaveBarDisplay";
-import { armBugZapperAudio, playBugZapSound, startBugZapperHum, stopBugZapperHum, whenBugZapperAudioReady } from "./bugZapperSound";
-import { useCosmetics } from "@/hooks/useCosmetics";
 import { getScoreMeterTheme } from "@/lib/scoreMeterTheme";
-import { shouldPlayBugZapperSfx } from "@/lib/gameAudioSettings";
-import { useDiceSkinAudioAllowed } from "@/lib/useDiceSkinAudioAllowed";
 
 function SweepLine({ color = "rgba(0,255,255,0.85)", width = 3 }) {
   const ctx = usePortfolioDie();
@@ -540,18 +536,52 @@ function ZapBurstFlash({ x, y, active }) {
     <motion.div
       className="absolute pointer-events-none z-[7]"
       style={{ left: `${x}%`, top: `${y}%`, x: "-50%", y: "-50%" }}
-      initial={{ opacity: 0.95, scale: 0.5 }}
-      animate={{ opacity: 0, scale: 2.8 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
     >
-      <div
-        className="rounded-full"
+      {/* Hot white core */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
         style={{
-          width: 16,
-          height: 16,
-          background: "radial-gradient(circle, #fff 0%, #c4b5fd 35%, rgba(168,85,247,0.5) 60%, transparent 75%)",
-          boxShadow: "0 0 14px #fff, 0 0 26px rgba(168,85,247,0.95)",
+          width: 10,
+          height: 10,
+          marginLeft: -5,
+          marginTop: -5,
+          background: "#fff",
+          boxShadow: "0 0 10px #fff, 0 0 22px #fff, 0 0 36px rgba(255,255,255,0.95)",
         }}
+        initial={{ opacity: 1, scale: 0.4 }}
+        animate={{ opacity: 0, scale: 3.2 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+      />
+      {/* Violet bloom */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: 28,
+          height: 28,
+          marginLeft: -14,
+          marginTop: -14,
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(196,181,253,0.85) 28%, rgba(168,85,247,0.55) 55%, transparent 72%)",
+          boxShadow: "0 0 18px rgba(255,255,255,0.9), 0 0 40px rgba(168,85,247,0.95)",
+        }}
+        initial={{ opacity: 1, scale: 0.35 }}
+        animate={{ opacity: 0, scale: 2.6 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      />
+      {/* Brief screen flash at the zap point */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: 48,
+          height: 48,
+          marginLeft: -24,
+          marginTop: -24,
+          background: "radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.15) 40%, transparent 70%)",
+          mixBlendMode: "screen",
+        }}
+        initial={{ opacity: 1, scale: 0.5 }}
+        animate={{ opacity: 0, scale: 2.1 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
       />
     </motion.div>
   );
@@ -584,7 +614,6 @@ function ZapperFly({ targets, instanceKey, initialDelay = 0, variant = {} }) {
     } else if (phase === "approach") {
       timer = setTimeout(() => {
         setShowBurst(true);
-        if (shouldPlayBugZapperSfx()) playBugZapSound();
         setPhase("zap");
       }, approachDur * 1000);
     } else if (phase === "zap") {
@@ -593,7 +622,7 @@ function ZapperFly({ targets, instanceKey, initialDelay = 0, variant = {} }) {
         setTargetPip(null);
         setCycle((c) => c + 1);
         setPhase("idle");
-      }, 170);
+      }, 280);
     }
 
     return () => clearTimeout(timer);
@@ -682,21 +711,6 @@ function BugZapperScene({ radius, layout, dieSeed = 0 }) {
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
   // One fly per pip — die value equals fly count (e.g. 4 pips → 4 flies).
   const flyCount = targets.length;
-  const { sfxMuted } = useCosmetics();
-  const audioAllowed = useDiceSkinAudioAllowed();
-
-  useEffect(() => {
-    if (!audioAllowed || !shouldPlayBugZapperSfx()) {
-      stopBugZapperHum();
-      return undefined;
-    }
-    armBugZapperAudio();
-    const unsub = whenBugZapperAudioReady(() => startBugZapperHum());
-    return () => {
-      unsub();
-      stopBugZapperHum();
-    };
-  }, [sfxMuted, audioAllowed]);
 
   return (
     <>

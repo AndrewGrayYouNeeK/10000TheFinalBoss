@@ -93,6 +93,17 @@ export const POWERS = [
     description: "Steal 10% of the leader's banked score (max 500).",
     tagline: "Take the throne.",
   },
+  {
+    id: "plasma_cut",
+    name: "Plasma Cut",
+    kind: "self",
+    cost: 35,
+    icon: "✂️",
+    color: "#a855f7",
+    description:
+      "On your turn, pick one active die and cut pips off — lower its face to fix a bad roll (6→4/2, 5→4/3/1). Can rescue a bust.",
+    tagline: "Cut the problem out.",
+  },
 
   // ─── 4 SABOTAGE POWERS ──────────────────────────────────────────────────────
   {
@@ -154,6 +165,28 @@ export const POWERS = [
     color: "#f97316",
     description: "Wipe every player's banked score to 0 — everyone must bank 1,000 again to get on the board.",
     tagline: "Back to zero.",
+  },
+  {
+    id: "prison_dice",
+    name: "Prison Dice",
+    kind: "sabo",
+    cost: 55,
+    icon: "⛓️",
+    color: "#78716c",
+    description:
+      "Transform opponent's dice into prison scraps for their turns. Lock breaks when you roll three 6s.",
+    tagline: "Lock them down.",
+  },
+  {
+    id: "shark_bite",
+    name: "Shark Bite",
+    kind: "sabo",
+    cost: 50,
+    icon: "🦈",
+    color: "#0ea5e9",
+    description:
+      "Mark the next player — when they bank, a shark eats that round's points.",
+    tagline: "Feeding frenzy.",
   },
 ];
 

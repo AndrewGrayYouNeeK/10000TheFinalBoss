@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dices, PiggyBank } from "lucide-react";
 import { motion } from "framer-motion";
@@ -12,6 +12,8 @@ import {
   confirmAndReroll,
   bankAndPass,
   passAfterFarkle,
+  clearSharkBiteFx,
+  restoreSharkDice,
   ENTRY_THRESHOLD,
   getObscuredScoreIndices,
   consumeSkinPower,
@@ -25,7 +27,7 @@ import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import RulesSheet from "@/components/game/RulesSheet";
 import BigPopup from "@/components/game/BigPopup";
 import CyberBackground from "@/components/game/CyberBackground";
-import GlitchNeonBanner from "@/components/game/GlitchNeonBanner";
+import GameplayBillboard from "@/components/game/GameplayBillboard";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { XP_REWARDS } from "@/lib/progression";
 import { useDiceSound } from "@/lib/useDiceSound";
@@ -33,18 +35,38 @@ import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel, getDisplaySkinId } from "@/lib/ghostDisguise";
+import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID, pickTrueSkinForGhost } from "@/lib/ghostDisguise";
+import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
+import { applySkinPower } from "@/lib/powerEffects";
+import { canAfford } from "@/lib/powers";
+import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
+import PlasmaCutModal from "@/components/game/PlasmaCutModal";
+import {
+  BlueGelPowerVideoScreen,
+  SharkBiteScreenFX,
+} from "@/components/game/BlueGelPowerFX";
+import { getPrisonTraySkinId } from "@/lib/prisonDice";
+import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
+import { isLowPowerDevice } from "@/lib/platform";
+import { Link } from "react-router-dom";
+import { Film } from "lucide-react";
 
 export default function Game() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const previewSharkBite = searchParams.get("previewSharkBite") === "1";
   const [state, setState] = useState(null);
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null); // { word, variant }
+  const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
+  const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
+  const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
   const [shakeTriggered, setShakeTriggered] = useState(0);
-  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId } = useCosmetics();
+  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, setGhostDisguise, isLoading } = useCosmetics();
   const playDiceSound = useDiceSound();
   const prevBustRef = React.useRef(0);
   const winnerAwardedRef = React.useRef(false);
+  const previewBiteFiredRef = React.useRef(false);
 
   const buildSkins = React.useCallback(
     (playerCount) => buildGamePlayerSkins(playerCount, equippedSkinId, ownedSkins, ghostDisguiseId),
@@ -55,7 +77,13 @@ export default function Game() {
   const skinPower = resolvedPower?.power ?? null;
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("dice10k_players");
+    if (isLoading) return;
+    let stored = sessionStorage.getItem("dice10k_players");
+    // Preview mode: jump straight onto the real gameplay screen with 2 players.
+    if (!stored && previewSharkBite) {
+      stored = JSON.stringify(["You", "Rival"]);
+      sessionStorage.setItem("dice10k_players", stored);
+    }
     if (!stored) {
       navigate("/setup");
       return;
@@ -65,7 +93,36 @@ export default function Game() {
     setState(createInitialState(names, { playerSkins }));
     prevBustRef.current = 0;
     winnerAwardedRef.current = false;
-  }, [navigate, buildSkins]);
+    previewBiteFiredRef.current = false;
+  }, [navigate, buildSkins, isLoading, previewSharkBite]);
+
+  // Auto-play Shark Bite FX once on the real game screen (?previewSharkBite=1).
+  useEffect(() => {
+    if (!previewSharkBite || !state || previewBiteFiredRef.current) return undefined;
+    previewBiteFiredRef.current = true;
+    const t = setTimeout(() => {
+      setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [previewSharkBite, state]);
+
+  const replaySharkBitePreview = useCallback(() => {
+    setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
+  }, []);
+
+  // Keep slot-0 Ghost disguise in sync with profile picker (shop or in-game).
+  useEffect(() => {
+    if (isLoading || !state || equippedSkinId !== GHOST_SKIN_ID) return;
+    const disguise = ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
+    setState((s) => {
+      const p0 = s?.players?.[0];
+      if (!p0 || p0.skinId !== GHOST_SKIN_ID || p0.trueSkinId === disguise) return s;
+      return {
+        ...s,
+        players: s.players.map((p, i) => (i === 0 ? { ...p, trueSkinId: disguise } : p)),
+      };
+    });
+  }, [isLoading, ghostDisguiseId, equippedSkinId, ownedSkins]);
 
   React.useLayoutEffect(() => {
     const leave = enterGamePlaySession();
@@ -81,14 +138,22 @@ export default function Game() {
     }
   }, [state]);
 
-  // Auto-pass after farkle — turns swap without a manual button
+  // Shark Bite FX cleared via SharkBiteScreenFX onComplete (video or SVG)
+  // (popup fires on chomp from the same component)
+
+  // Auto-pass after farkle — longer window if Plasma Cut can rescue the turn
   useEffect(() => {
-    if (!state?.farkle || state.winner) return;
+    if (!state?.farkle || state.winner || plasmaCutOpen) return;
+    const canRescue =
+      skinPower?.id === "plasma_cut" &&
+      !!state.players[state.currentIndex]?.powerCharge &&
+      canUsePlasmaCut(state);
+    const delay = canRescue ? 5000 : 1400;
     const timer = setTimeout(() => {
       setState((s) => (s?.farkle ? passAfterFarkle(s) : s));
-    }, 1400);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner]);
+  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner, skinPower?.id, plasmaCutOpen, state]);
 
   // Award coins + XP on game end (and record win / games_finished)
   useEffect(() => {
@@ -138,7 +203,32 @@ export default function Game() {
     const debuffs = state.players[state.currentIndex]?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
 
+    if (skinPower.id === "plasma_cut") {
+      if (!canUsePlasmaCut(state)) {
+        setPopup({ word: "NO DICE TO CUT", variant: "warning" });
+        return;
+      }
+      setPlasmaCutOpen(true);
+      return;
+    }
+
     const result = applySkinPower(state, skinPower.id);
+    if (result.variant === "warning") {
+      if (result.message) {
+        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
+      }
+      return;
+    }
+    setState(consumeSkinPower(result.state));
+    if (result.message) {
+      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+    }
+  };
+
+  const onConfirmPlasmaCut = (dieId, newValue) => {
+    setPlasmaCutOpen(false);
+    if (!state) return;
+    const result = applyPlasmaCut(state, dieId, newValue);
     if (result.variant === "warning") {
       if (result.message) {
         setPopup({ word: result.message.toUpperCase(), variant: "warning" });
@@ -208,7 +298,7 @@ export default function Game() {
   }, [state, opponentSfxMuted, playDiceSound]);
 
   const doRoll = useCallback(() => {
-    if (!state) return;
+    if (!state || state.sharkBiteFx) return;
     setRollAnim(true);
     playRollSound();
     const rolled = rollDice(state);
@@ -228,7 +318,7 @@ export default function Game() {
     const info = getHeldInfo(state);
     if (!info.valid || heldSelectionPoints(info, state.perfectTenKPending) === 0) return;
     const { state: next, instantWin } = confirmAndReroll(state);
-    if (instantWin) setPopup({ word: "PERFECT 10,000!", variant: "success" });
+    if (instantWin) setPopup({ word: "SIX OF A KIND — YOU WIN!", variant: "success" });
     if (next.winner) {
       setState(next);
       return;
@@ -251,6 +341,7 @@ export default function Game() {
   }, [shakeTriggered, state, doRoll, onRollAgain, rollAnim]);
 
   const onBank = () => {
+    if (!state || state.sharkBiteFx) return;
     const prevScore = state.players[state.currentIndex].score;
     const prevName = state.players[state.currentIndex].name;
     const next = bankAndPass(state);
@@ -272,7 +363,12 @@ export default function Game() {
 
   const info = getHeldInfo(state);
   const currentPlayer = state.players[state.currentIndex];
-  const activeSkinId = getDisplaySkinId(currentPlayer) || equippedSkinId;
+  const ghostOptions = { ghostDisguiseId, ownedSkins };
+  const activeSkinId = getPrisonTraySkinId(
+    state,
+    state.currentIndex,
+    getDisplaySkinId(currentPlayer, ghostOptions)
+  );
   const heldPoints = heldSelectionPoints(info, state.perfectTenKPending);
   const potentialTotal = state.turnScore + (info.valid ? heldPoints : 0);
   const needsEntry = !currentPlayer.onBoard;
@@ -287,10 +383,13 @@ export default function Game() {
   const powerFrozen = (currentPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze"
   );
+  const plasmaCutRescue =
+    skinPower?.id === "plasma_cut" && !!currentPlayer?.powerCharge && state.farkle;
   const powerModeActive =
     !!currentPlayer?.powerCharge &&
-    !state.farkle &&
-    !state.winner;
+    (!state.farkle || plasmaCutRescue) &&
+    !state.winner &&
+    (skinPower?.id !== "plasma_cut" || state.hasRolled);
 
   const lowPower = isLowPowerDevice();
 
@@ -314,23 +413,29 @@ export default function Game() {
           label="Back"
           confirmMessage={state.winner ? undefined : "Leave this game and go home?"}
         />
-        <RulesSheet />
+        <div className="flex items-center gap-2">
+          <Link
+            to="/video-assets"
+            className="text-slate-400 hover:text-cyan-300 p-1"
+            title="Video settings"
+            aria-label="Video settings"
+          >
+            <Film className="w-4 h-4" />
+          </Link>
+          <RulesSheet />
+        </div>
       </div>
 
-      {/* YouNeeK 10000 sign banner */}
+      {/* YouNeeK 10000 sign banner — looping video when uploaded */}
       <div className="px-3 pt-3">
         <div
-          className="rounded-2xl overflow-hidden border-2"
+          className="relative w-full h-28 sm:h-36 max-h-[22vh] rounded-2xl overflow-hidden border-2"
           style={{
             borderColor: "#ff00ea",
             boxShadow: "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6)",
           }}
         >
-          <GlitchNeonBanner
-            src="/assets/354eae8fe_generated_image.png"
-            alt="YouNeeK 10000 sign"
-            objectPosition="center 30%"
-          />
+          <GameplayBillboard enabled={!lowPower} />
         </div>
       </div>
 
@@ -346,6 +451,13 @@ export default function Game() {
           value={heldDiceStyleId}
           onChange={setHeldDiceStyle}
         />
+        {equippedSkinId === GHOST_SKIN_ID && (
+          <GhostDisguisePicker
+            ownedSkins={ownedSkins}
+            selectedId={ghostDisguiseId}
+            onSelect={setGhostDisguise}
+          />
+        )}
         {state.players.length >= 2 && (
           <GameAudioControls
             sfxMuted={sfxMuted}
@@ -359,6 +471,7 @@ export default function Game() {
       {/* Banner */}
       <div className="px-3 mb-2 space-y-2">
         <TurnBanner message={state.message} variant={state.messageVariant} />
+        <PrisonDiceStatus state={state} currentIndex={state.currentIndex} />
         <SkinPowerPanel
           power={MAX_POWER}
           skinPower={skinPower}
@@ -441,16 +554,34 @@ export default function Game() {
             background: "rgba(8,2,20,0.45)",
           }}
         >
+          {previewSharkBite && (
+            <div className="mb-2 flex items-center justify-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={!!state.sharkBiteFx}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold"
+                onClick={replaySharkBitePreview}
+              >
+                {state.sharkBiteFx ? "Shark biting…" : "▶ Replay shark bite"}
+              </Button>
+            </div>
+          )}
           <DiceTray
             dice={state.dice}
             rolling={rollAnim}
             onToggle={onToggleDie}
-            disabled={!state.hasRolled || state.farkle || !!state.winner}
+            disabled={!state.hasRolled || state.farkle || !!state.winner || rollAnim}
             skinId={activeSkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}
             lowPower={lowPower}
+            powerMode={!!currentPlayer?.powerCharge}
+            sharkBiteFx={!!state.sharkBiteFx}
+            sharkDiceHidden={!!state.sharkDiceHidden}
+            bloodWaterLocked={bloodWaterLocked}
+            onBloodWaterSettled={lockBloodWater}
           />
           {info.held.length > 0 && (
             <div className="mt-2 text-center text-sm">
@@ -476,16 +607,40 @@ export default function Game() {
           boxShadow: "0 -1px 0 rgba(255,0,170,0.25), 0 -8px 24px rgba(0,255,200,0.08)",
         }}
       >
-        {state.farkle ? (
+        {state.winner ? (
           <div
-            className="w-full h-14 flex items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-rose-200"
+            className="w-full h-14 flex items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-emerald-200"
             style={{
-              borderColor: "#ff2858",
-              background: "linear-gradient(135deg, rgba(255,0,90,0.2), rgba(120,0,50,0.35))",
-              boxShadow: "0 0 20px rgba(255,40,90,0.4)",
+              borderColor: "#00ffc8",
+              background: "linear-gradient(135deg, rgba(0,255,200,0.2), rgba(0,140,110,0.35))",
+              boxShadow: "0 0 20px rgba(0,255,200,0.4)",
             }}
           >
-            Next player&apos;s turn…
+            🎯 {state.winner.name} wins!
+          </div>
+        ) : state.farkle ? (
+          <div
+            className="w-full min-h-14 py-2 flex flex-col items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-rose-200 px-3 text-center"
+            style={{
+              borderColor: plasmaCutRescue && canUsePlasmaCut(state) ? "#a855f7" : "#ff2858",
+              background: plasmaCutRescue && canUsePlasmaCut(state)
+                ? "linear-gradient(135deg, rgba(168,85,247,0.25), rgba(120,0,50,0.35))"
+                : "linear-gradient(135deg, rgba(255,0,90,0.2), rgba(120,0,50,0.35))",
+              boxShadow: plasmaCutRescue && canUsePlasmaCut(state)
+                ? "0 0 20px rgba(168,85,247,0.45)"
+                : "0 0 20px rgba(255,40,90,0.4)",
+            }}
+          >
+            {plasmaCutRescue && canUsePlasmaCut(state) ? (
+              <>
+                <span>Bust — Plasma Cut can save you!</span>
+                <span className="text-[10px] normal-case tracking-normal text-violet-200/90 mt-0.5">
+                  Fire ✂️ Plasma Cut above before time runs out
+                </span>
+              </>
+            ) : (
+              "Next player&apos;s turn…"
+            )}
           </div>
         ) : !state.hasRolled ? (
           <Button
@@ -542,11 +697,38 @@ export default function Game() {
         onPlayAgain={playAgain}
       />
 
+      <BlueGelPowerVideoScreen
+        active={
+          powerModeActive &&
+          skinPower?.id === "shark_bite" &&
+          !state.sharkBiteFx &&
+          !lowPower
+        }
+        loop
+      />
+      <SharkBiteScreenFX
+        active={!!state.sharkBiteFx}
+        onComplete={() =>
+          setState((s) => {
+            const cleared = clearSharkBiteFx(s);
+            // Preview has no following roll — restore dice when FX ends.
+            return previewSharkBite ? restoreSharkDice(cleared) : cleared;
+          })
+        }
+      />
+
       <BigPopup
         open={!!popup}
         word={popup?.word}
         variant={popup?.variant}
         onClose={() => setPopup(null)}
+      />
+
+      <PlasmaCutModal
+        open={plasmaCutOpen}
+        dice={state.dice}
+        onConfirm={onConfirmPlasmaCut}
+        onCancel={() => setPlasmaCutOpen(false)}
       />
     </div>
   );

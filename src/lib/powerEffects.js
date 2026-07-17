@@ -22,7 +22,10 @@ function addDebuff(players, targetIdx, debuff, fromIdx) {
 
 /** Apply a skin secret power to the current game state. */
 export function applySkinPower(state, powerId) {
-  if (!state || state.winner || state.farkle) {
+  if (!state || state.winner) {
+    return { state, message: "Can't use a power right now.", variant: "warning" };
+  }
+  if (state.farkle && powerId !== "plasma_cut") {
     return { state, message: "Can't use a power right now.", variant: "warning" };
   }
 
@@ -98,6 +101,14 @@ export function applySkinPower(state, powerId) {
         },
         message: "Hot Streak active!",
         variant: "success",
+      };
+
+    case "plasma_cut":
+      return {
+        state,
+        message: "Pick a die to cut.",
+        variant: "success",
+        needsPlasmaCutPicker: true,
       };
 
     case "siphon": {
@@ -230,6 +241,52 @@ export function applySkinPower(state, powerId) {
           messageVariant: "success",
         },
         message: "Overtime!",
+        variant: "success",
+      };
+    }
+
+    case "prison_dice": {
+      if (state.players.length <= 1) {
+        return { state, message: "Need an opponent for Prison Dice.", variant: "warning" };
+      }
+      if (state.prisonDice) {
+        return { state, message: "Prison lock already active.", variant: "warning" };
+      }
+      return {
+        state: {
+          ...state,
+          prisonDice: {
+            casterIdx: state.currentIndex,
+            targetIdx,
+            sixCount: 0,
+          },
+          message: `⛓️ ${targetName}'s dice locked in prison! Roll 3 sixes to release them.`,
+          messageVariant: "success",
+        },
+        message: "Prison Dice cast!",
+        variant: "success",
+      };
+    }
+
+    case "shark_bite": {
+      if (state.players.length <= 1) {
+        return { state, message: "Need an opponent for Shark Bite.", variant: "warning" };
+      }
+      const already = (state.players[targetIdx]?.debuffs || []).some(
+        (d) => (typeof d === "string" ? d : d.id) === "shark_bite"
+      );
+      if (already) {
+        return { state, message: `${targetName} is already marked for a shark bite.`, variant: "warning" };
+      }
+      const players = addDebuff(state.players, targetIdx, "shark_bite", state.currentIndex);
+      return {
+        state: {
+          ...state,
+          players,
+          message: `🦈 Shark hunting ${targetName} — it will eat their next bank!`,
+          messageVariant: "success",
+        },
+        message: "Shark Bite cast!",
         variant: "success",
       };
     }

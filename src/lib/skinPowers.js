@@ -6,18 +6,20 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  * ─────────────────────
  * Edit SKIN_POWER_MAP to assign any power id from src/lib/powers.js to a dice skin.
  *
- * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | siphon
- * Sabo powers:  freeze | lockout | blackout | static | xray | overtime
+ * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | siphon | plasma_cut
+ * Sabo powers:  freeze | lockout | blackout | static | xray | overtime | prison_dice | shark_bite
  *
  * Example:
  *   ghost: (mimic — copies opponent's pretend skin; no fixed power)
  *   matrix: "static",    // blinds opponent's own score until they bust
+ *   blue_gel: "shark_bite", // shark eats opponent's next bank
  *
  * Skins not listed here get a stable random power from BASE_POWERS.
  */
 const SKIN_POWER_MAP = {
   // ── Self buffs ──
   lava: "hot_streak",
+  ragnarok: "hot_streak",
   tesla: "lucky_seven",
   matrix: "lucky_seven",
   pf_matrix_storm: "lucky_seven",
@@ -28,11 +30,12 @@ const SKIN_POWER_MAP = {
   gold: "hot_streak",
   toxic_plasma_v2: "double_or_nothing",
   pf_bug_zapper: "reroll",
-  pf_core_burst: "double_or_nothing",
+  pf_plasma_cut: "plasma_cut",
+  pf_core_burst: "prison_dice",
   pf_soundwave: "lucky_seven",
   pf_score_meter: "overtime",
   snow_globe: "shield",
-  blue_gel: "reroll",
+  blue_gel: "shark_bite",
   amber_wasp: "siphon",
   circuit_board: "reroll",
   neon_grid: "hot_streak",

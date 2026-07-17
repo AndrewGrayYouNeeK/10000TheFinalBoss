@@ -2,8 +2,8 @@ import { loadProfile } from "@/lib/localProfile";
 
 export const BUG_ZAPPER_SKIN_ID = "pf_bug_zapper";
 
-/** Bug zapper zap/hum audio when dice are shown in gameplay or shop preview. */
-export const BUG_ZAPPER_SFX_ENABLED = true;
+/** Bug zapper uses a visual flash only — no zap/hum audio. */
+export const BUG_ZAPPER_SFX_ENABLED = false;
 
 let activeGamePlaySessions = 0;
 let activeShopPreviewSessions = 0;

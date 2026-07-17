@@ -1,6 +1,7 @@
 // Core game state manipulation for Dice 10,000
 import { scoreSelection, hasAnyScore, isSixOfAKind } from "./scoring";
 import { POWER_MODE_HOT_DICE } from "./powers";
+import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
 
 export const TARGET_SCORE = 10000;
 export const ENTRY_THRESHOLD = 1000;
@@ -46,6 +47,34 @@ export function clearDebuffsFromCaster(players, casterIdx) {
   }));
 }
 
+function playerHasDebuff(player, debuffId) {
+  return (player?.debuffs || []).some((d) => (typeof d === "string" ? d : d.id) === debuffId);
+}
+
+/** Keep a pending Shark Bite mark across farkle clears (resolves only on bank). */
+function sharkBiteDebuffOnly(player) {
+  const entry = (player?.debuffs || []).find(
+    (d) => (typeof d === "string" ? d : d.id) === "shark_bite"
+  );
+  if (!entry) return [];
+  return [typeof entry === "string" ? { id: "shark_bite" } : entry];
+}
+
+/**
+ * Clear shark bite screen FX. Tray dice stay hidden until the next roll
+ * (see rollDice clearing sharkDiceHidden).
+ */
+export function clearSharkBiteFx(state) {
+  if (!state?.sharkBiteFx) return state;
+  return { ...state, sharkBiteFx: false };
+}
+
+/** Restore tray dice after a shark bite (preview / next round). */
+export function restoreSharkDice(state) {
+  if (!state?.sharkDiceHidden) return state;
+  return { ...state, sharkDiceHidden: false };
+}
+
 export function createInitialState(playerNames, options = {}) {
   const { playerSkins = [] } = options;
   return {
@@ -72,6 +101,8 @@ export function createInitialState(playerNames, options = {}) {
     farkle: false,
     bustCount: 0,
     lastBustWord: null,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
     perfectTenKPending: false,
     hotDiceCount: 0,
     skinPowerUsedThisTurn: false,
@@ -80,6 +111,9 @@ export function createInitialState(playerNames, options = {}) {
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     xrayReveals: {},
+    prisonDice: null,
+    sharkBiteFx: false,
+    sharkDiceHidden: false,
   };
 }
 
@@ -112,6 +146,32 @@ function rollDieValues(count, { luckyRoll = false } = {}) {
   return { values, perfectTenK };
 }
 
+/** All six active dice match — immediate game win (any face, any roll). */
+function checkActiveSixOfAKindWin(state) {
+  const active = state.dice.filter((d) => !d.used).map((d) => d.value);
+  const face = active.length === 6 ? isSixOfAKind(active) : null;
+  if (face === null) return null;
+
+  const idx = state.currentIndex;
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, score: TARGET_SCORE, onBoard: true } : p
+  );
+  const winner = players[idx];
+  const name = winner?.name || "Player";
+
+  return {
+    ...state,
+    players,
+    winner,
+    perfectTenK: true,
+    perfectTenKPending: false,
+    farkle: false,
+    hasRolled: true,
+    message: `🎯 SIX ${face}s — ${name} WINS!`,
+    messageVariant: "success",
+  };
+}
+
 // Perform a dice roll — only on dice that are not `used`
 export function rollDice(state) {
   const rolling = state.dice.filter((d) => !d.used);
@@ -123,13 +183,26 @@ export function rollDice(state) {
     const value = values[vi++];
     return { ...d, value, held: false };
   });
-  return {
+  let next = {
     ...state,
     dice: newDice,
     hasRolled: true,
     luckyRollNext: false,
     perfectTenKPending: perfectTenK || false,
+    // Next round / turn action — dice return after a shark bank-steal.
+    sharkDiceHidden: false,
   };
+  const prison = trackPrisonSixes(next, values);
+  next = prison.state;
+  if (prison.releaseMessage) {
+    next = {
+      ...next,
+      message: prison.releaseMessage,
+      messageVariant: "success",
+      pendingPrisonRelease: prison.releaseMessage,
+    };
+  }
+  return next;
 }
 
 // Evaluate the roll after it lands → farkle / continue
@@ -142,6 +215,7 @@ export function evaluateRoll(state) {
         ...state,
         farkle: false,
         powerShield: false,
+        pendingPrisonRelease: null,
         message: `🛡️ Shield saved ${currentName}'s turn score!`,
         messageVariant: "success",
       };
@@ -152,20 +226,38 @@ export function evaluateRoll(state) {
     return {
       ...state,
       farkle: true,
+      farkleTurnScore: state.turnScore,
       turnScore: 0,
       bustCount: (state.bustCount || 0) + 1,
       lastBustWord: word,
       doubleOrNothing: false,
       turnScoreMultiplier: 1,
       perfectTenKPending: false,
+      pendingPrisonRelease: null,
       message: state.doubleOrNothing
         ? `💥 ${word} Double or Nothing — ${currentName} loses ${lostScore}.`
         : `💥 ${word} ${currentName} loses turn score.`,
       messageVariant: "danger",
     };
   }
+
+  const sixWin = checkActiveSixOfAKindWin(state);
+  if (sixWin) return sixWin;
+
+  // Keep prison-release banner from rollDice when the roll still scores.
+  if (state.pendingPrisonRelease) {
+    return {
+      ...state,
+      farkleTurnScore: null,
+      pendingPrisonRelease: null,
+      message: state.pendingPrisonRelease,
+      messageVariant: "success",
+    };
+  }
+
   return {
     ...state,
+    farkleTurnScore: null,
     message: "Select scoring dice, then bank or roll again.",
     messageVariant: "info",
   };
@@ -173,7 +265,7 @@ export function evaluateRoll(state) {
 
 // Toggle holding a die in the current selection
 export function toggleHold(state, dieId) {
-  if (state.farkle || state.rolling) return state;
+  if (state.farkle || state.rolling || state.winner) return state;
   return {
     ...state,
     dice: state.dice.map(d =>
@@ -192,24 +284,6 @@ export function getHeldInfo(state) {
 // Returns { state, instantWin }
 export function confirmAndReroll(state) {
   const held = getHeldInfo(state);
-  if (isSixOfAKind(held.held) && state.perfectTenKPending) {
-    const players = state.players.map((p, i) =>
-      i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
-    );
-    return {
-      state: {
-        ...state,
-        players,
-        winner: players[state.currentIndex],
-        perfectTenK: true,
-        perfectTenKPending: false,
-        message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
-        messageVariant: "success",
-      },
-      instantWin: true,
-    };
-  }
-
   if (!held.valid || held.score === 0) return { state };
 
   const scored = held;
@@ -265,15 +339,35 @@ export function confirmAndReroll(state) {
       state: {
         ...state,
         dice: newDice,
+        farkleTurnScore: newTurnScore,
         turnScore: 0,
         hasRolled: true,
         farkle: true,
         bustCount: (state.bustCount || 0) + 1,
         lastBustWord: word,
+        pendingPrisonRelease: null,
         message: `💥 ${word} ${state.players[state.currentIndex].name} loses ${newTurnScore}.`,
         messageVariant: "danger",
       },
     };
+  }
+
+  const midState = {
+    ...state,
+    dice: newDice,
+    turnScore: newTurnScore,
+    hasRolled: true,
+    luckyRollNext: false,
+    perfectTenKPending: perfectTenK || false,
+  };
+  const prison = trackPrisonSixes(midState, values);
+  let working = prison.state;
+  if (prison.releaseMessage) {
+    working = { ...working, message: prison.releaseMessage, messageVariant: "success" };
+  }
+  const sixWin = checkActiveSixOfAKindWin(working);
+  if (sixWin) {
+    return { state: sixWin, instantWin: true };
   }
 
   const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
@@ -285,9 +379,17 @@ export function confirmAndReroll(state) {
     : state.players;
   const chargeJustEarned = earnedCharge && !hadCharge;
 
+  const rollMessage = prison.releaseMessage
+    ? prison.releaseMessage
+    : chargeJustEarned
+      ? "🔥 HOT DICE! Power charge earned — use it now or bank it for later!"
+      : allUsed
+        ? "🔥 HOT DICE! All 6 re-rolled."
+        : "Select scoring dice, then bank or roll again.";
+
   return {
     state: {
-      ...state,
+      ...working,
       players,
       dice: newDice,
       turnScore: newTurnScore,
@@ -295,12 +397,8 @@ export function confirmAndReroll(state) {
       luckyRollNext: false,
       perfectTenKPending: perfectTenK || false,
       hotDiceCount: newHotCount,
-      message: chargeJustEarned
-        ? "🔥 HOT DICE! Power charge earned — use it now or bank it for later!"
-        : allUsed
-        ? "🔥 HOT DICE! All 6 re-rolled."
-        : "Select scoring dice, then bank or roll again.",
-      messageVariant: allUsed || chargeJustEarned ? "success" : "info",
+      message: rollMessage,
+      messageVariant: prison.releaseMessage || allUsed || chargeJustEarned ? "success" : "info",
     },
   };
 }
@@ -324,10 +422,12 @@ export function consumeSkinPower(state) {
 
 // Bank the current turn score and pass to next player.
 // Returns new state; if someone wins, winner is set.
+// Shark Bite: if the banker is marked, steal this bank's points and trigger FX
+// (no turn skip — mark resolves only on bank).
 export function bankAndPass(state) {
   const info = getHeldInfo(state);
 
-  if (isSixOfAKind(info.held) && state.perfectTenKPending) {
+  if (isSixOfAKind(info.held) && info.held.length === 6) {
     const players = state.players.map((p, i) =>
       i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
     );
@@ -337,7 +437,7 @@ export function bankAndPass(state) {
       winner: players[state.currentIndex],
       perfectTenK: true,
       perfectTenKPending: false,
-      message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
+      message: `🎯 SIX OF A KIND — INSTANT WIN!`,
       messageVariant: "success",
     };
   }
@@ -348,11 +448,15 @@ export function bankAndPass(state) {
     finalTurn += info.score;
   }
 
-  const player = state.players[state.currentIndex];
+  const finishedIdx = state.currentIndex;
+  const player = state.players[finishedIdx];
+  const pendingSharkBite = playerHasDebuff(player, "shark_bite");
+  const wasOnBoard = !!player.onBoard;
   const newPlayers = [...state.players];
 
   let message;
   let variant;
+  let amountAdded = 0;
 
   if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
     // Didn't make entry
@@ -363,7 +467,8 @@ export function bankAndPass(state) {
     message = `💥 Overshoot! ${player.name} needed exactly ${TARGET_SCORE - player.score} — banked 0.`;
     variant = "danger";
   } else {
-    newPlayers[state.currentIndex] = {
+    amountAdded = finalTurn;
+    newPlayers[finishedIdx] = {
       ...player,
       score: player.score + finalTurn,
       onBoard: true,
@@ -372,9 +477,28 @@ export function bankAndPass(state) {
     variant = "success";
   }
 
-  // Check win
-  const winner = newPlayers[state.currentIndex].score >= TARGET_SCORE
-    ? newPlayers[state.currentIndex]
+  // Pending Shark Bite resolves on bank: undo this round's banked points.
+  let sharkBiteFx = false;
+  if (pendingSharkBite) {
+    if (amountAdded > 0) {
+      const afterBank = newPlayers[finishedIdx];
+      newPlayers[finishedIdx] = {
+        ...afterBank,
+        score: Math.max(0, afterBank.score - amountAdded),
+        onBoard: wasOnBoard,
+      };
+      message = `🦈 Shark ate ${player.name}'s bank (−${amountAdded.toLocaleString()})!`;
+      variant = "danger";
+    } else {
+      message = `🦈 Shark struck as ${player.name} banked — nothing to eat.`;
+      variant = "danger";
+    }
+    sharkBiteFx = true;
+  }
+
+  // Check win (after any shark steal so a bitten bank can't claim the win)
+  const winner = newPlayers[finishedIdx].score >= TARGET_SCORE
+    ? newPlayers[finishedIdx]
     : null;
 
   if (winner) {
@@ -382,14 +506,18 @@ export function bankAndPass(state) {
       ...state,
       players: newPlayers,
       winner,
+      sharkBiteFx: false,
+      sharkDiceHidden: false,
       message: `🎉 ${winner.name} wins with ${winner.score.toLocaleString()}!`,
       messageVariant: "success",
     };
   }
 
   // Sabotage debuffs on the banker clear; power charge carries to their next turn.
-  const finishedIdx = state.currentIndex;
-  const chargeSaved = !!newPlayers[finishedIdx]?.powerCharge && !state.skinPowerUsedThisTurn;
+  const chargeSaved =
+    !pendingSharkBite &&
+    !!newPlayers[finishedIdx]?.powerCharge &&
+    !state.skinPowerUsedThisTurn;
   const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx, {
     skinPowerUsedThisTurn: state.skinPowerUsedThisTurn,
   });
@@ -404,10 +532,15 @@ export function bankAndPass(state) {
     turnScore: 0,
     hasRolled: false,
     farkle: false,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
     perfectTenKPending: false,
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     luckyRollNext: false,
+    sharkBiteFx,
+    // Dice stay gone through FX; cleared when FX completes / next round is ready.
+    sharkDiceHidden: sharkBiteFx,
     ...turnPowerReset(),
     message: `${bankMessage} ${playersAfterBank[nextIndex].name}'s turn.`,
     messageVariant: variant,
@@ -418,14 +551,17 @@ export function bankAndPass(state) {
 export function passAfterFarkle(state) {
   const bustedIdx = state.currentIndex;
   const nextIndex = (state.currentIndex + 1) % state.players.length;
+  const busted = state.players[bustedIdx];
+  // Shark Bite waits for a bank — survive farkle clears. Other debuffs drop.
+  const keepShark = sharkBiteDebuffOnly(busted);
   let players = state.players.map((p, i) =>
-    i === bustedIdx ? { ...p, debuffs: [], powerCharge: false } : p
+    i === bustedIdx ? { ...p, debuffs: keepShark, powerCharge: false } : p
   );
   // Fired a power then busted — sabotage effects you cast are lost.
   if (state.skinPowerUsedThisTurn) {
     players = clearDebuffsFromCaster(players, bustedIdx);
   }
-  return {
+  let nextState = {
     ...state,
     players,
     currentIndex: nextIndex,
@@ -433,14 +569,23 @@ export function passAfterFarkle(state) {
     turnScore: 0,
     hasRolled: false,
     farkle: false,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
     perfectTenKPending: false,
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     luckyRollNext: false,
+    // Fresh turn for the next player — restore tray dice if a prior bite hid them.
+    sharkDiceHidden: false,
+    sharkBiteFx: false,
     ...turnPowerReset(),
     message: `${players[nextIndex].name}'s turn — roll the dice!`,
     messageVariant: "info",
   };
+  if (state.skinPowerUsedThisTurn) {
+    nextState = clearPrisonFromCaster(nextState, bustedIdx);
+  }
+  return nextState;
 }
 
 /** Player indices whose scores should show as hidden (sabotage debuffs). */
