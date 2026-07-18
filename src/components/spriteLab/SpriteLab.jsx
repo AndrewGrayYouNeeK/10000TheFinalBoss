@@ -43,7 +43,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Lock, Unlock } from "lucide-react";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
-import MatrixGameplayVideoUploads from "@/components/spriteLab/DiceGameplayVideoUploads";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import {
   getStoryBossVideoDescription,
@@ -107,6 +106,96 @@ import {
   lockDragonScaleTuning,
   unlockDragonScaleTuning,
 } from "@/lib/dragonScaleTuningLock";
+import {
+  isTealCrackleTuningLocked,
+  lockTealCrackleTuning,
+  unlockTealCrackleTuning,
+} from "@/lib/tealCrackleTuningLock";
+import {
+  isAquamarineLightTuningLocked,
+  lockAquamarineLightTuning,
+  unlockAquamarineLightTuning,
+} from "@/lib/aquamarineLightTuningLock";
+import {
+  isAquamarineTuningLocked,
+  lockAquamarineTuning,
+  unlockAquamarineTuning,
+} from "@/lib/aquamarineTuningLock";
+import {
+  isWoodTuningLocked,
+  lockWoodTuning,
+  unlockWoodTuning,
+} from "@/lib/woodTuningLock";
+import {
+  isSilverTuningLocked,
+  lockSilverTuning,
+  unlockSilverTuning,
+} from "@/lib/silverTuningLock";
+import {
+  isCircuitBoardTuningLocked,
+  lockCircuitBoardTuning,
+  unlockCircuitBoardTuning,
+} from "@/lib/circuitBoardTuningLock";
+import {
+  isCyberNeonTuningLocked,
+  lockCyberNeonTuning,
+  unlockCyberNeonTuning,
+} from "@/lib/cyberNeonTuningLock";
+import {
+  isObsidianTuningLocked,
+  lockObsidianTuning,
+  unlockObsidianTuning,
+} from "@/lib/obsidianTuningLock";
+import {
+  isLabradoriteTuningLocked,
+  lockLabradoriteTuning,
+  unlockLabradoriteTuning,
+} from "@/lib/labradoriteTuningLock";
+import {
+  isLabradoritePolishedTuningLocked,
+  lockLabradoritePolishedTuning,
+  unlockLabradoritePolishedTuning,
+} from "@/lib/labradoritePolishedTuningLock";
+import {
+  isLoveIsLoveTuningLocked,
+  lockLoveIsLoveTuning,
+  unlockLoveIsLoveTuning,
+} from "@/lib/loveIsLoveTuningLock";
+import {
+  isGoldTuningLocked,
+  lockGoldTuning,
+  unlockGoldTuning,
+} from "@/lib/goldTuningLock";
+import {
+  isMoonstoneTuningLocked,
+  lockMoonstoneTuning,
+  unlockMoonstoneTuning,
+} from "@/lib/moonstoneTuningLock";
+import {
+  isNeonGridTuningLocked,
+  lockNeonGridTuning,
+  unlockNeonGridTuning,
+} from "@/lib/neonGridTuningLock";
+import {
+  isPlasmaTuningLocked,
+  lockPlasmaTuning,
+  unlockPlasmaTuning,
+} from "@/lib/plasmaTuningLock";
+import {
+  isPrideTuningLocked,
+  lockPrideTuning,
+  unlockPrideTuning,
+} from "@/lib/prideTuningLock";
+import {
+  isToxicPlasmaV2TuningLocked,
+  lockToxicPlasmaV2Tuning,
+  unlockToxicPlasmaV2Tuning,
+} from "@/lib/toxicPlasmaV2TuningLock";
+import {
+  isRubyTuningLocked,
+  lockRubyTuning,
+  unlockRubyTuning,
+} from "@/lib/rubyTuningLock";
 
 const TUNING_LOCK_SKINS = {
   matrix: {
@@ -187,6 +276,132 @@ const TUNING_LOCK_SKINS = {
     tuningFile: "dragonScaleSpriteTuning.js",
     accent: "emerald",
   },
+  teal_crackle: {
+    isLocked: isTealCrackleTuningLocked,
+    lock: lockTealCrackleTuning,
+    unlock: unlockTealCrackleTuning,
+    tuningFile: "tealCrackleSpriteTuning.js",
+    accent: "sky",
+  },
+  aquamarine_light: {
+    isLocked: isAquamarineLightTuningLocked,
+    lock: lockAquamarineLightTuning,
+    unlock: unlockAquamarineLightTuning,
+    tuningFile: "aquamarineLightSpriteTuning.js",
+    accent: "sky",
+  },
+  aquamarine: {
+    isLocked: isAquamarineTuningLocked,
+    lock: lockAquamarineTuning,
+    unlock: unlockAquamarineTuning,
+    tuningFile: "aquamarineSpriteTuning.js",
+    accent: "sky",
+  },
+  wood: {
+    isLocked: isWoodTuningLocked,
+    lock: lockWoodTuning,
+    unlock: unlockWoodTuning,
+    tuningFile: "woodSpriteTuning.js",
+    accent: "amber",
+  },
+  silver: {
+    isLocked: isSilverTuningLocked,
+    lock: lockSilverTuning,
+    unlock: unlockSilverTuning,
+    tuningFile: "silverSpriteTuning.js",
+    accent: "stone",
+  },
+  circuit_board: {
+    isLocked: isCircuitBoardTuningLocked,
+    lock: lockCircuitBoardTuning,
+    unlock: unlockCircuitBoardTuning,
+    tuningFile: "circuitBoardSpriteTuning.js",
+    accent: "green",
+  },
+  cyber_neon: {
+    isLocked: isCyberNeonTuningLocked,
+    lock: lockCyberNeonTuning,
+    unlock: unlockCyberNeonTuning,
+    tuningFile: "cyberNeonSpriteTuning.js",
+    accent: "purple",
+  },
+  obsidian: {
+    isLocked: isObsidianTuningLocked,
+    lock: lockObsidianTuning,
+    unlock: unlockObsidianTuning,
+    tuningFile: "obsidianSpriteTuning.js",
+    accent: "stone",
+  },
+  labradorite: {
+    isLocked: isLabradoriteTuningLocked,
+    lock: lockLabradoriteTuning,
+    unlock: unlockLabradoriteTuning,
+    tuningFile: "labradoriteSpriteTuning.js",
+    accent: "purple",
+  },
+  labradorite_polished: {
+    isLocked: isLabradoritePolishedTuningLocked,
+    lock: lockLabradoritePolishedTuning,
+    unlock: unlockLabradoritePolishedTuning,
+    tuningFile: "labradoritePolishedSpriteTuning.js",
+    accent: "purple",
+  },
+  love_is_love: {
+    isLocked: isLoveIsLoveTuningLocked,
+    lock: lockLoveIsLoveTuning,
+    unlock: unlockLoveIsLoveTuning,
+    tuningFile: "loveIsLoveSpriteTuning.js",
+    accent: "purple",
+  },
+  gold: {
+    isLocked: isGoldTuningLocked,
+    lock: lockGoldTuning,
+    unlock: unlockGoldTuning,
+    tuningFile: "goldSpriteTuning.js",
+    accent: "amber",
+  },
+  moonstone: {
+    isLocked: isMoonstoneTuningLocked,
+    lock: lockMoonstoneTuning,
+    unlock: unlockMoonstoneTuning,
+    tuningFile: "moonstoneSpriteTuning.js",
+    accent: "sky",
+  },
+  neon_grid: {
+    isLocked: isNeonGridTuningLocked,
+    lock: lockNeonGridTuning,
+    unlock: unlockNeonGridTuning,
+    tuningFile: "neonGridSpriteTuning.js",
+    accent: "purple",
+  },
+  plasma: {
+    isLocked: isPlasmaTuningLocked,
+    lock: lockPlasmaTuning,
+    unlock: unlockPlasmaTuning,
+    tuningFile: "plasmaSpriteTuning.js",
+    accent: "purple",
+  },
+  pride: {
+    isLocked: isPrideTuningLocked,
+    lock: lockPrideTuning,
+    unlock: unlockPrideTuning,
+    tuningFile: "prideSpriteTuning.js",
+    accent: "purple",
+  },
+  toxic_plasma_v2: {
+    isLocked: isToxicPlasmaV2TuningLocked,
+    lock: lockToxicPlasmaV2Tuning,
+    unlock: unlockToxicPlasmaV2Tuning,
+    tuningFile: "toxicPlasmaV2SpriteTuning.js",
+    accent: "green",
+  },
+  ruby: {
+    isLocked: isRubyTuningLocked,
+    lock: lockRubyTuning,
+    unlock: unlockRubyTuning,
+    tuningFile: "rubySpriteTuning.js",
+    accent: "amber",
+  },
 };
 
 const POWER_VIDEO_SKIN_CONFIG = {
@@ -216,7 +431,6 @@ const POWER_VIDEO_SKIN_CONFIG = {
 
 const DIAMOND_CUT_BOSS_ID = "diamond_cut";
 const NEO_BOSS_ID = "neo";
-const FROSTY_BOSS_ID = "snowman";
 const ICE_WITCH_BOSS_ID = "ice_witch";
 const DRAGON_KNIGHT_BOSS_ID = "dragon_knight";
 
@@ -714,7 +928,7 @@ export default function SpriteLab({ skinId }) {
                   ? "Locked — story videos saved with lock"
                   : "Locked — tuning and videos saved on this device"
                 : skinId === "snow_globe"
-                  ? "No sprite sheet — upload Frosty story videos below"
+                  ? "Glass shell dice — live preview only"
                   : skinId === "ice"
                     ? "Sprite crop + per-face nudge · upload Glacia story videos below"
                     : "Global crop + per-face nudge · autosaved in browser"}
@@ -730,8 +944,8 @@ export default function SpriteLab({ skinId }) {
             <span>
               {lockConfig.noSpriteTuning ? (
                 <>
-                  {catalogSkin.name} Sprite Lab is <b>locked</b>. Story video uploads are saved and
-                  read-only until you tap <b>Unlock</b>.
+                  {catalogSkin.name} Sprite Lab is <b>locked</b>. Unlock if you need to change anything
+                  here.
                 </>
               ) : (
                 <>
@@ -747,8 +961,12 @@ export default function SpriteLab({ skinId }) {
           <p className={cn("font-bold", accentText)}>How to tune</p>
           {skinId === "snow_globe" ? (
             <p className="text-slate-300">
-              Snow Globe uses the Aquamarine glass shell with drifting snowflakes — no sprite sheet to tune.
-              Upload <b>Frosty story videos</b> below (before match + after victory).
+              Snow Globe uses the Aquamarine glass shell with drifting snowflakes — no sprite sheet to
+              tune. Frosty story videos upload on{" "}
+              <Link to="/video-assets" className="text-cyan-400 underline">
+                Video Assets → Story mode
+              </Link>
+              .
             </p>
           ) : (
             <ol className="list-decimal pl-4 space-y-1 text-slate-300">
@@ -1179,44 +1397,6 @@ export default function SpriteLab({ skinId }) {
           </div>
         )}
 
-        {skinId === "snow_globe" && (
-          <div className="rounded-xl border border-sky-500/30 bg-sky-950/15 p-4 space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-sky-200">
-              Story mode — Frosty videos
-            </p>
-            <p className="text-[10px] text-slate-400">
-              <b>Before match</b> fullscreen intro · <b>After victory</b> win cutscene ·{" "}
-              <b>Avatar loop</b> large video above the table during the fight (Before match is
-              used if Avatar loop is empty).
-            </p>
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={storyBossIntroKey(FROSTY_BOSS_ID)}
-              label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "intro")}
-              description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "intro")}
-            />
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={storyBossWinKey(FROSTY_BOSS_ID)}
-              label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "win")}
-              description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "win")}
-            />
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={storyBossAvatarKey(FROSTY_BOSS_ID)}
-              label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "avatar")}
-              description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "avatar")}
-            />
-            <p className="text-[10px] text-slate-500 pt-1">
-              Same slots are under <b>Frosty</b> in{" "}
-              <Link to="/video-assets" className="text-cyan-400 underline">
-                Video Assets → Story mode
-              </Link>
-              .
-            </p>
-          </div>
-        )}
-
         {skinId === "ice" && (
           <div className="rounded-xl border border-sky-500/30 bg-sky-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-sky-200">
@@ -1327,10 +1507,6 @@ export default function SpriteLab({ skinId }) {
               .
             </p>
           </div>
-        )}
-
-        {skinId === "matrix" && (
-          <MatrixGameplayVideoUploads lockRemovesOnly={tuningLocked} />
         )}
       </div>
     </div>

@@ -32,7 +32,7 @@ function pick(skinTable, value, size, fallback = 0) {
 const SKIN_X = {
   wood: (v, s) => pick({ 3: (sz) => sz * 0.02, 5: (sz) => sz * 0.02, 6: (sz) => sz * 0.02 }, v, s, faceX(v, s)),
   silver: (v, s) => pick({ 1: (sz) => sz * 0.02, 2: (sz) => sz * 0.02, 3: (sz) => sz * 0.02, 4: (sz) => sz * 0.02, 5: (sz) => sz * 0.02, 6: (sz) => sz * 0.02 }, v, s, faceX(v, s)),
-  // Galaxy uses matrix-style centered crop + catalog face offsets (absolute).
+  // Galaxy uses catalog face offsets (absolute @ ref die size).
   galaxy: () => 0,
   dragon_scale: (v, s) => getDragonScaleSpriteXNudge(v, s) ?? faceX(v, s),
   amethyst: (v, s) => pick({ 2: (sz) => sz * 0.015, 3: (sz) => -sz * 0.005, 6: (sz) => sz * 0.015 }, v, s, faceX(v, s)),
@@ -57,6 +57,7 @@ const SKIN_X = {
   pride: (v, s) => pick({ 1: (sz) => -sz * 0.01, 2: (sz) => -sz * 0.14, 3: (sz) => -sz * 0.26, 4: (sz) => -sz * 0.02, 5: (sz) => -sz * 0.15, 6: (sz) => -sz * 0.24 }, v, s, faceX(v, s)),
   circuit_board: (v, s) => pick({ 1: (sz) => dieRefPx(-3, sz), 2: (sz) => dieRefPx(-18, sz), 3: (sz) => dieRefPx(-31, sz), 4: (sz) => dieRefPx(-2, sz), 5: (sz) => dieRefPx(-17, sz), 6: (sz) => dieRefPx(-29, sz) }, v, s, faceX(v, s)),
   neon_grid: (v, s) => pick({ 1: (sz) => dieRefPx(-3, sz), 2: (sz) => dieRefPx(-16, sz), 3: (sz) => dieRefPx(-25, sz), 4: (sz) => dieRefPx(-4, sz), 5: (sz) => dieRefPx(-15, sz), 6: (sz) => dieRefPx(-25, sz) }, v, s, faceX(v, s)),
+  cyber_neon: (v, s) => pick({ 1: (sz) => dieRefPx(-3, sz), 2: (sz) => dieRefPx(-16, sz), 3: (sz) => dieRefPx(-25, sz), 4: (sz) => dieRefPx(-4, sz), 5: (sz) => dieRefPx(-15, sz), 6: (sz) => dieRefPx(-25, sz) }, v, s, faceX(v, s)),
   amber_wasp: (v, s) => pick({ 1: (sz) => dieRefPx(4, sz), 2: (sz) => dieRefPx(4, sz), 3: (sz) => dieRefPx(4, sz), 4: (sz) => dieRefPx(4, sz), 5: (sz) => dieRefPx(3.5, sz), 6: (sz) => dieRefPx(5, sz) }, v, s, faceX(v, s)),
   toxic_plasma_v2: (v, s) => pick({ 2: (sz) => dieRefPx(-4, sz), 3: (sz) => dieRefPx(-7, sz), 4: (sz) => dieRefPx(-1, sz), 5: (sz) => dieRefPx(-4, sz), 6: (sz) => dieRefPx(-7, sz) }, v, s, faceX(v, s)),
   labradorite: (v, s) => pick({ 2: (sz) => dieRefPx(2, sz), 3: (sz) => dieRefPx(4, sz), 4: (sz) => dieRefPx(2, sz), 5: (sz) => dieRefPx(2, sz), 6: (sz) => dieRefPx(2, sz) }, v, s, faceX(v, s)),
@@ -84,6 +85,7 @@ const SKIN_Y = {
   pride: (v, s) => pick({ 2: (sz) => sz * 0.02, 3: (sz) => sz * 0.03, 4: (sz) => -sz * 0.07, 5: (sz) => -sz * 0.06, 6: (sz) => -sz * 0.06 }, v, s, faceY(v, s)),
   circuit_board: (v, s) => pick({ 1: (sz) => dieRefPx(5, sz), 2: (sz) => dieRefPx(4, sz), 3: (sz) => dieRefPx(4, sz), 4: (sz) => dieRefPx(-7, sz), 5: (sz) => dieRefPx(-10, sz), 6: (sz) => dieRefPx(-9, sz) }, v, s, faceY(v, s)),
   neon_grid: (v, s) => pick({ 4: (sz) => dieRefPx(-8, sz), 5: (sz) => dieRefPx(-7, sz), 6: (sz) => dieRefPx(-7, sz) }, v, s, faceY(v, s)),
+  cyber_neon: (v, s) => pick({ 4: (sz) => dieRefPx(-8, sz), 5: (sz) => dieRefPx(-7, sz), 6: (sz) => dieRefPx(-7, sz) }, v, s, faceY(v, s)),
   amber_wasp: (v, s) => pick({ 1: (sz) => dieRefPx(2, sz), 2: (sz) => dieRefPx(2, sz), 3: (sz) => dieRefPx(2, sz), 4: (sz) => dieRefPx(0.5, sz), 5: (sz) => dieRefPx(1, sz), 6: (sz) => dieRefPx(1, sz) }, v, s, faceY(v, s)),
   toxic_plasma_v2: (v, s) => pick({ 4: (sz) => dieRefPx(-4, sz) }, v, s, faceY(v, s)),
   labradorite: () => 0,

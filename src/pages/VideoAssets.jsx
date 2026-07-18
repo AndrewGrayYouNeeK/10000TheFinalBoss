@@ -103,7 +103,7 @@ export default function VideoAssets() {
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_BOSS_WIN} />
 
         <p className="text-xs text-slate-400 rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-3 py-2">
-          <b>Gameplay</b> (10,000 sign + Matrix power dice) uploads on{" "}
+          <b>Matrix power dice</b> and <b>Neo story videos</b> upload on{" "}
           <Link to="/sprite-lab/matrix" className="text-cyan-400 underline">
             Matrix Sprite Lab
           </Link>
@@ -161,13 +161,14 @@ export default function VideoAssets() {
         </div>
 
         <p className="text-[10px] text-slate-500 text-center pt-2">
-          Gameplay (10,000 sign + Matrix power dice) and Neo story before/after videos are on{" "}
+          Matrix power dice upload is on{" "}
           <Link to="/sprite-lab/matrix" className="text-cyan-400 underline">
             Matrix Sprite Lab
           </Link>
-          . Other power dice uploads are on each dice&apos;s Sprite Lab (Diamond Cut, etc.). Story
-          before/after videos are on matching boss dice labs (Frosty, Glacia, Vitrea, Sir Scalewyrm,
-          …). Blue Gel / shark power video is also on{" "}
+          . Neo story videos (intro, win, avatar loop) are there too and under <b>Neo</b> above.
+          Other power dice uploads are on each dice&apos;s Sprite Lab (Diamond Cut, etc.). Story
+          before/after videos for Glacia, Vitrea, Sir Scalewyrm, and Neo are on matching dice labs.
+          Frosty and all other bosses upload above. Blue Gel / shark power video is also on{" "}
           <Link to="/fish-showcase" className="text-cyan-400 underline">
             Fish Showcase
           </Link>

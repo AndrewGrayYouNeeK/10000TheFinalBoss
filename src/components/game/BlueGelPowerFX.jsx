@@ -31,7 +31,7 @@ export function useBlueGelChromaSettings() {
 export const SHARK_BITE_CHOMP_EVENT = "yourneek:shark-bite-chomp";
 
 /** Ms from SVG swim start until the shark chomps (sync tray dice vanish). */
-export const SHARK_BITE_CHOMP_MS = 1600;
+export const SHARK_BITE_CHOMP_MS = 1440;
 /** Full-screen SVG swim duration. */
 export const SHARK_BITE_FX_MS = 3200;
 /**
@@ -46,9 +46,106 @@ export const SHARK_BITE_TOTAL_MS = SHARK_BITE_SVG_BEAT_MS + SHARK_BITE_FX_MS;
 /** Safety timeout if chomp event never fires (video or SVG). */
 export const SHARK_BITE_FALLBACK_VANISH_MS = 8000;
 
+/** Calm blue-gel water before the shark feast. */
+const BLUE_GEL_WATER_IDLE =
+  "radial-gradient(ellipse at 50% 40%, rgba(14,116,144,0.15) 0%, transparent 60%)";
+
+/** Bloody water while the feast aftermath bubbles play out. */
+const BLUE_GEL_BLOOD_WATER =
+  "radial-gradient(ellipse at 50% 38%, rgba(185,22,22,0.78) 0%, rgba(48,6,6,0.68) 58%, rgba(12,1,1,0.72) 100%)";
+
+/** Darker crimson once the feast settles — rest of the match. */
+const BLUE_GEL_BLOOD_WATER_SETTLED =
+  "radial-gradient(ellipse at 50% 36%, rgba(210,12,12,0.88) 0%, rgba(38,4,4,0.82) 52%, rgba(8,0,0,0.9) 100%)";
+
+const BLUE_GEL_BLOOD_BUBBLE =
+  "radial-gradient(circle at 30% 30%, rgba(252,165,165,0.9), rgba(110,10,10,0.58))";
+
+const BLUE_GEL_BLOOD_BUBBLE_SETTLED =
+  "radial-gradient(circle at 30% 30%, rgba(248,113,113,0.82), rgba(90,8,8,0.62))";
+
 export function emitSharkBiteChomp() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(SHARK_BITE_CHOMP_EVENT));
+}
+
+/** Live dice-tray center for aligning the fullscreen shark bite. */
+export function useGameplayDiceTrayAnchor(active) {
+  const [anchor, setAnchor] = React.useState(null);
+
+  React.useLayoutEffect(() => {
+    if (!active) {
+      setAnchor(null);
+      return undefined;
+    }
+
+    const measure = () => {
+      const el = document.getElementById("gameplay-dice-tray");
+      if (!el) {
+        setAnchor({
+          x: window.innerWidth * 0.5,
+          y: window.innerHeight * 0.72,
+          w: Math.min(window.innerWidth * 0.88, 420),
+          h: 140,
+        });
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      setAnchor({
+        x: r.left + r.width / 2,
+        y: r.top + r.height / 2,
+        w: r.width,
+        h: r.height,
+      });
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [active]);
+
+  return anchor;
+}
+
+/** Live dice-tray center — used to dip the jaw onto the dice at chomp. */
+function getSharkBiteLayout(trayAnchor) {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 400;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const anchor = trayAnchor ?? {
+    x: vw * 0.5,
+    y: vh * 0.72,
+    w: Math.min(vw * 0.88, 420),
+    h: 140,
+  };
+
+  // Big, dramatic shark — dominates the middle of the screen.
+  const sharkW = Math.min(vw * 0.98, 860);
+  const sharkH = sharkW * 0.5;
+  const screenCx = vw * 0.5;
+  const screenCy = vh * 0.47;
+
+  // Center the whole shark on screen; dip at chomp so the jaw reaches the dice tray.
+  const baseLeft = screenCx - sharkW / 2;
+  const baseTop = screenCy - sharkH / 2;
+  const mouthY = baseTop + sharkH * 0.58;
+  const chompDip = Math.min(Math.max(anchor.y - mouthY + 12, 28), sharkH * 0.28);
+  const chompTop = baseTop + chompDip;
+
+  return {
+    anchor,
+    sharkW,
+    sharkH,
+    baseLeft,
+    baseTop,
+    chompTop,
+    chompDip,
+    offLeft: -(baseLeft + sharkW + 64),
+    offRight: vw - baseLeft + 64,
+  };
 }
 
 /** Resolve uploaded blue_gel_power blob URL (null if none). */
@@ -343,12 +440,14 @@ export function BlueGelPowerVideoScreen({
 
   if (!active || !url || failed) return null;
 
+  const biteOverlay = overGameplay && !loop;
+
   return (
     <AnimatePresence>
       <motion.div
         key={`blue-gel-power-video-${loop ? "loop" : "once"}`}
-        className="fixed inset-0 overflow-hidden flex items-center justify-center"
-        style={{ zIndex, pointerEvents: "none" }}
+        className="fixed inset-0 overflow-hidden flex items-center justify-center pointer-events-none"
+        style={{ zIndex }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -363,7 +462,11 @@ export function BlueGelPowerVideoScreen({
               if (!loop) onEnded?.();
             }}
             onError={handleError}
-            className="w-full h-full object-contain"
+            className={
+              biteOverlay
+                ? "w-[min(98vw,860px)] h-auto max-h-[min(72vh,520px)] object-contain translate-y-6"
+                : "w-full h-full object-contain"
+            }
           />
         ) : (
           <>
@@ -401,6 +504,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const chompEmitted = React.useRef(false);
   const onChompRef = React.useRef(onChomp);
   const onCompleteRef = React.useRef(onComplete);
+  const trayAnchor = useGameplayDiceTrayAnchor(active);
   onChompRef.current = onChomp;
   onCompleteRef.current = onComplete;
 
@@ -515,38 +619,39 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     );
   }
 
+  const layout = getSharkBiteLayout(trayAnchor);
+  const { anchor, sharkW, sharkH, baseLeft, chompTop, chompDip, offLeft, offRight } = layout;
+
   return (
     <AnimatePresence>
       {swim ? (
         <motion.div
           key="shark-bite-screen"
-          className="fixed inset-0 z-[55] overflow-hidden"
+          className="fixed inset-0 z-[55] overflow-hidden pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          style={{ pointerEvents: "none" }}
         >
-          {/* Shark only — no backdrop, so it swims over the live gameplay screen.
-              Centered over the dice tray and held there through the chomp so it
-              looks like it swallows every die at once. */}
           <motion.div
-            className="absolute left-1/2 top-[56%]"
+            className="absolute"
             style={{
-              width: "min(94vw, 620px)",
-              height: "min(48vw, 320px)",
-              filter: "drop-shadow(0 12px 26px rgba(0,0,0,0.6))",
+              left: baseLeft,
+              top: chompTop,
+              width: sharkW,
+              height: sharkH,
+              filter: "drop-shadow(0 16px 32px rgba(0,0,0,0.65))",
             }}
-            initial={{ x: "-160%", y: "-50%", opacity: 0 }}
+            initial={{ x: offLeft, y: -chompDip, opacity: 0 }}
             animate={{
-              x: ["-160%", "-50%", "-50%", "170%"],
-              y: ["-50%", "-54%", "-46%", "-52%"],
+              x: [offLeft, 0, 0, offRight],
+              y: [-chompDip, 0, 0, -chompDip * 0.5],
               opacity: [0, 1, 1, 1],
-              scale: chomping ? [1, 1.16, 1.02] : 1,
+              scale: chomping ? [1, 1.12, 1.04] : 1,
             }}
             transition={{
               duration: SHARK_BITE_FX_MS / 1000,
-              times: [0, 0.42, 0.62, 1],
+              times: [0, 0.45, 0.65, 1],
               ease: "easeInOut",
             }}
           >
@@ -555,11 +660,16 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
 
           {chomping ? (
             <motion.div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl sm:text-7xl font-black text-rose-400"
+              className="fixed text-5xl sm:text-7xl font-black text-rose-400 pointer-events-none"
+              style={{
+                left: anchor.x,
+                top: anchor.y - 24,
+                transform: "translate(-50%, -50%)",
+                textShadow: "0 0 24px rgba(248,113,113,0.8)",
+              }}
               initial={{ scale: 0.4, opacity: 0 }}
               animate={{ scale: [0.4, 1.25, 1], opacity: [0, 1, 0] }}
               transition={{ duration: 0.85 }}
-              style={{ textShadow: "0 0 24px rgba(248,113,113,0.8)" }}
             >
               CHOMP!
             </motion.div>
@@ -628,6 +738,10 @@ export function BlueGelSharkAttack({
     phase === "bubble2" ||
     phase === "bubble3" ||
     phase === "normal";
+  const bloodWaterBg =
+    phase === "normal" ? BLUE_GEL_BLOOD_WATER_SETTLED : BLUE_GEL_BLOOD_WATER;
+  const bloodBubbleBg =
+    phase === "normal" ? BLUE_GEL_BLOOD_BUBBLE_SETTLED : BLUE_GEL_BLOOD_BUBBLE;
 
   const normalBubbleCount = count >= 5 ? 22 : count === 4 ? 14 : 8;
   const bubbleCount =
@@ -657,9 +771,7 @@ export function BlueGelSharkAttack({
         className="absolute inset-0"
         style={{ borderRadius: radius }}
         animate={{
-          background: waterRed
-            ? "radial-gradient(ellipse at 50% 40%, rgba(153,27,27,0.55) 0%, rgba(69,10,10,0.4) 70%)"
-            : "radial-gradient(ellipse at 50% 40%, rgba(14,116,144,0.15) 0%, transparent 60%)",
+          background: waterRed ? bloodWaterBg : BLUE_GEL_WATER_IDLE,
         }}
         transition={{ duration: waterRed ? 0.85 : 0.35, ease: "easeOut" }}
       />
@@ -728,9 +840,7 @@ export function BlueGelSharkAttack({
               height: sz,
               left: `${(i * 37 + 3) % 94}%`,
               bottom: -4,
-              background: waterRed
-                ? "radial-gradient(circle at 30% 30%, rgba(254,202,202,0.95), rgba(185,28,28,0.35))"
-                : "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(125,211,252,0.35))",
+              background: waterRed ? bloodBubbleBg : "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(125,211,252,0.35))",
               border: "1px solid rgba(255,255,255,0.35)",
             }}
             animate={{ y: [0, -size * 1.35], opacity: [0, 0.95, 0], scale: [0.55, 1.15, 0.85] }}
@@ -769,7 +879,7 @@ export function BloodyWaterTint({ size, radius, count = 1 }) {
         className="absolute inset-0"
         style={{
           borderRadius: radius,
-          background: "radial-gradient(ellipse at 50% 40%, rgba(153,27,27,0.55) 0%, rgba(69,10,10,0.4) 70%)",
+          background: BLUE_GEL_BLOOD_WATER_SETTLED,
         }}
       />
       {Array.from({ length: bubbleCount }, (_, i) => {
@@ -783,7 +893,7 @@ export function BloodyWaterTint({ size, radius, count = 1 }) {
               height: sz,
               left: `${(i * 37 + 3) % 94}%`,
               bottom: -4,
-              background: "radial-gradient(circle at 30% 30%, rgba(254,202,202,0.9), rgba(185,28,28,0.35))",
+              background: BLUE_GEL_BLOOD_BUBBLE_SETTLED,
               border: "1px solid rgba(255,255,255,0.3)",
             }}
             animate={{ y: [0, -size * 1.35], opacity: [0, 0.9, 0], scale: [0.55, 1.1, 0.85] }}
@@ -844,7 +954,7 @@ export function BloodPowerFx({ size, radius, count = 1, locked = false, onSettle
         className="absolute inset-0"
         style={{ borderRadius: radius }}
         animate={{
-          background: "radial-gradient(ellipse at 50% 40%, rgba(153,27,27,0.55) 0%, rgba(69,10,10,0.4) 70%)",
+          background: BLUE_GEL_BLOOD_WATER,
         }}
         transition={{ duration: 0.5 }}
       />
@@ -859,7 +969,7 @@ export function BloodPowerFx({ size, radius, count = 1, locked = false, onSettle
               height: sz,
               left: `${(i * 37 + 3) % 94}%`,
               bottom: -4,
-              background: "radial-gradient(circle at 30% 30%, rgba(254,202,202,0.95), rgba(185,28,28,0.35))",
+              background: BLUE_GEL_BLOOD_BUBBLE,
               border: "1px solid rgba(255,255,255,0.35)",
             }}
             animate={{ y: [0, -size * 1.35], opacity: [0, 0.95, 0], scale: [0.55, 1.15, 0.85] }}

@@ -30,17 +30,26 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
   const showIntroVideo =
     mode === "intro" && introReady && !!storyVideoSrc && !introVideoDone;
   const showWinVideo = mode === "win" && winReady && !!winVideoSrc && !winVideoDone;
-  const showDialogue = !introPending && !winPending && !showIntroVideo && !showWinVideo;
+  const showDialogue =
+    mode !== "intro" && !introPending && !winPending && !showIntroVideo && !showWinVideo;
 
-  const line =
-    mode === "intro" ? boss.intro :
-    mode === "win"   ? boss.winLine :
-                       boss.loseLine;
+  const introSkipRef = React.useRef(false);
+  React.useEffect(() => {
+    introSkipRef.current = false;
+  }, [mode, boss?.id]);
+
+  // Intro uses the cutscene video only — skip the quote card and go straight to the fight.
+  React.useEffect(() => {
+    if (mode !== "intro" || introPending || showIntroVideo) return;
+    if (introSkipRef.current) return;
+    introSkipRef.current = true;
+    onContinue();
+  }, [mode, introPending, showIntroVideo, onContinue]);
+
+  const line = mode === "win" ? boss.winLine : boss.loseLine;
 
   const continueLabel =
-    mode === "intro" ? "Roll the Dice" :
-    mode === "win"   ? "Claim Rewards" :
-                       "Try Again";
+    mode === "win" ? "Claim Rewards" : "Try Again";
 
   return (
     <AnimatePresence>
@@ -129,26 +138,14 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
               </div>
             )}
 
-            {/* Gimmick warning on intro */}
-            {mode === "intro" && boss.gimmick && (
-              <div className="mb-5 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/30 p-3 text-sm">
-                <div className="text-fuchsia-300 font-black uppercase tracking-wider text-xs mb-1">
-                  ⚡ {boss.gimmick.name}
-                </div>
-                <div className="text-slate-200">{boss.gimmick.description}</div>
-              </div>
-            )}
-
             <div className="flex gap-2">
-              {mode !== "intro" && (
-                <Button
-                  variant="outline"
-                  onClick={onExit}
-                  className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700/30"
-                >
-                  <X className="w-4 h-4 mr-1" /> Exit
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                onClick={onExit}
+                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700/30"
+              >
+                <X className="w-4 h-4 mr-1" /> Exit
+              </Button>
               <Button
                 onClick={onContinue}
                 className="flex-1 bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-white font-black"

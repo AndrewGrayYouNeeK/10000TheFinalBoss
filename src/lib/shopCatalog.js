@@ -10,6 +10,24 @@ import { GALAXY_SPRITE_TUNING } from "./galaxySpriteTuning";
 import { PAPER_SPRITE_TUNING } from "./paperSpriteTuning";
 import { DRAGON_SCALE_SPRITE_TUNING } from "./dragonScaleSpriteTuning";
 import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
+import { TEAL_CRACKLE_SPRITE_TUNING } from "./tealCrackleSpriteTuning";
+import { AQUAMARINE_LIGHT_SPRITE_TUNING } from "./aquamarineLightSpriteTuning";
+import { AQUAMARINE_SPRITE_TUNING } from "./aquamarineSpriteTuning";
+import { WOOD_SPRITE_TUNING } from "./woodSpriteTuning";
+import { SILVER_SPRITE_TUNING } from "./silverSpriteTuning";
+import { CIRCUIT_BOARD_SPRITE_TUNING } from "./circuitBoardSpriteTuning";
+import { CYBER_NEON_SPRITE_TUNING } from "./cyberNeonSpriteTuning";
+import { OBSIDIAN_SPRITE_TUNING } from "./obsidianSpriteTuning";
+import { LABRADORITE_SPRITE_TUNING } from "./labradoriteSpriteTuning";
+import { LABRADORITE_POLISHED_SPRITE_TUNING } from "./labradoritePolishedSpriteTuning";
+import { LOVE_IS_LOVE_SPRITE_TUNING } from "./loveIsLoveSpriteTuning";
+import { GOLD_SPRITE_TUNING } from "./goldSpriteTuning";
+import { MOONSTONE_SPRITE_TUNING } from "./moonstoneSpriteTuning";
+import { NEON_GRID_SPRITE_TUNING } from "./neonGridSpriteTuning";
+import { PLASMA_SPRITE_TUNING } from "./plasmaSpriteTuning";
+import { PRIDE_SPRITE_TUNING } from "./prideSpriteTuning";
+import { TOXIC_PLASMA_V2_SPRITE_TUNING } from "./toxicPlasmaV2SpriteTuning";
+import { RUBY_SPRITE_TUNING } from "./rubySpriteTuning";
 import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
 import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
 import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, lockedTuningStorageKey } from "./spriteLab";
@@ -54,6 +72,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Forged steel patterns.",
     realistic: true,
     spriteUrl: "/assets/0aba8ef3e_3WGKngcFo6eWV9kOIGywM_0CERzNWO.png",
+    ...OBSIDIAN_SPRITE_TUNING,
   },
   {
     id: "gold",
@@ -66,6 +85,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Liquid gold, poured and set.",
     realistic: true,
     spriteUrl: "/assets/cb5c77d90_WxvYf9qjMiU_V3CHnTzs-_DUPg67v2.png",
+    ...GOLD_SPRITE_TUNING,
   },
   {
     id: "ice",
@@ -90,6 +110,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Old-school heirloom.",
     realistic: true,
     spriteUrl: "/assets/228200ce8_ATRoh-oyklhfyDNGiNUns_8aPlZmR3.png",
+    ...WOOD_SPRITE_TUNING,
   },
   {
     id: "silver",
@@ -102,6 +123,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Polished to a mirror finish.",
     realistic: true,
     spriteUrl: "/assets/b736d9909_XLGcJr6bRUs-pTA6-8I3W_BSiKR6Eb.png",
+    ...SILVER_SPRITE_TUNING,
   },
   {
     id: "galaxy",
@@ -153,6 +175,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Iridescent shimmer.",
     realistic: true,
     spriteUrl: "/assets/09a488969_Ub3rBdwrMd_RZcipohKxd_EQnQspfS1.png",
+    ...MOONSTONE_SPRITE_TUNING,
   },
   {
     id: "tesla",
@@ -177,6 +200,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Crystalline teal ice.",
     realistic: true,
     spriteUrl: "/assets/ea849396a_4grOkW27dXAMMIWio02qb_XCcgJ8xy.png",
+    ...TEAL_CRACKLE_SPRITE_TUNING,
   },
   {
     id: "fluorite",
@@ -202,6 +226,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Pale blue gem.",
     realistic: true,
     spriteUrl: "/assets/397f4c284_8KTW9qvIkitDTb0vG9fhu_7KfGY6c1.png",
+    ...AQUAMARINE_SPRITE_TUNING,
   },
   {
     id: "aquamarine_light",
@@ -214,6 +239,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Frozen crystal with snow pips.",
     realistic: true,
     spriteUrl: "/assets/1c7906a81_Hu7h97ueIT2Jwptn9FZ7__7kNv8V4L1.png",
+    ...AQUAMARINE_LIGHT_SPRITE_TUNING,
   },
   {
     id: "labradorite",
@@ -226,6 +252,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Iridescent flash stone.",
     realistic: true,
     spriteUrl: "/assets/e7485697f_Iy2qPWFYEYP6icK_sajWf_y69Q9Qql.png",
+    ...LABRADORITE_SPRITE_TUNING,
   },
   {
     id: "labradorite_polished",
@@ -238,6 +265,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Mirror-polished flash stone.",
     realistic: true,
     spriteUrl: "/assets/738791fb4_O3cR7UnvvpKR87_KhcSDr_5BxDZrw1.png",
+    ...LABRADORITE_POLISHED_SPRITE_TUNING,
   },
   {
     id: "pride",
@@ -250,6 +278,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Roll with pride.",
     realistic: true,
     spriteUrl: "/assets/20ba5f935_W1EDolVpb0uw1QghqIvI0_o4ooSDC4.png",
+    ...PRIDE_SPRITE_TUNING,
   },
   {
     id: "ruby",
@@ -262,6 +291,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Translucent crimson gem.",
     realistic: true,
     spriteUrl: "/assets/95bd85fb4_RdaZRnY8n4MYNGmhbire2_jIN9S0Pd.png",
+    ...RUBY_SPRITE_TUNING,
   },
   {
     id: "crystal_cut",
@@ -287,6 +317,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Prismatic crystal — love is love.",
     realistic: true,
     spriteUrl: "/assets/1f8e20d7a_Aefo3mZm6pYMmwcs9AaPi_cY70s0I3.png",
+    ...LOVE_IS_LOVE_SPRITE_TUNING,
   },
   {
     id: "paper",
@@ -312,6 +343,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Cyberpunk geometry.",
     realistic: true,
     spriteUrl: "/assets/1faa6e66a_4sGTKX3C3u5uBHFW6rhKC_oVYyNtwY.png",
+    ...NEON_GRID_SPRITE_TUNING,
   },
   {
     id: "circuit_board",
@@ -324,6 +356,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Glowing electric traces.",
     realistic: true,
     spriteUrl: "/assets/7ef629a61_N1Mwm3MTe-edyuydevqG6_9LLwCe6C.png",
+    ...CIRCUIT_BOARD_SPRITE_TUNING,
   },
   {
     id: "amber_wasp",
@@ -349,6 +382,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Radioactive plasma containment.",
     realistic: true,
     spriteUrl: "/assets/73270979c_AEVwA3ZnKA53oXNB1kVpd_lBugstGt.png",
+    ...TOXIC_PLASMA_V2_SPRITE_TUNING,
   },
   {
     id: "matrix",
@@ -398,6 +432,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Live plasma energy.",
     realistic: true,
     spriteUrl: "/assets/2557270d2_25tUwCJ15TdeszFvoq7X3_u7DNsem8.png",
+    ...PLASMA_SPRITE_TUNING,
   },
   {
     id: "cyber_neon",
@@ -410,8 +445,9 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Hot pink & cyan neon cyberpunk dice.",
     preview: true,
     realistic: true,
-    spriteUrl: "/assets/354eae8fe_generated_image.png",
+    spriteUrl: "/assets/1faa6e66a_4sGTKX3C3u5uBHFW6rhKC_oVYyNtwY.png",
     spriteGrid: { cols: 3, rows: 2 },
+    ...CYBER_NEON_SPRITE_TUNING,
   },
 ];
 
@@ -1030,6 +1066,17 @@ export function getSkin(id) {
     };
   }
 
+  if (skin.id === "moonstone") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
   if (skin.id === "paper") {
     return {
       ...skin,
@@ -1041,7 +1088,194 @@ export function getSkin(id) {
     };
   }
 
+  if (skin.id === "love_is_love") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
   if (skin.id === "dragon_scale") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "teal_crackle") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "aquamarine_light") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "aquamarine") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "wood") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "obsidian") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "gold") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "labradorite") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "labradorite_polished") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "silver") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "circuit_board") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "cyber_neon") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "neon_grid") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "plasma") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "pride") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "toxic_plasma_v2") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "ruby") {
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,

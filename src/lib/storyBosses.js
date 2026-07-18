@@ -448,8 +448,7 @@ const ALL_BOSSES = [
     gimmick: {
       id: "final_boss",
       name: "Diamond Mind",
-      description: "GQ starts with 4,000 banked, is immune to his first 2 farkles, and his non-scoring dice spark into 6s.",
-      startScore: 4000,
+      description: "GQ is immune to his first 2 farkles, and his non-scoring dice spark into 6s.",
       farkleShield: 2,
       doubledSixes: true,
     },

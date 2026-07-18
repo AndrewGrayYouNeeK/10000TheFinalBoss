@@ -64,7 +64,8 @@ function DiceTray({
   const jellyDieId = dice.find((d) => !d.used && (d.value ?? 0) >= 2)?.id ?? null;
 
   return (
-    <FeltTrayFrame felt={felt} innerClassName="p-6" intense={feltIntense}>
+    <div id="gameplay-dice-tray">
+      <FeltTrayFrame felt={felt} innerClassName="p-6" intense={feltIntense}>
       <div className="relative grid grid-cols-3 gap-3 sm:gap-6 justify-items-center sm:grid-cols-6">
         {dice.map((d, idx) => {
           // Pull each die toward the tray center as the shark chomps. The dice
@@ -92,7 +93,7 @@ function DiceTray({
               value={d.value}
               held={d.held}
               used={d.used}
-              rolling={rolling && !d.used}
+              rolling={rolling && !d.used && !d.held}
               dieId={d.id}
               onToggleDie={handleToggle}
               size={100}
@@ -115,6 +116,7 @@ function DiceTray({
         })}
       </div>
     </FeltTrayFrame>
+    </div>
   );
 }
 

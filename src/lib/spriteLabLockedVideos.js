@@ -21,7 +21,6 @@ import {
 const SKIN_STORY_BOSS = {
   matrix: "neo",
   crystal_cut: "diamond_cut",
-  snow_globe: "snowman",
   ice: "ice_witch",
   dragon_scale: "dragon_knight",
 };
@@ -50,7 +49,7 @@ function lockedVideosMetaKey(skinId) {
 export function getSpriteLabVideoKeys(skinId) {
   const keys = [];
   if (skinId === "matrix") {
-    keys.push(MATRIX_GAMEPLAY_BILLBOARD_KEY, VIDEO_KEYS.MATRIX_POWER);
+    keys.push(VIDEO_KEYS.MATRIX_POWER);
   }
   if (skinId === "crystal_cut") keys.push(VIDEO_KEYS.DIAMOND_CUT_POWER);
   const bossId = SKIN_STORY_BOSS[skinId];

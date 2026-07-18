@@ -40,7 +40,6 @@ import ScorePanel from "@/components/game/ScorePanel";
 import TurnBanner from "@/components/game/TurnBanner";
 import BigPopup from "@/components/game/BigPopup";
 import BossDialogue from "@/components/story/BossDialogue";
-import BossAvatar from "@/components/story/BossAvatar";
 import BossRainBackground from "@/components/story/BossRainBackground";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
@@ -73,7 +72,6 @@ export default function StoryGame() {
   // Each boss brings their own table felt — no player choice in story mode.
   const storyFeltId = getStoryBossFeltId(bossId);
   const storyPlayerSkin = getStoryPlayerSkin(user?.bosses_defeated || []);
-  const storyPlayerSkinLabel = getSkin(storyPlayerSkin)?.name || storyPlayerSkin.replace(/_/g, " ");
   const playDiceSound = useDiceSound();
 
   const [dialogue, setDialogue] = useState("intro"); // "intro" | null | "win" | "lose"
@@ -86,6 +84,8 @@ export default function StoryGame() {
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
   const [practiceSharkVideo, setPracticeSharkVideo] = useState(false);
   const practiceSharkBiteRef = useRef(false);
+  const foregroundCanvasRef = useRef(null);
+  const foregroundFx = bossId === "fisherman" || bossId === "gq";
   const replayPracticeSharkBite = useCallback(() => {
     practiceSharkBiteRef.current = true;
     setGame((g) => (g ? { ...g, sharkBiteFx: true, sharkDiceHidden: true } : g));
@@ -525,8 +525,12 @@ export default function StoryGame() {
 
   return (
     <div className="min-h-screen text-white pb-6 flex flex-col relative">
-      <BossRainBackground bossId={boss.id} />
-      <div className="relative z-10 flex-1 flex flex-col">
+      <BossRainBackground
+        bossId={boss.id}
+        bubblesFullScreen={bossId === "fisherman"}
+        frontCanvasRef={foregroundFx ? foregroundCanvasRef : null}
+      />
+      <div className="relative z-10 flex flex-col">
         {/* Header */}
         <div
           className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
@@ -554,46 +558,19 @@ export default function StoryGame() {
         </div>
 
         <StoryBossFightVideo bossId={bossId} enabled={!lowPower} />
+      </div>
 
-        {/* Boss banner */}
-        <div className="px-3 pt-3 space-y-2">
-          <div
-            className="rounded-lg border px-3 py-2 flex items-center justify-between gap-2 text-[11px]"
-            style={{
-              borderColor: "rgba(0,255,200,0.35)",
-              background: "rgba(0,255,200,0.08)",
-            }}
-          >
-            <span className="uppercase tracking-wider font-bold text-cyan-200/90">Your story dice</span>
-            <span className="font-black text-white truncate">{storyPlayerSkinLabel}</span>
-          </div>
-          <div
-            className="rounded-xl border p-3 flex items-center gap-3"
-            style={{
-              borderColor: "rgba(255,0,234,0.3)",
-              background: "rgba(8,2,20,0.6)",
-            }}
-          >
-            <BossAvatar
-              boss={boss}
-              sizeClass="w-10 h-10"
-              emojiClass="text-2xl"
-              rounded="rounded-lg"
-              useBossAvatarVideo
-              silent
-            />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-white truncate">{boss.name}</div>
-              <div className="text-[10px] text-slate-400 italic truncate">{boss.title}</div>
-            </div>
-            {boss.gimmick && (
-              <span className="text-[10px] uppercase font-bold px-2 py-1 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
-                ⚡ {boss.gimmick.name}
-              </span>
-            )}
-          </div>
+      {foregroundFx && (
+        <div
+          className="fixed top-0 left-0 z-[13] pointer-events-none"
+          style={{ width: "100vw", height: "100dvh" }}
+          aria-hidden
+        >
+          <canvas ref={foregroundCanvasRef} className="block w-full h-full" />
         </div>
+      )}
 
+      <div className="relative z-10 flex flex-col">
         <div className="p-3 space-y-2">
           <ScorePanel
             players={game.players}
@@ -659,7 +636,9 @@ export default function StoryGame() {
             )}
           </motion.div>
         </div>
+      </div>
 
+      <div className="relative z-[15] flex-1 flex flex-col">
         <div className="px-3 flex-1 flex items-center justify-center">
           <div className="w-full space-y-2">
             {practiceVariant && !dialogue && (
@@ -678,7 +657,7 @@ export default function StoryGame() {
               dice={game.dice}
               rolling={rollAnim}
               onToggle={handleToggle}
-              disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner || rollAnim}
+              disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner}
               skinId={practiceTraySkinId}
               feltId={storyFeltId}
               feltIntense={bossId === "neo"}

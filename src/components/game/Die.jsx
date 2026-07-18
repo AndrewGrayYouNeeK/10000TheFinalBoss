@@ -308,14 +308,14 @@ function Die({
       style={{ width: size, height: size }}
       initial={false}
       animate={
-      rolling ?
+      rolling && !held && !used ?
       { rotate: rollVariants.rotate, y: rollVariants.y, x: rollVariants.x, scale: rollVariants.scale } :
       held && !used ?
       { rotate: 0, y: -10, x: 0, scale: 1.08 } :
       { rotate: 0, y: 0, x: 0, scale: 1 }
       }
       transition={
-      rolling ?
+      rolling && !held && !used ?
       {
         duration: 0.85,
         ease: [0.25, 0.46, 0.45, 0.94],
@@ -323,8 +323,8 @@ function Die({
       } :
       { type: "spring", stiffness: 300, damping: 18 }
       }
-      whileTap={!used && !rolling ? { scale: 0.92 } : {}}
-      whileHover={!used && !rolling ? { y: -5, rotate: 3 } : {}}>
+      whileTap={!used && !(rolling && !held) ? { scale: 0.92 } : {}}
+      whileHover={!used && !(rolling && !held) ? { y: -5, rotate: 3 } : {}}>
 
       {held && !used && (
         <div className="absolute inset-0 z-20 pointer-events-none overflow-visible">
@@ -336,7 +336,7 @@ function Die({
       <button
         type="button"
         onClick={handleClick}
-        disabled={used || rolling}
+        disabled={used || (rolling && !held)}
         className={`relative w-full h-full ${!isClearBody && !skin.experimental ? `bg-gradient-to-br ${skin.gradient}` : ""} ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
           borderRadius: radius,

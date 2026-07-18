@@ -18,14 +18,15 @@ const THEMES = {
     glow: "rgba(80,200,255,0.35)",
     effect: "bubbles",
     bubbles: {
-      vents: 7,
-      breathMin: 2.4,
-      breathMax: 5.2,
-      cluster: [18, 38],
-      cap: 420,
-      speed: [0.18, 0.75],
-      radius: [0.45, 1.8],
-      trailAlpha: 0.055,
+      vents: 14,
+      breathMin: 0.35,
+      breathMax: 1.4,
+      cluster: [14, 32],
+      cap: 720,
+      speed: [0.55, 1.65],
+      radius: [1.1, 5.2],
+      dripRate: 28,
+      frontRatio: 0.32,
     },
   },
   shark:        { glyphs: ["🦈","♠","♣","♥","♦","A","K","Q","J"], color: "rgba(100,220,240,0.9)", glow: "rgba(40,200,255,0.55)", bg: "#04101a" },
@@ -79,15 +80,34 @@ const THEMES = {
   shattered:    { glyphs: ["◊","◇","◈","✦","·"], color: "rgba(200,180,160,0.9)", glow: "rgba(180,150,120,0.5)", bg: "#0c0a08" },
   diamond_cut:  { glyphs: ["💎","◆","◇","✦","✧"], color: "rgba(180,240,255,0.95)", glow: "rgba(120,220,255,0.65)", bg: "#040c18" },
 
-  // Final boss — crisp $100 bill rain
+  // Final boss — slow, natural $100 bill rain
   gq:           {
     bg: "#020814",
     glow: "rgba(60,220,90,0.35)",
     effect: "bills",
     bills: {
-      count: { normal: 148, low: 40 },
-      speed: [9.5, 17.5],
+      count: { normal: 112, low: 36 },
+      speed: [4, 7.2],
       height: [12, 18],
+      frontRatio: 0.68,
+      physics: {
+        initialVy: [0.15, 2],
+        terminalVy: [4, 6.8],
+        slowVy: [1.8, 3.4],
+        fastVy: [7.5, 11.5],
+        fastSpinRatio: 0.2,
+        fastSpinVy: [0.35, 1.15],
+        fastSpinPitch: [0.34, 0.68],
+        fastSpinRoll: [0.26, 0.52],
+        fastSpinYaw: [0.38, 0.78],
+        approach: 0.013,
+        drag: 0.997,
+        wind: [0.1, 0.48],
+        flipScale: 0.78,
+        flutterScale: 0.9,
+        seesawScale: 0.95,
+        swayScale: 1.05,
+      },
     },
   },
 };
@@ -113,6 +133,7 @@ function bubbleConfig(theme) {
       speed: [0.2, 0.8],
       radius: [0.5, 2],
       trailAlpha: 0.06,
+      dripRate: 14,
     }
   );
 }
@@ -130,12 +151,61 @@ function billConfig(theme) {
   );
 }
 
-/** Mixed fall speeds — higher floor so nothing crawls. */
+/** Mixed fall speeds — slow drifters, medium, and fast drops. */
 function spawnBillFallSpeed([speedMin, speedMax]) {
   const roll = Math.random();
   if (roll < 0.15) return randomBetween(speedMin * 0.78, speedMin * 0.95);
   if (roll < 0.55) return randomBetween(speedMin * 0.98, (speedMin + speedMax) * 0.54);
   return randomBetween((speedMin + speedMax) * 0.5, speedMax * 1.06);
+}
+
+/** GQ-style physics: wide random terminal fall speeds. */
+function spawnBillTerminalSpeed(phy, cfg) {
+  const roll = Math.random();
+  const [slowMin, slowMax] = phy.slowVy ?? [phy.terminalVy[0] * 0.55, phy.terminalVy[0] * 0.85];
+  const [midMin, midMax] = phy.terminalVy ?? cfg.speed;
+  const [fastMin, fastMax] = phy.fastVy ?? [phy.terminalVy[1] * 1.05, phy.terminalVy[1] * 1.55];
+  if (roll < 0.3) return randomBetween(slowMin, slowMax);
+  if (roll < 0.72) return randomBetween(midMin, midMax);
+  return randomBetween(fastMin, fastMax);
+}
+
+/** Gusts, tumble reversals, and yaw spin while bills fall. */
+function applyBillNaturalMotion(p, step, phy) {
+  if (!phy || p.terminalVy == null) return;
+
+  const approach = (phy.approach ?? 0.012) * step * (p.fastSpinner ? 0.72 : 1);
+  p.vy += (p.terminalVy - p.vy) * approach;
+  const drag = phy.drag ?? 1;
+  p.vx *= drag;
+  p.vy *= p.fastSpinner ? Math.min(drag, 0.9985) : drag;
+
+  p.gustPhase += (p.gustFreq ?? 0.06) * step;
+  const gustX = Math.sin(p.gustPhase) * (p.gustStrength ?? 0.35);
+  const gustY =
+    Math.cos(p.gustPhase * 0.73 + (p.liftPhase ?? 0)) *
+    (p.gustStrength ?? 0.35) *
+    (p.fastSpinner ? 0.18 : 0.35);
+  p.vx += gustX * 0.11 * step;
+  p.vy += gustY * 0.06 * step;
+
+  p.spinYaw = (p.spinYaw ?? 0) + (p.spinYawSpeed ?? 0) * step;
+
+  if (p.flipReverseTimer != null) {
+    p.flipReverseTimer -= 1;
+    if (p.flipReverseTimer <= 0) {
+      const reverseChance = p.fastSpinner ? 0.18 : 0.7;
+      if (Math.random() < reverseChance) {
+        p.flipPitchSpeed *= -1;
+        p.flipRollSpeed *= -1;
+        p.spinYawSpeed *= -1;
+        p.vx = -p.vx * randomBetween(0.35, 0.85);
+      }
+      p.flipReverseTimer = Math.floor(
+        randomBetween(p.fastSpinner ? 52 : 28, p.fastSpinner ? 130 : 95)
+      );
+    }
+  }
 }
 
 function billInk(h) {
@@ -372,11 +442,12 @@ function collideBills(a, b) {
   const minDist = ar + br;
   if (distSq >= minDist * minDist || distSq < 0.001) return;
 
+  const softFall = a.terminalVy != null || b.terminalVy != null;
   const dist = Math.sqrt(distSq);
   const nx = dx / dist;
   const ny = dy / dist;
   const overlap = minDist - dist;
-  const separate = overlap * 0.22;
+  const separate = overlap * (softFall ? 0.16 : 0.22);
   a.x -= nx * separate;
   a.y -= ny * separate;
   b.x += nx * separate;
@@ -393,8 +464,8 @@ function collideBills(a, b) {
     return;
   }
 
-  const restitution = 0.14;
-  const impulse = -(1 + restitution) * rel * 0.22;
+  const restitution = softFall ? 0.07 : 0.14;
+  const impulse = -(1 + restitution) * rel * (softFall ? 0.14 : 0.22);
   a.bvx -= impulse * nx;
   a.bvy -= impulse * ny * 0.35;
   b.bvx += impulse * nx;
@@ -402,6 +473,14 @@ function collideBills(a, b) {
 
   clampBillVelocity(a);
   clampBillVelocity(b);
+  if (softFall) {
+    a.flipPitchSpeed += (Math.random() - 0.5) * 0.05;
+    b.flipPitchSpeed += (Math.random() - 0.5) * 0.05;
+    a.flipRollSpeed += (Math.random() - 0.5) * 0.04;
+    b.flipRollSpeed += (Math.random() - 0.5) * 0.04;
+    if (Math.random() < 0.32) a.vx *= -randomBetween(0.4, 0.9);
+    if (Math.random() < 0.32) b.vx *= -randomBetween(0.4, 0.9);
+  }
   syncSeesawOffset(a);
   syncSeesawOffset(b);
 
@@ -438,20 +517,37 @@ function resolveBillCollisions(particles) {
   }
 }
 
-/** Tiny pore bubble — no blown-bubble highlight ring. */
-function drawMicroBubble(ctx, p) {
-  const drift = Math.sin(p.wobble) * 0.9 + Math.cos(p.wobble * 0.7) * 0.4;
-  const x = p.x + drift;
+/** Rising ocean bubble — ring + soft fill + highlight. */
+function drawOceanBubble(ctx, p) {
   ctx.save();
   ctx.globalAlpha = p.opacity;
+
   ctx.beginPath();
-  ctx.arc(x, p.y, p.r, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(140,220,255,0.28)";
+  ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(160,235,255,0.5)";
+  ctx.lineWidth = Math.max(0.45, p.r * 0.11);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r * 0.9, 0, Math.PI * 2);
+  const grad = ctx.createRadialGradient(
+    p.x - p.r * 0.28,
+    p.y - p.r * 0.32,
+    0,
+    p.x,
+    p.y,
+    p.r
+  );
+  grad.addColorStop(0, "rgba(210,250,255,0.55)");
+  grad.addColorStop(0.42, "rgba(90,200,240,0.28)");
+  grad.addColorStop(1, "rgba(40,140,200,0.06)");
+  ctx.fillStyle = grad;
   ctx.fill();
-  if (p.r > 1.1) {
+
+  if (p.r > 1.2) {
     ctx.beginPath();
-    ctx.arc(x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.22, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(220,250,255,0.35)";
+    ctx.arc(p.x - p.r * 0.34, p.y - p.r * 0.36, p.r * 0.24, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.42)";
     ctx.fill();
   }
   ctx.restore();
@@ -464,28 +560,53 @@ function makeBreathVents(count) {
   }));
 }
 
+function pickBubbleLayer(cfg) {
+  return Math.random() < (cfg.frontRatio ?? 0.28);
+}
+
+function pickBillLayer(cfg) {
+  return Math.random() < (cfg.frontRatio ?? 0.3);
+}
+
 function spawnBreathCluster(particles, cfg, canvas, ventXNorm) {
   const w = canvas.width;
   const h = canvas.height;
   const clusterN = Math.floor(randomBetween(cfg.cluster[0], cfg.cluster[1] + 1));
   const baseX = ventXNorm * w + randomBetween(-10, 10);
-  const baseY = h + randomBetween(2, 18);
+  const baseY = h + randomBetween(2, 22);
   const [speedMin, speedMax] = cfg.speed;
   const [rMin, rMax] = cfg.radius;
 
   for (let i = 0; i < clusterN; i += 1) {
-    if (particles.length >= cfg.cap) particles.shift();
+    if (particles.length >= cfg.cap) continue;
+    const front = pickBubbleLayer(cfg);
     particles.push({
-      x: baseX + randomBetween(-14, 14),
-      y: baseY + randomBetween(-6, 4),
-      vx: randomBetween(-0.12, 0.12),
+      x: baseX + randomBetween(-22, 22),
+      y: baseY + randomBetween(-10, 6),
       vy: -randomBetween(speedMin, speedMax),
-      r: randomBetween(rMin, rMax),
-      opacity: randomBetween(0.12, 0.42),
-      wobble: randomBetween(0, Math.PI * 2),
-      wobbleSpeed: randomBetween(0.025, 0.07),
+      r: randomBetween(rMin, rMax) * (front ? 1.08 : 1),
+      opacity: randomBetween(front ? 0.28 : 0.22, front ? 0.72 : 0.62),
+      front,
     });
   }
+}
+
+/** Single bubble from a random spot on the ocean floor. */
+function spawnBottomBubble(particles, cfg, canvas) {
+  if (particles.length >= cfg.cap) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const [speedMin, speedMax] = cfg.speed;
+  const [rMin, rMax] = cfg.radius;
+  const front = pickBubbleLayer(cfg);
+  particles.push({
+    x: randomBetween(0, w),
+    y: h + randomBetween(0, 16),
+    vy: -randomBetween(speedMin, speedMax),
+    r: randomBetween(rMin * 0.65, rMax * 0.85) * (front ? 1.06 : 1),
+    opacity: randomBetween(front ? 0.24 : 0.18, front ? 0.58 : 0.52),
+    front,
+  });
 }
 
 function BossRainStatic({ theme }) {
@@ -511,11 +632,23 @@ function BossRainStatic({ theme }) {
   );
 }
 
-export default function BossRainBackground({ bossId, lite = false }) {
+export default function BossRainBackground({
+  bossId,
+  lite = false,
+  bubblesFullScreen = false,
+  /** External canvas for foreground particles (above score HUD, below dice). */
+  frontCanvasRef = null,
+}) {
   const canvasRef = useRef(null);
+  const fallbackFrontCanvasRef = useRef(null);
   const theme = THEMES[bossId] || DEFAULT_THEME;
   const isBubbleEffect = theme.effect === "bubbles";
   const isBillEffect = theme.effect === "bills";
+  const bubbleOverlay = isBubbleEffect && bubblesFullScreen;
+  const billOverlay = isBillEffect;
+  const effectOverlay = bubbleOverlay || billOverlay;
+
+  const resolveFrontCanvas = () => frontCanvasRef?.current ?? fallbackFrontCanvasRef.current;
 
   useEffect(() => {
     if (lite) return undefined;
@@ -525,8 +658,23 @@ export default function BossRainBackground({ bossId, lite = false }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return undefined;
 
+    const resolveFrontCtx = () => resolveFrontCanvas()?.getContext("2d") ?? null;
+
     let particles = [];
     let frame;
+
+    const measureOverlayCanvas = () => ({
+      w: Math.max(1, window.innerWidth),
+      h: Math.max(1, window.innerHeight),
+    });
+
+    const measureInsetCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        w: Math.max(1, Math.round(rect.width)),
+        h: Math.max(1, Math.round(rect.height)),
+      };
+    };
 
     if (isBubbleEffect) {
       const cfg = bubbleConfig(theme);
@@ -536,28 +684,43 @@ export default function BossRainBackground({ bossId, lite = false }) {
       let vents = makeBreathVents(ventCount);
       let particles = [];
       let lastFrame = performance.now();
+      let dripAcc = 0;
+
+      const measureCanvas = () => (bubbleOverlay ? measureOverlayCanvas() : measureInsetCanvas());
 
       const primeScreen = () => {
         vents.forEach((v) => spawnBreathCluster(particles, cfg, canvas, v.xNorm));
-        for (let i = 0; i < 3; i += 1) {
-          spawnBreathCluster(
-            particles,
-            cfg,
-            canvas,
-            randomBetween(0.08, 0.92)
-          );
+        const h = canvas.height;
+        const primeCount = Math.floor(cfg.cap * 0.55);
+        for (let i = 0; i < primeCount; i += 1) {
+          if (particles.length >= cfg.cap) break;
+          const [speedMin, speedMax] = cfg.speed;
+          const [rMin, rMax] = cfg.radius;
+          const front = pickBubbleLayer(cfg);
+          particles.push({
+            x: randomBetween(0, canvas.width),
+            y: randomBetween(-8, h * 0.96),
+            vy: -randomBetween(speedMin, speedMax),
+            r: randomBetween(rMin, rMax) * (front ? 1.08 : 1),
+            opacity: randomBetween(front ? 0.28 : 0.2, front ? 0.65 : 0.58),
+            front,
+          });
         }
       };
 
       const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const w = Math.max(1, Math.round(rect.width));
-        const h = Math.max(1, Math.round(rect.height));
+        const { w, h } = measureCanvas();
         if (canvas.width === w && canvas.height === h && particles.length > 0) return;
         canvas.width = w;
         canvas.height = h;
-        ctx.fillStyle = theme.bg;
-        ctx.fillRect(0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
+        const canvasFront = resolveFrontCanvas();
+        const ctxFront = canvasFront?.getContext("2d") ?? null;
+        if (canvasFront && ctxFront) {
+          canvasFront.width = w;
+          canvasFront.height = h;
+          ctxFront.clearRect(0, 0, w, h);
+        }
         particles = [];
         vents = makeBreathVents(ventCount);
         primeScreen();
@@ -565,8 +728,21 @@ export default function BossRainBackground({ bossId, lite = false }) {
 
       resize();
       window.addEventListener("resize", resize);
-      const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resize()) : null;
-      ro?.observe(canvas);
+      const ro =
+        !bubbleOverlay && typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(() => resize())
+          : null;
+      if (!bubbleOverlay) ro?.observe(canvas);
+
+      const drawLayer = (targetCtx, frontLayer) => {
+        for (let i = 0; i < particles.length; i += 1) {
+          const p = particles[i];
+          if (!!p.front !== frontLayer) continue;
+          if (p.y + p.r >= -4 && p.y - p.r <= canvas.height + 4) {
+            drawOceanBubble(targetCtx, p);
+          }
+        }
+      };
 
       const draw = () => {
         if (document.hidden) {
@@ -590,19 +766,33 @@ export default function BossRainBackground({ bossId, lite = false }) {
           }
         });
 
-        ctx.fillStyle = `rgba(3,24,40,${cfg.trailAlpha})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const dripRate = cfg.dripRate ?? 14;
+        dripAcc += dt * dripRate;
+        while (dripAcc >= 1) {
+          dripAcc -= 1;
+          spawnBottomBubble(particles, cfg, canvas);
+        }
 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const ctxFront = resolveFrontCtx();
+        if (ctxFront) ctxFront.clearRect(0, 0, canvas.width, canvas.height);
+
+        const step = dt * 60;
         for (let i = particles.length - 1; i >= 0; i -= 1) {
           const p = particles[i];
-          p.wobble += p.wobbleSpeed;
-          p.x += p.vx + Math.sin(p.wobble) * 0.04;
-          p.y += p.vy;
-          if (p.y < -4) {
+          p.y += p.vy * step;
+          // Drift off the top naturally — never teleport / requeue (that looked like a pop).
+          if (p.y + p.r < -32) {
             particles.splice(i, 1);
             continue;
           }
-          drawMicroBubble(ctx, p);
+        }
+
+        drawLayer(ctx, false);
+        if (ctxFront) {
+          drawLayer(ctxFront, true);
+        } else {
+          drawLayer(ctx, true);
         }
 
         frame = requestAnimationFrame(draw);
@@ -618,99 +808,159 @@ export default function BossRainBackground({ bossId, lite = false }) {
 
     if (isBillEffect) {
       const cfg = billConfig(theme);
+      const phy = cfg.physics ?? null;
       const COUNT = isLowPowerDevice() ? cfg.count.low : cfg.count.normal;
       const [hMin, hMax] = cfg.height;
 
       const spawn = (initial = false) => {
         const billH = randomBetween(hMin, hMax);
-        const heavyFlip = Math.random() < 0.62;
-        const tumbler = heavyFlip;
         const flipSign = () => (Math.random() < 0.5 ? -1 : 1);
+        const fastSpinner = phy && Math.random() < (phy.fastSpinRatio ?? 0);
+        const heavyFlip = phy ? !fastSpinner : Math.random() < 0.62;
+        const tumbler = phy ? true : heavyFlip;
         const spinRoll = Math.random();
-        const spinMul =
-          spinRoll < 0.22
+        const spinMul = fastSpinner
+          ? randomBetween(2.4, 3.6)
+          : spinRoll < 0.22
             ? randomBetween(1.8, 2.8)
             : spinRoll < 0.58
               ? randomBetween(0.55, 0.9)
               : randomBetween(0.95, 1.35);
-        let flipPitchSpeed = 0;
-        let flipRollSpeed = 0;
-        if (heavyFlip) {
+        const flipScale = phy?.flipScale ?? 1;
+        let flipPitchSpeed = randomBetween(0.04, 0.09) * flipSign() * flipScale;
+        let flipRollSpeed = randomBetween(0.03, 0.08) * flipSign() * flipScale;
+        let spinYawSpeed = randomBetween(-0.14, 0.14) * (phy ? 1.15 : 0.6);
+
+        if (fastSpinner) {
+          flipPitchSpeed =
+            randomBetween(phy.fastSpinPitch[0], phy.fastSpinPitch[1]) * flipSign();
+          flipRollSpeed =
+            randomBetween(phy.fastSpinRoll[0], phy.fastSpinRoll[1]) * flipSign();
+          spinYawSpeed =
+            randomBetween(phy.fastSpinYaw[0], phy.fastSpinYaw[1]) * flipSign();
+        } else if (heavyFlip && !phy) {
           const mode = Math.random();
+          flipPitchSpeed = 0;
+          flipRollSpeed = 0;
           if (mode < 0.55) {
-            flipPitchSpeed = randomBetween(0.08, 0.16) * flipSign() * spinMul;
+            flipPitchSpeed = randomBetween(0.08, 0.16) * flipSign() * spinMul * flipScale;
           } else if (mode < 0.85) {
-            flipRollSpeed = randomBetween(0.06, 0.13) * flipSign() * spinMul;
+            flipRollSpeed = randomBetween(0.06, 0.13) * flipSign() * spinMul * flipScale;
           } else {
-            flipPitchSpeed = randomBetween(0.06, 0.11) * flipSign() * spinMul;
-            flipRollSpeed = randomBetween(0.04, 0.08) * flipSign() * spinMul;
+            flipPitchSpeed = randomBetween(0.06, 0.11) * flipSign() * spinMul * flipScale;
+            flipRollSpeed = randomBetween(0.04, 0.08) * flipSign() * spinMul * flipScale;
+          }
+        } else if (phy) {
+          if (Math.random() < 0.55) {
+            flipPitchSpeed = randomBetween(0.07, 0.15) * flipSign() * spinMul * flipScale;
+          }
+          if (Math.random() < 0.55) {
+            flipRollSpeed = randomBetween(0.05, 0.12) * flipSign() * spinMul * flipScale;
           }
         }
-        const seesaw = Math.random() < 0.55;
+
+        const seesaw = fastSpinner ? Math.random() < 0.45 : phy ? Math.random() < 0.72 : Math.random() < 0.55;
+        const seesawScale = phy?.seesawScale ?? 1;
         const seesawPhase = randomBetween(0, Math.PI * 2);
-        const seesawAmpX = randomBetween(1.2, 3.2);
-        const seesawAmpY = randomBetween(0.8, 2.2);
+        const seesawAmpX = randomBetween(1.2, 3.8) * seesawScale * (fastSpinner ? 0.75 : 1);
+        const seesawAmpY = randomBetween(0.8, 2.6) * seesawScale * (fastSpinner ? 0.65 : 1);
+        const terminalVy = fastSpinner
+          ? randomBetween(phy.fastSpinVy[0], phy.fastSpinVy[1])
+          : phy
+            ? spawnBillTerminalSpeed(phy, cfg)
+            : spawnBillFallSpeed(cfg.speed);
+        const vy = phy
+          ? randomBetween(phy.initialVy[0], phy.initialVy[1] * (fastSpinner ? 0.55 : 1))
+          : terminalVy;
+        const flutterScale = phy?.flutterScale ?? 1;
+        const swayScale = phy?.swayScale ?? 1;
+        const wind = phy?.wind ?? [0.32, 0.32];
+        const vx = phy
+          ? randomBetween(wind[0], wind[1]) * flipSign() * (fastSpinner ? 1.35 : 1)
+          : randomBetween(-0.32, 0.32);
         return {
           x: randomBetween(0, Math.max(canvas.width, 1)),
           y: initial
             ? randomBetween(0, Math.max(canvas.height, 1))
             : randomBetween(-Math.max(canvas.height, 1) * 0.35, -30),
-          vy: spawnBillFallSpeed(cfg.speed),
-          vx: randomBetween(-0.32, 0.32),
+          vy,
+          terminalVy: phy ? terminalVy : null,
+          vx,
           bvx: 0,
           bvy: 0,
           collisionGrace: initial ? 0 : 10,
           h: billH,
           w: billH * USD_BILL_RATIO,
-          baseRotation: randomBetween(-0.28, 0.28),
+          baseRotation: randomBetween(-0.45, 0.45),
           rotation: 0,
+          spinYaw: 0,
+          spinYawSpeed,
           opacity: randomBetween(0.78, 0.96),
           wobble: randomBetween(0, Math.PI * 2),
-          wobbleSpeed: randomBetween(0.05, 0.1) * spinMul,
-          sway: randomBetween(0.45, 1.05),
-          flutter: randomBetween(0.12, 0.28),
+          wobbleSpeed: randomBetween(0.05, 0.12) * spinMul * (phy ? 0.9 : 1),
+          sway: randomBetween(0.55, 1.25) * swayScale * (fastSpinner ? 1.25 : 1),
+          flutter: randomBetween(0.14, 0.34) * flutterScale * (fastSpinner ? 1.35 : 1),
           liftPhase: randomBetween(0, Math.PI * 2),
-          liftFreq: randomBetween(0.8, 1.4),
-          liftAmp: randomBetween(0.35, 1.1),
-          tumbleLift: randomBetween(0.2, 0.75),
+          liftFreq: randomBetween(0.75, 1.55),
+          liftAmp: randomBetween(0.4, 1.25) * flutterScale * (fastSpinner ? 1.55 : 1),
+          tumbleLift: randomBetween(0.2, 0.75) * flutterScale * (fastSpinner ? 1.2 : 1),
+          gustPhase: randomBetween(0, Math.PI * 2),
+          gustFreq: randomBetween(0.045, 0.12),
+          gustStrength: randomBetween(0.22, 0.62) * (fastSpinner ? 0.55 : 1),
+          flipReverseTimer: Math.floor(randomBetween(fastSpinner ? 40 : 24, fastSpinner ? 96 : 88)),
           serial: randomBillSerial(),
           blueSecurity: Math.random() < 0.45,
           tumbler,
+          fastSpinner,
           flipPitch: randomBetween(0, Math.PI * 2),
           flipRoll: randomBetween(0, Math.PI * 2),
           flipPitchSpeed,
           flipRollSpeed,
           seesaw,
           seesawPhase,
-          seesawSpeed: randomBetween(0.09, 0.18),
+          seesawSpeed: randomBetween(0.09, 0.22) * seesawScale * (fastSpinner ? 1.35 : 1),
           seesawAmpX,
           seesawAmpY,
           seesawPrevX: seesaw ? Math.cos(seesawPhase) * seesawAmpX : 0,
           seesawPrevY: seesaw ? Math.abs(Math.sin(seesawPhase)) * seesawAmpY : 0,
+          front: billOverlay ? pickBillLayer(cfg) : false,
         };
       };
 
       const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const w = Math.max(1, Math.round(rect.width));
-        const h = Math.max(1, Math.round(rect.height));
+        const { w, h } = billOverlay ? measureOverlayCanvas() : measureInsetCanvas();
         if (canvas.width === w && canvas.height === h && particles.length > 0) return;
         canvas.width = w;
         canvas.height = h;
         ctx.fillStyle = theme.bg;
         ctx.fillRect(0, 0, w, h);
+        const canvasFront = resolveFrontCanvas();
+        const ctxFront = canvasFront?.getContext("2d") ?? null;
+        if (canvasFront && ctxFront) {
+          canvasFront.width = w;
+          canvasFront.height = h;
+          ctxFront.clearRect(0, 0, w, h);
+        }
         particles = Array.from({ length: COUNT }, (_, idx) => {
           const p = spawn(true);
-          p.y = ((idx + Math.random() * 0.35) / COUNT) * (h + 80) - 40;
-          p.x = randomBetween(0, Math.max(w, 1));
+          if (billOverlay && p.front) {
+            p.y = ((idx + Math.random() * 0.35) / COUNT) * (h * 0.58) + 8;
+            p.x = randomBetween(w * 0.12, w * 0.88);
+          } else {
+            p.y = ((idx + Math.random() * 0.35) / COUNT) * (h + 80) - 40;
+            p.x = randomBetween(0, Math.max(w, 1));
+          }
           return p;
         });
       };
 
       resize();
       window.addEventListener("resize", resize);
-      const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resize()) : null;
-      ro?.observe(canvas);
+      const ro =
+        !billOverlay && typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(() => resize())
+          : null;
+      if (!billOverlay) ro?.observe(canvas);
 
       let lastFrame = performance.now();
       let collisionTick = 0;
@@ -732,18 +982,32 @@ export default function BossRainBackground({ bossId, lite = false }) {
 
         ctx.fillStyle = theme.bg;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const canvasFront = resolveFrontCanvas();
+        const ctxFront = canvasFront?.getContext("2d") ?? null;
+        if (ctxFront && (canvasFront.width !== canvas.width || canvasFront.height !== canvas.height)) {
+          canvasFront.width = canvas.width;
+          canvasFront.height = canvas.height;
+        }
+        if (ctxFront) ctxFront.clearRect(0, 0, canvas.width, canvas.height);
 
         particles.forEach((p, i) => {
           if (p.collisionGrace > 0) p.collisionGrace -= 1;
           p.wobble += p.wobbleSpeed * step;
-          p.bvx *= 0.9;
-          p.bvy *= 0.9;
+
+          applyBillNaturalMotion(p, step, phy);
+
+          p.bvx *= phy ? 0.94 : 0.9;
+          p.bvy *= phy ? 0.94 : 0.9;
           clampBillVelocity(p);
 
           const windDriftX =
             (p.vx + Math.sin(p.wobble) * p.sway * 0.65) * step;
           const flutterLift =
-            Math.sin(p.wobble * p.liftFreq + p.liftPhase) * p.liftAmp * 0.35 * step;
+            Math.sin(p.wobble * p.liftFreq + p.liftPhase) *
+            p.liftAmp *
+            (phy ? 0.28 : 0.35) *
+            step *
+            (p.fastSpinner ? 1.45 : 1);
 
           if (p.seesaw) {
             p.seesawPhase += p.seesawSpeed * step;
@@ -755,6 +1019,7 @@ export default function BossRainBackground({ bossId, lite = false }) {
             p.seesawPrevY = yOff;
             p.rotation =
               p.baseRotation +
+              (p.spinYaw ?? 0) +
               Math.sin(p.seesawPhase) * 0.32 +
               Math.sin(p.wobble * 1.1) * p.flutter;
           } else {
@@ -762,6 +1027,7 @@ export default function BossRainBackground({ bossId, lite = false }) {
             p.y += p.vy * step + flutterLift + p.bvy * step;
             p.rotation =
               p.baseRotation +
+              (p.spinYaw ?? 0) +
               Math.sin(p.wobble * 1.15) * p.flutter;
           }
 
@@ -779,9 +1045,19 @@ export default function BossRainBackground({ bossId, lite = false }) {
           resolveBillCollisions(particles);
         }
 
-        particles.forEach((p) => {
-          drawHundredBill(ctx, p);
-        });
+        const drawBillLayer = (targetCtx, frontLayer) => {
+          particles.forEach((p) => {
+            if (!!p.front !== frontLayer) return;
+            drawHundredBill(targetCtx, p);
+          });
+        };
+
+        drawBillLayer(ctx, false);
+        if (ctxFront) {
+          drawBillLayer(ctxFront, true);
+        } else if (!billOverlay) {
+          drawBillLayer(ctx, true);
+        }
 
         frame = requestAnimationFrame(draw);
       };
@@ -876,39 +1152,62 @@ export default function BossRainBackground({ bossId, lite = false }) {
       window.removeEventListener("resize", resize);
       ro?.disconnect();
     };
-  }, [bossId, lite, isBubbleEffect, isBillEffect, theme.bg, theme.glow]);
+  }, [bossId, lite, isBubbleEffect, isBillEffect, bubbleOverlay, billOverlay, effectOverlay, theme.bg, theme.glow]);
 
   if (lite) {
     return <BossRainStatic theme={theme} />;
   }
 
+  const oceanBg = isBubbleEffect
+    ? `linear-gradient(180deg, #062840 0%, ${theme.bg} 45%, #021018 100%)`
+    : theme.bg;
+
   return (
-    <div
-      className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
-      style={{
-        background: isBubbleEffect
-          ? `linear-gradient(180deg, #062840 0%, ${theme.bg} 45%, #021018 100%)`
-          : theme.bg,
-      }}
-    >
-      {isBubbleEffect && (
-        <div
-          className="absolute inset-0 opacity-40"
-          style={{
-            background:
-              "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(100,220,255,0.35) 0%, transparent 60%), radial-gradient(ellipse 50% 30% at 20% 80%, rgba(40,140,200,0.2) 0%, transparent 55%)",
-          }}
-        />
-      )}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-      {/* Vignette so dice/UI stay readable */}
+    <>
       <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%)",
-        }}
-      />
-    </div>
+        className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+        style={{ background: oceanBg }}
+      >
+        {isBubbleEffect && (
+          <div
+            className="absolute inset-0 opacity-50"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(80,200,255,0.22) 0%, transparent 35%), radial-gradient(ellipse 80% 40% at 50% 100%, rgba(60,180,240,0.35) 0%, transparent 55%), radial-gradient(ellipse 50% 30% at 20% 80%, rgba(40,140,200,0.2) 0%, transparent 55%)",
+            }}
+          />
+        )}
+        {!effectOverlay && (
+          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+        )}
+        {!effectOverlay && (
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%)",
+            }}
+          />
+        )}
+      </div>
+      {effectOverlay && (
+        <div
+          className="fixed top-0 left-0 z-[5] pointer-events-none"
+          style={{ width: "100vw", height: "100dvh" }}
+          aria-hidden
+        >
+          <canvas ref={canvasRef} className="block w-full h-full" />
+        </div>
+      )}
+      {effectOverlay && !frontCanvasRef && (
+        <div
+          className="fixed top-0 left-0 z-[11] pointer-events-none"
+          style={{ width: "100vw", height: "100dvh" }}
+          aria-hidden
+        >
+          <canvas ref={fallbackFrontCanvasRef} className="block w-full h-full" />
+        </div>
+      )}
+    </>
   );
 }

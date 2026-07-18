@@ -616,7 +616,7 @@ export default function Game() {
             dice={state.dice}
             rolling={rollAnim}
             onToggle={onToggleDie}
-            disabled={!state.hasRolled || state.farkle || !!state.winner || rollAnim}
+            disabled={!state.hasRolled || state.farkle || !!state.winner}
             skinId={practiceTraySkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}

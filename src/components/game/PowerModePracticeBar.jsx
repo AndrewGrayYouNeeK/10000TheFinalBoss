@@ -1,6 +1,8 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const practiceBtnBase =
+  "h-6 px-2.5 rounded-full border text-[8px] font-black uppercase tracking-wide shrink-0 transition-all disabled:opacity-40 disabled:pointer-events-none";
 
 /**
  * Mid-game toggles to preview power-mode visuals without earning Hot Dice.
@@ -20,64 +22,80 @@ export default function PowerModePracticeBar({
   if (!variant) return null;
 
   const isMarlin = variant === "marlin";
-  const label = isMarlin ? "Marlin — practice" : "GQ — practice";
+  const label = isMarlin ? "Marlin practice" : "GQ practice";
+  const accent = isMarlin ? "#22d3ee" : "#7dd3fc";
+  const accentGlow = isMarlin ? "rgba(34,211,238,0.55)" : "rgba(125,211,252,0.5)";
 
   return (
     <div
       className={cn(
-        "rounded-xl border px-3 py-2 space-y-2",
-        isMarlin ? "border-cyan-500/35 bg-cyan-950/25" : "border-sky-300/35 bg-slate-900/60",
+        "rounded-lg border px-2 py-1.5 flex flex-wrap items-center gap-1.5",
         className
       )}
+      style={{
+        borderColor: accentGlow,
+        background: isMarlin
+          ? "linear-gradient(90deg, rgba(34,211,238,0.18), rgba(8,47,73,0.35))"
+          : "linear-gradient(90deg, rgba(125,211,252,0.16), rgba(15,23,42,0.5))",
+        boxShadow: `0 0 12px ${accentGlow}`,
+      }}
     >
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
+      <span
+        className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-300 mr-0.5"
+        style={{ textShadow: `0 0 6px ${accent}` }}
+      >
         {label}
-        <span className="font-normal normal-case tracking-normal text-slate-500 ml-1">
-          — visuals only, no power spent
-        </span>
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={disabled}
-          variant={powerPreview ? "default" : "outline"}
-          className={cn(
-            "h-8 text-[10px] font-bold uppercase tracking-wide",
-            powerPreview && (isMarlin ? "bg-cyan-600 hover:bg-cyan-500" : "bg-sky-500 hover:bg-sky-400")
-          )}
-          onClick={() => onPowerPreviewChange?.(!powerPreview)}
-        >
-          {powerPreview ? "Power dice on" : "Preview power dice"}
-        </Button>
+      </span>
+      <button
+        type="button"
+        disabled={disabled}
+        className={cn(practiceBtnBase, powerPreview ? "text-white" : "text-slate-200 bg-black/25")}
+        style={{
+          borderColor: powerPreview ? accent : `${accent}88`,
+          background: powerPreview
+            ? `linear-gradient(90deg, ${accent}cc, ${accent}99)`
+            : undefined,
+          boxShadow: powerPreview ? `0 0 12px ${accentGlow}, inset 0 0 8px rgba(255,255,255,0.15)` : `0 0 6px ${accentGlow}`,
+        }}
+        onClick={() => onPowerPreviewChange?.(!powerPreview)}
+      >
+        {powerPreview ? "Dice on" : "Power dice"}
+      </button>
 
-        {isMarlin && (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              disabled={disabled}
-              variant={sharkVideoPreview ? "default" : "outline"}
-              className={cn(
-                "h-8 text-[10px] font-bold uppercase tracking-wide",
-                sharkVideoPreview && "bg-teal-600 hover:bg-teal-500"
-              )}
-              onClick={() => onSharkVideoPreviewChange?.(!sharkVideoPreview)}
-            >
-              {sharkVideoPreview ? "Shark video on" : "Shark video"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={disabled || sharkBiteActive}
-              className="h-8 text-[10px] font-bold uppercase tracking-wide bg-rose-600 hover:bg-rose-500 text-white"
-              onClick={onReplaySharkBite}
-            >
-              {sharkBiteActive ? "Shark biting…" : "▶ Shark bite FX"}
-            </Button>
-          </>
-        )}
-      </div>
+      {isMarlin && (
+        <>
+          <button
+            type="button"
+            disabled={disabled}
+            className={cn(practiceBtnBase, sharkVideoPreview ? "text-white" : "text-slate-200 bg-black/25")}
+            style={{
+              borderColor: sharkVideoPreview ? "#2dd4bf" : "rgba(45,212,191,0.55)",
+              background: sharkVideoPreview
+                ? "linear-gradient(90deg, rgba(45,212,191,0.85), rgba(20,184,166,0.75))"
+                : undefined,
+              boxShadow: sharkVideoPreview
+                ? "0 0 12px rgba(45,212,191,0.55), inset 0 0 8px rgba(255,255,255,0.12)"
+                : "0 0 6px rgba(45,212,191,0.35)",
+            }}
+            onClick={() => onSharkVideoPreviewChange?.(!sharkVideoPreview)}
+          >
+            {sharkVideoPreview ? "Video on" : "Shark vid"}
+          </button>
+          <button
+            type="button"
+            disabled={disabled || sharkBiteActive}
+            className={cn(practiceBtnBase, "text-white")}
+            style={{
+              borderColor: "#fb7185",
+              background: "linear-gradient(90deg, rgba(244,63,94,0.9), rgba(225,29,72,0.85))",
+              boxShadow: "0 0 12px rgba(244,63,94,0.55), inset 0 0 8px rgba(255,255,255,0.12)",
+            }}
+            onClick={onReplaySharkBite}
+          >
+            {sharkBiteActive ? "Biting…" : "▶ Bite FX"}
+          </button>
+        </>
+      )}
     </div>
   );
 }
