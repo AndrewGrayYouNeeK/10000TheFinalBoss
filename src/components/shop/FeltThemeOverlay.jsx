@@ -141,13 +141,22 @@ function AuroraOverlay() {
 }
 
 function HolographicOverlay() {
+  const gradient =
+    "linear-gradient(135deg, #ff8ad6, #7fb6ff, #5bf0c2, #ffe04a, #ff8ad6)";
   return (
     <Layer>
+      {/* Full-bleed base — keeps shimmer under outer dice */}
+      <div
+        className="absolute inset-0 opacity-55 mix-blend-color-dodge"
+        style={{ background: gradient }}
+      />
       <motion.div
-        className="absolute inset-0 opacity-60 mix-blend-color-dodge"
+        className="absolute inset-0 opacity-50 mix-blend-color-dodge"
         style={{
-          background: "linear-gradient(135deg, #ff8ad6, #7fb6ff, #5bf0c2, #ffe04a, #ff8ad6)",
-          backgroundSize: "300% 300%",
+          background: gradient,
+          backgroundSize: "200% 200%",
+          transform: "scale(1.14)",
+          transformOrigin: "center center",
         }}
         animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
         transition={{ duration: 5, repeat: Infinity, ease: "linear" }}

@@ -83,9 +83,10 @@ export function isDedicatedPhotoFelt(feltId) {
   return DEDICATED_PHOTO_FELT_IDS.has(feltId);
 }
 
-function dedicatedPhotoStyle(compact = false) {
+function dedicatedPhotoStyle(compact = false, felt) {
+  const scale = felt?.textureScale ?? 1;
   return {
-    backgroundSize: "cover",
+    backgroundSize: scale === 1 ? "cover" : `${Math.round(scale * 100)}%`,
     backgroundPosition: "center",
     mixBlendMode: "normal",
     opacity: compact ? 0.92 : 0.88,
@@ -230,7 +231,7 @@ export function getWoodGrainOverlay() {
 export function getPhotoTextureStyle(felt, compact = false) {
   const id = felt?.id;
   if (isDedicatedPhotoFelt(id)) {
-    return dedicatedPhotoStyle(compact);
+    return dedicatedPhotoStyle(compact, felt);
   }
 
   const hueMap = {

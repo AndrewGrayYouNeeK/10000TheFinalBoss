@@ -862,6 +862,7 @@ export const FELT_COLORS = [
     description: "Shifting rainbow shimmer in a wood frame.",
     premium: true,
     textureUrl: "/assets/felt_iridescent_frame.png",
+    textureScale: 1.28,
     includesFrame: true,
   },
   {
