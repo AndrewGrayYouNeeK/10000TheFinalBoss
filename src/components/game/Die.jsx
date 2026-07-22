@@ -173,6 +173,27 @@ function Die({
     };
   }, [rolling]);
 
+  const [spriteOk, setSpriteOk] = React.useState(true);
+  React.useEffect(() => {
+    const url = spriteLayer?.spriteUrl;
+    if (!url) {
+      setSpriteOk(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setSpriteOk(true);
+    };
+    img.onerror = () => {
+      if (!cancelled) setSpriteOk(false);
+    };
+    img.src = url;
+    return () => {
+      cancelled = true;
+    };
+  }, [spriteLayer?.spriteUrl]);
+
   // Standard dice corner radius
   const radius = Math.round(size * 0.06);
 
@@ -180,28 +201,18 @@ function Die({
   const icePowerSettings = useIcePowerSettings();
   const icePowerActive = skin.id === "ice" && powerMode && !reduceEffects;
   const iceShapeMaskOn = icePowerActive && icePowerSettings.shapeEnabled !== false;
-
-  // Squircle mask — bows the edges outward between the corners like a real die.
-  // b = bulge amount (fraction of size that the midpoint of each edge extends past the square)
-  const b = 0.04;
-  const vb = `${-b} ${-b} ${1 + 2 * b} ${1 + 2 * b}`;
-  const cr = 0.08; // corner radius in path units
-  const squirclePath = `M ${cr},0 L ${1 - cr},0 Q ${1 + b},${0.5} ${1 - cr},1 L ${cr},1 Q ${-b},${0.5} ${cr},0 Z`
-    .replace(`L ${1 - cr},0 Q`, `L ${1 - cr},0 Q ${1 + b * 0.3},${-b * 0.3} ${1},${cr} L ${1},${1 - cr} Q`)
-    .replace(`L ${cr},1 Q`, `L ${cr},1 Q ${-b * 0.3},${1 + b * 0.3} ${0},${1 - cr} L ${0},${cr} Q`);
-  const squircleSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='${vb}' preserveAspectRatio='none'><path d='M ${cr} 0 Q ${0.5} ${-b} ${1 - cr} 0 Q 1 0 1 ${cr} Q ${1 + b} ${0.5} 1 ${1 - cr} Q 1 1 ${1 - cr} 1 Q ${0.5} ${1 + b} ${cr} 1 Q 0 1 0 ${1 - cr} Q ${-b} ${0.5} 0 ${cr} Q 0 0 ${cr} 0 Z' fill='black'/></svg>`;
-  const squircleMaskUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(squircleSvg)}")`;
-  const squircleStyle = {
-    WebkitMaskImage: squircleMaskUrl,
-    maskImage: squircleMaskUrl,
-    WebkitMaskSize: "100% 100%",
-    maskSize: "100% 100%",
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
-  };
+  // Ice power only — squircle mask-image hid sprite/pip layers in several browsers.
   const dieMaskStyle = iceShapeMaskOn
     ? getIcePowerShapeMaskStyle(value, size, icePowerSettings)
-    : squircleStyle;
+    : null;
+
+  const showSpriteLayer = spriteLayer && !activeVideoUrl && spriteOk;
+  const showPipFallback =
+    skin.id !== "blue_gel" &&
+    skin.id !== "snow_globe" &&
+    !activeVideoUrl &&
+    !videoSkinActive &&
+    (!spriteLayer || !spriteOk);
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -358,15 +369,28 @@ function Die({
         type="button"
         onClick={handleClick}
         disabled={used || (rolling && !held)}
-        className={`relative w-full h-full ${!isClearBody && !skin.experimental ? `bg-gradient-to-br ${skin.gradient}` : ""} ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
+        className={`relative w-full h-full ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
           borderRadius: radius,
           boxShadow: buildShadow(),
           overflow: "hidden",
-          background: isClearBody ? "transparent" : undefined,
-          ...dieMaskStyle
+          background: "transparent",
         }}>
-        
+        {/* Visual stack — mask-image only for ice power shape; otherwise border-radius clips. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            borderRadius: radius,
+            ...(dieMaskStyle || {}),
+          }}
+        >
+        {!isClearBody && !skin.experimental && (
+          <div
+            className={`absolute inset-0 bg-gradient-to-br ${skin.gradient}`}
+            aria-hidden
+          />
+        )}
+
         {/* Video background skin — cropped 3×2 grid, one face per die */}
         {activeVideoUrl && !reduceEffects && (() => {
           let videoStyle;
@@ -620,15 +644,16 @@ function Die({
         )}
 
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
-        {skin.id !== "blue_gel" && skin.id !== "snow_globe" && spriteLayer && !activeVideoUrl ?
+        {showSpriteLayer ?
         (() => {
           const spriteSkin = { ...skin, spriteUrl: spriteLayer.spriteUrl, spriteCrop: spriteLayer.spriteCrop };
           const faceOffset = getSkinFaceOffset(skin, powerMode, value);
-          const { xNudge, yNudge } = resolveFaceSpriteNudges(skin.id, value, size, faceOffset);
+          const nudgeSkinId = spriteLayer.offsetSkinId ?? skin.id;
+          const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
           return (
             <div
-              className="absolute pointer-events-none"
+              className="absolute pointer-events-none z-[1]"
               style={{
                 borderRadius: radius,
                 backgroundImage: `url(${spriteLayer.spriteUrl})`,
@@ -637,8 +662,7 @@ function Die({
           );
         })() :
 
-        (skin.experimental ||
-          (skin.id !== "blue_gel" && skin.id !== "snow_globe" && !spriteLayer && !videoSkinActive)) &&
+        (skin.experimental || showPipFallback) &&
           renderPipGrid()}
 
         {/* Frosty / Ice — frozen cubes on top of regular skin (shape applied via die mask + frame) */}
@@ -721,6 +745,7 @@ function Die({
           </>
         }
 
+        </div>
       </button>
       </PortfolioDieProvider>
     </motion.div>);

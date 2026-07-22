@@ -36,8 +36,7 @@ import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID, pickTrueSkinForGhost } from "@/lib/ghostDisguise";
-import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
+import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID, pickTrueSkinForGhost, readSessionPlayerDisguiseIds, readSessionPlayerSkinIds } from "@/lib/ghostDisguise";
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford, getPower } from "@/lib/powers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
@@ -67,14 +66,22 @@ export default function Game() {
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
   const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
-  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, setGhostDisguise, isLoading } = useCosmetics();
+  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
   const playDiceSound = useDiceSound();
   const prevBustRef = React.useRef(0);
   const winnerAwardedRef = React.useRef(false);
   const previewBiteFiredRef = React.useRef(false);
 
   const buildSkins = React.useCallback(
-    (playerCount) => buildGamePlayerSkins(playerCount, equippedSkinId, ownedSkins, ghostDisguiseId),
+    (playerCount, skinIds = null, disguiseIds = null) =>
+      buildGamePlayerSkins(
+        playerCount,
+        equippedSkinId,
+        ownedSkins,
+        ghostDisguiseId,
+        skinIds,
+        disguiseIds,
+      ),
     [equippedSkinId, ownedSkins, ghostDisguiseId]
   );
 
@@ -94,7 +101,9 @@ export default function Game() {
       return;
     }
     const names = JSON.parse(stored);
-    const playerSkins = buildSkins(names.length);
+    const skinIds = readSessionPlayerSkinIds();
+    const disguiseIds = readSessionPlayerDisguiseIds();
+    const playerSkins = buildSkins(names.length, skinIds, disguiseIds);
     setState(createInitialState(names, { playerSkins }));
     prevBustRef.current = 0;
     winnerAwardedRef.current = false;
@@ -122,7 +131,7 @@ export default function Game() {
     replaySharkBitePreview();
   }, [replaySharkBitePreview]);
 
-  // Keep slot-0 Ghost disguise in sync with profile picker (shop or in-game).
+  // Keep slot-0 Ghost disguise in sync with profile (set in Shop before play).
   useEffect(() => {
     if (isLoading || !state || equippedSkinId !== GHOST_SKIN_ID) return;
     const disguise = ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
@@ -385,7 +394,9 @@ export default function Game() {
     const stored = sessionStorage.getItem("dice10k_players");
     if (stored) {
       const names = JSON.parse(stored);
-      setState(createInitialState(names, { playerSkins: buildSkins(names.length) }));
+      const skinIds = readSessionPlayerSkinIds();
+      const disguiseIds = readSessionPlayerDisguiseIds();
+      setState(createInitialState(names, { playerSkins: buildSkins(names.length, skinIds, disguiseIds) }));
     }
   };
 
@@ -541,13 +552,6 @@ export default function Game() {
           obscuredIndices={obscuredScores}
           xrayReveals={state.xrayReveals}
         />
-        {equippedSkinId === GHOST_SKIN_ID && (
-          <GhostDisguisePicker
-            ownedSkins={ownedSkins}
-            selectedId={ghostDisguiseId}
-            onSelect={setGhostDisguise}
-          />
-        )}
       </div>
 
       {/* Banner */}

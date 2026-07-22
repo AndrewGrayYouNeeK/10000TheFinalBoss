@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,28 +7,122 @@ import { motion, AnimatePresence } from "framer-motion";
 import CyberBackground from "@/components/game/CyberBackground";
 import NeonTitle from "@/components/game/NeonTitle";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
+import SetupSkinPicker from "@/components/game/SetupSkinPicker";
+import { useCosmetics } from "@/hooks/useCosmetics";
+import {
+  buildDefaultSetupDisguiseIds,
+  buildDefaultSetupSkinIds,
+  SESSION_PLAYER_DISGUISES_KEY,
+  SESSION_PLAYER_SKINS_KEY,
+} from "@/lib/ghostDisguise";
 
 export default function Setup() {
   const [players, setPlayers] = useState(["Player 1", "Player 2"]);
+  const [playerSkins, setPlayerSkins] = useState(null);
+  const [playerDisguises, setPlayerDisguises] = useState(null);
+  const [disguiseLocked, setDisguiseLocked] = useState([]);
   const navigate = useNavigate();
+  const { equippedSkinId, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
+
+  useEffect(() => {
+    if (isLoading) return;
+    setPlayerSkins((prev) => {
+      if (!prev) return buildDefaultSetupSkinIds(players.length, equippedSkinId, ownedSkins, ghostDisguiseId);
+      if (prev.length === players.length) return prev;
+      const next = buildDefaultSetupSkinIds(players.length, equippedSkinId, ownedSkins, ghostDisguiseId);
+      for (let i = 0; i < Math.min(prev.length, next.length); i++) next[i] = prev[i];
+      return next;
+    });
+  }, [isLoading, players.length, equippedSkinId, ownedSkins, ghostDisguiseId]);
+
+  useEffect(() => {
+    if (isLoading || !playerSkins?.length) return;
+    setPlayerDisguises((prev) => {
+      if (!prev || prev.length !== players.length) {
+        return Array.from({ length: players.length }, () => null);
+      }
+      return playerSkins.map((skinId, i) => (skinId === "ghost" ? prev[i] : null));
+    });
+  }, [isLoading, players.length, playerSkins, ghostDisguiseId, ownedSkins]);
 
   const addPlayer = () => {
-    if (players.length < 4) setPlayers([...players, `Player ${players.length + 1}`]);
+    if (players.length >= 4) return;
+    const nextCount = players.length + 1;
+    setPlayers([...players, `Player ${nextCount}`]);
+    setPlayerSkins((prev) => {
+      const defaults = buildDefaultSetupSkinIds(nextCount, equippedSkinId, ownedSkins, ghostDisguiseId);
+      if (!prev) return defaults;
+      return [...prev, defaults[nextCount - 1]];
+    });
+    setPlayerDisguises((prev) => {
+      if (!prev) return Array(nextCount).fill(null);
+      return [...prev, null];
+    });
+    setDisguiseLocked((prev) => [...prev, false]);
   };
+
   const removePlayer = (i) => {
-    if (players.length > 2) setPlayers(players.filter((_, idx) => idx !== i));
+    if (players.length <= 2) return;
+    setPlayers(players.filter((_, idx) => idx !== i));
+    setPlayerSkins((prev) => (prev ? prev.filter((_, idx) => idx !== i) : prev));
+    setPlayerDisguises((prev) => (prev ? prev.filter((_, idx) => idx !== i) : prev));
+    setDisguiseLocked((prev) => prev.filter((_, idx) => idx !== i));
   };
+
   const updateName = (i, v) => {
     const copy = [...players];
     copy[i] = v;
     setPlayers(copy);
   };
 
+  const updateSkin = (i, skinId) => {
+    setPlayerSkins((prev) => {
+      const copy = [...(prev || [])];
+      copy[i] = skinId;
+      return copy;
+    });
+    setPlayerDisguises((prev) => {
+      const copy = [...(prev || Array(players.length).fill(null))];
+      copy[i] = null;
+      return copy;
+    });
+    setDisguiseLocked((prev) => {
+      const copy = [...prev];
+      while (copy.length < players.length) copy.push(false);
+      copy[i] = false;
+      return copy;
+    });
+  };
+
+  const updateDisguise = (i, disguiseId) => {
+    setPlayerDisguises((prev) => {
+      const copy = [...(prev || Array(players.length).fill(null))];
+      copy[i] = disguiseId;
+      return copy;
+    });
+    setDisguiseLocked((prev) => {
+      const copy = [...prev];
+      while (copy.length < players.length) copy.push(false);
+      copy[i] = true;
+      return copy;
+    });
+  };
+
   const startGame = () => {
     const names = players.map((n, i) => n.trim() || `Player ${i + 1}`);
+    const skins = playerSkins || buildDefaultSetupSkinIds(names.length, equippedSkinId, ownedSkins, ghostDisguiseId);
+    const defaultDisguises = buildDefaultSetupDisguiseIds(names.length, skins, ghostDisguiseId, ownedSkins);
+    const disguises = (playerDisguises || defaultDisguises).map((disguise, i) =>
+      skins[i] === "ghost" ? disguise || defaultDisguises[i] : null,
+    );
     sessionStorage.setItem("dice10k_players", JSON.stringify(names));
+    sessionStorage.setItem(SESSION_PLAYER_SKINS_KEY, JSON.stringify(skins));
+    sessionStorage.setItem(SESSION_PLAYER_DISGUISES_KEY, JSON.stringify(disguises));
     navigate("/game");
   };
+
+  const rosterReady =
+    !isLoading && playerSkins?.length === players.length && playerDisguises?.length === players.length;
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-10 relative">
@@ -78,7 +172,7 @@ export default function Setup() {
             >
               ▸ Player Roster
             </p>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <AnimatePresence>
                 {players.map((name, i) => (
                   <motion.div
@@ -86,38 +180,52 @@ export default function Setup() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    className="flex gap-2 items-center"
+                    className="space-y-1.5"
                   >
-                    <div
-                      className="w-9 h-9 rounded-full text-white font-black flex items-center justify-center flex-shrink-0"
-                      style={{
-                        background: "linear-gradient(135deg, #ff00aa, #00ffc8)",
-                        boxShadow: "0 0 12px rgba(255,0,170,0.7), 0 0 18px rgba(0,255,200,0.4)",
-                        textShadow: "0 0 6px rgba(0,0,0,0.6)",
-                      }}
-                    >
-                      {i + 1}
-                    </div>
-                    <Input
-                      value={name}
-                      onChange={(e) => updateName(i, e.target.value)}
-                      className="text-white border-2 font-term text-lg tracking-wider"
-                      style={{
-                        background: "rgba(3,4,10,0.7)",
-                        borderColor: "rgba(0,255,200,0.5)",
-                        boxShadow: "inset 0 0 10px rgba(0,255,200,0.2)",
-                      }}
-                      maxLength={20}
-                    />
-                    {players.length > 2 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removePlayer(i)}
-                        className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                    <div className="flex gap-2 items-center">
+                      <div
+                        className="w-9 h-9 rounded-full text-white font-black flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: "linear-gradient(135deg, #ff00aa, #00ffc8)",
+                          boxShadow: "0 0 12px rgba(255,0,170,0.7), 0 0 18px rgba(0,255,200,0.4)",
+                          textShadow: "0 0 6px rgba(0,0,0,0.6)",
+                        }}
                       >
-                        <X className="w-4 h-4" />
-                      </Button>
+                        {i + 1}
+                      </div>
+                      <Input
+                        value={name}
+                        onChange={(e) => updateName(i, e.target.value)}
+                        className="text-white border-2 font-term text-lg tracking-wider"
+                        style={{
+                          background: "rgba(3,4,10,0.7)",
+                          borderColor: "rgba(0,255,200,0.5)",
+                          boxShadow: "inset 0 0 10px rgba(0,255,200,0.2)",
+                        }}
+                        maxLength={20}
+                      />
+                      {players.length > 2 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removePlayer(i)}
+                          className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {rosterReady && (
+                      <div className="pl-11 min-w-0">
+                        <SetupSkinPicker
+                          ownedSkins={ownedSkins}
+                          selectedId={playerSkins[i]}
+                          onSelect={(skinId) => updateSkin(i, skinId)}
+                          selectedDisguiseId={playerDisguises[i]}
+                          onDisguiseSelect={(disguiseId) => updateDisguise(i, disguiseId)}
+                          disguiseLocked={!!disguiseLocked[i]}
+                        />
+                      </div>
                     )}
                   </motion.div>
                 ))}

@@ -16,10 +16,13 @@ export default function DicePreview({
   size = 64,
   scoreFill = 0.5,
   compact = true,
+  resolveGhost = true,
 }) {
   const { equippedFeltId, ghostDisguiseId, ownedSkins } = useCosmetics();
   const felt = getFelt(equippedFeltId);
-  const renderSkinId = resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins });
+  const renderSkinId = resolveGhost
+    ? resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins })
+    : skinId;
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
