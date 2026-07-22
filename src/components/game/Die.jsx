@@ -17,6 +17,10 @@ import Pip from "./Pip";
 import FishOverlay from "./FishOverlay";
 import { BlueGelSharkAttack, BlueGelSharkBiteCharge, BloodPowerFx, BloodyWaterTint, skinUsesBloodPowerFx } from "./BlueGelPowerFX";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
+import IcePowerOverlay, {
+  getIcePowerShapeMaskStyle,
+  useIcePowerSettings,
+} from "./IcePowerOverlay";
 import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
 import HeldDiceOverlay from "./HeldDiceOverlay";
@@ -172,6 +176,11 @@ function Die({
   // Standard dice corner radius
   const radius = Math.round(size * 0.06);
 
+  // Frosty / Frozen Ice Score Freeze — organic shape + ice overlay while charged.
+  const icePowerSettings = useIcePowerSettings();
+  const icePowerActive = skin.id === "ice" && powerMode && !reduceEffects;
+  const iceShapeMaskOn = icePowerActive && icePowerSettings.shapeEnabled !== false;
+
   // Squircle mask — bows the edges outward between the corners like a real die.
   // b = bulge amount (fraction of size that the midpoint of each edge extends past the square)
   const b = 0.04;
@@ -190,6 +199,9 @@ function Die({
     WebkitMaskRepeat: "no-repeat",
     maskRepeat: "no-repeat",
   };
+  const dieMaskStyle = iceShapeMaskOn
+    ? getIcePowerShapeMaskStyle(value, size, icePowerSettings)
+    : squircleStyle;
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -334,6 +346,13 @@ function Die({
         </div>
       )}
 
+      {/* Ice power frame — outside the masked die so dripping borders can extend */}
+      {icePowerActive && (
+        <div className="absolute inset-0 z-[12] pointer-events-none overflow-visible">
+          <IcePowerOverlay value={value} size={size} radius={radius} layer="frame" />
+        </div>
+      )}
+
       <PortfolioDieProvider scoreFill={scoreFill} enabled={isPortfolioFx}>
       <button
         type="button"
@@ -345,7 +364,7 @@ function Die({
           boxShadow: buildShadow(),
           overflow: "hidden",
           background: isClearBody ? "transparent" : undefined,
-          ...squircleStyle
+          ...dieMaskStyle
         }}>
         
         {/* Video background skin — cropped 3×2 grid, one face per die */}
@@ -621,6 +640,11 @@ function Die({
         (skin.experimental ||
           (skin.id !== "blue_gel" && skin.id !== "snow_globe" && !spriteLayer && !videoSkinActive)) &&
           renderPipGrid()}
+
+        {/* Frosty / Ice — frozen cubes on top of regular skin (shape applied via die mask + frame) */}
+        {icePowerActive && (
+          <IcePowerOverlay value={value} size={size} radius={radius} layer="frozen" />
+        )}
 
         {/* Matrix — animated code rain in power mode only (hidden when power video plays) */}
         {skin.id === "matrix" && powerMode && !reduceEffects && !activeVideoUrl && (

@@ -29,6 +29,7 @@ const Story = lazy(() => import('@/pages/Story'));
 const StoryGame = lazy(() => import('@/pages/StoryGame'));
 const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
 const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
+const IcePowerLab = lazy(() => import('@/pages/IcePowerLab'));
 
 function PageLoader() {
   return (
@@ -90,6 +91,8 @@ function App() {
             <Route path="/story/:bossId" element={<StoryGame />} />
             <Route path="/video-assets" element={<VideoAssets />} />
             <Route path="/fish-showcase" element={<FishShowcase />} />
+            <Route path="/ice-lab" element={<IcePowerLab />} />
+            <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
           </RouteErrorBoundary>

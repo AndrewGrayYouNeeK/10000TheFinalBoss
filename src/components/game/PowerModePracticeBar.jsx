@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const practiceBtnBase =
@@ -6,7 +7,7 @@ const practiceBtnBase =
 
 /**
  * Mid-game toggles to preview power-mode visuals without earning Hot Dice.
- * variant: marlin (Shark Bite / Blue Gel) | gq (Diamond Cut / Siphon)
+ * variant: marlin (Shark Bite / Blue Gel) | gq (Diamond Cut / Siphon) | ice (Frosty / Score Freeze)
  */
 export default function PowerModePracticeBar({
   variant,
@@ -22,9 +23,14 @@ export default function PowerModePracticeBar({
   if (!variant) return null;
 
   const isMarlin = variant === "marlin";
-  const label = isMarlin ? "Marlin practice" : "GQ practice";
-  const accent = isMarlin ? "#22d3ee" : "#7dd3fc";
-  const accentGlow = isMarlin ? "rgba(34,211,238,0.55)" : "rgba(125,211,252,0.5)";
+  const isIce = variant === "ice";
+  const label = isMarlin ? "Marlin practice" : isIce ? "Frosty practice" : "GQ practice";
+  const accent = isMarlin ? "#22d3ee" : isIce ? "#7dd3fc" : "#7dd3fc";
+  const accentGlow = isMarlin
+    ? "rgba(34,211,238,0.55)"
+    : isIce
+      ? "rgba(186,230,253,0.55)"
+      : "rgba(125,211,252,0.5)";
 
   return (
     <div
@@ -36,7 +42,9 @@ export default function PowerModePracticeBar({
         borderColor: accentGlow,
         background: isMarlin
           ? "linear-gradient(90deg, rgba(34,211,238,0.18), rgba(8,47,73,0.35))"
-          : "linear-gradient(90deg, rgba(125,211,252,0.16), rgba(15,23,42,0.5))",
+          : isIce
+            ? "linear-gradient(90deg, rgba(186,230,253,0.2), rgba(12,74,110,0.4))"
+            : "linear-gradient(90deg, rgba(125,211,252,0.16), rgba(15,23,42,0.5))",
         boxShadow: `0 0 12px ${accentGlow}`,
       }}
     >
@@ -61,6 +69,20 @@ export default function PowerModePracticeBar({
       >
         {powerPreview ? "Dice on" : "Power dice"}
       </button>
+
+      {isIce && (
+        <Link
+          to="/ice-lab"
+          className={cn(practiceBtnBase, "text-sky-100 inline-flex items-center")}
+          style={{
+            borderColor: "rgba(125,211,252,0.65)",
+            background: "linear-gradient(90deg, rgba(14,165,233,0.45), rgba(12,74,110,0.55))",
+            boxShadow: "0 0 8px rgba(125,211,252,0.35)",
+          }}
+        >
+          Ice lab
+        </Link>
+      )}
 
       {isMarlin && (
         <>
@@ -104,6 +126,7 @@ export default function PowerModePracticeBar({
 export function storyBossPracticeVariant(bossId) {
   if (bossId === "fisherman") return "marlin";
   if (bossId === "gq") return "gq";
+  if (bossId === "snowman" || bossId === "ice_witch") return "ice";
   return null;
 }
 
@@ -111,11 +134,13 @@ export function storyBossPracticeVariant(bossId) {
 export function skinPracticeVariant(skinId) {
   if (skinId === "blue_gel") return "marlin";
   if (skinId === "crystal_cut") return "gq";
+  if (skinId === "ice") return "ice";
   return null;
 }
 
 export function practicePreviewSkinId(variant) {
   if (variant === "marlin") return "blue_gel";
   if (variant === "gq") return "crystal_cut";
+  if (variant === "ice") return "ice";
   return null;
 }

@@ -144,6 +144,12 @@ export default function FishShowcase() {
               Video Assets
             </Link>
             <Link
+              to="/ice-lab"
+              className="text-xs font-bold uppercase tracking-wider text-sky-300 border border-sky-700/60 rounded-full px-3 py-1.5 hover:bg-sky-950/60"
+            >
+              Ice Lab
+            </Link>
+            <Link
               to="/shop"
               className="text-xs font-bold uppercase tracking-wider text-cyan-300 border border-cyan-700/60 rounded-full px-3 py-1.5 hover:bg-cyan-950/60"
             >

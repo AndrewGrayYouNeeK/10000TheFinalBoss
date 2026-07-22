@@ -637,11 +637,13 @@ export default function StoryGame() {
       ? getPower("shark_bite")
       : practiceVariant === "gq"
         ? getPower("siphon")
-        : null;
-  // Shark Bite power mode — only on the Blue Gel player's charged turn.
+        : practiceVariant === "ice"
+          ? getPower("freeze_score")
+          : null;
+  // Dice tray power VFX when charged (or practice preview).
   const trayPowerMode =
-    (myTurn && !!currentPlayer?.powerCharge && skinPower?.id === "shark_bite") ||
-    (practicePowerPreview && practiceVariant === "marlin");
+    powerModeActive ||
+    (practicePowerPreview && !!practiceVariant);
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
   const trayBloodWater = bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);

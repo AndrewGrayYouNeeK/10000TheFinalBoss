@@ -937,6 +937,20 @@ export default function SpriteLab({ skinId }) {
       </div>
 
       <div className="max-w-3xl mx-auto p-4 space-y-4">
+        {skinId === "ice" && (
+          <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-sky-100">
+            <span>
+              Score Freeze power layers (shape · frame · frozen cubes) tune on a dedicated lab — live
+              preview + localStorage.
+            </span>
+            <Link
+              to="/ice-lab"
+              className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white shrink-0"
+            >
+              Open Ice Lab
+            </Link>
+          </div>
+        )}
         {tuningLocked && lockConfig && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2.5 flex items-center gap-2 text-xs text-amber-100">
             <Lock className="w-4 h-4 shrink-0 text-amber-300" />

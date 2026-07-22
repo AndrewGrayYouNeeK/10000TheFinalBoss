@@ -432,11 +432,13 @@ export default function Game() {
       ? getPower("shark_bite")
       : practiceVariant === "gq"
         ? getPower("siphon")
-        : null;
-  // Shark Bite power mode — only the charged player's turn (never opponent inherit).
+        : practiceVariant === "ice"
+          ? getPower("freeze_score")
+          : null;
+  // Dice tray power VFX when charged (or practice preview). Shark Bite stays turn-local.
   const trayPowerMode =
-    (!!currentPlayer?.powerCharge && skinPower?.id === "shark_bite") ||
-    (practicePowerPreview && practiceVariant === "marlin");
+    powerModeActive ||
+    (practicePowerPreview && !!practiceVariant);
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
   // Feeding Frenzy — only when fish dice were targeted (separate from Shark Bite charge).

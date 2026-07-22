@@ -131,6 +131,32 @@ export default function VideoAssets() {
           <BlueGelChromaControls showWorkbenchLinks={false} />
         </section>
 
+        <section className="rounded-2xl border border-sky-500/35 bg-sky-950/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black text-sky-200">Frosty — Ice power workbench</h2>
+              <p className="text-[11px] text-slate-400 mt-1 max-w-md">
+                Live-tune shape mask, dripping frame, and frozen cube layers for Score Freeze. Saves
+                on this device and applies in-game immediately.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/ice-lab"
+                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white"
+              >
+                Open Ice Lab
+              </Link>
+              <Link
+                to="/sprite-lab/ice"
+                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
+              >
+                Ice Sprite Lab
+              </Link>
+            </div>
+          </div>
+        </section>
+
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_MODE} />
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_BOSS_WIN} />
 
@@ -144,6 +170,22 @@ export default function VideoAssets() {
             /fish-showcase
           </Link>{" "}
           (feast → chomp tray preview + chroma tuner).
+        </p>
+
+        <p className="text-xs text-slate-400 rounded-lg border border-sky-500/25 bg-sky-950/20 px-3 py-2">
+          Frosty / Ice power:{" "}
+          <Link to="/ice-lab" className="text-sky-300 underline font-bold">
+            /ice-lab
+          </Link>{" "}
+          (shape · frame · frozen layer tuner) ·{" "}
+          <Link to="/frosty-lab" className="text-sky-300 underline font-bold">
+            /frosty-lab
+          </Link>{" "}
+          (alias) ·{" "}
+          <Link to="/sprite-lab/ice" className="text-sky-300 underline font-bold">
+            /sprite-lab/ice
+          </Link>
+          .
         </p>
 
         <p className="text-xs text-slate-400 rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-3 py-2">
@@ -216,7 +258,11 @@ export default function VideoAssets() {
           <Link to="/fish-showcase" className="text-cyan-400 underline">
             Preview shark attack
           </Link>{" "}
-          are on Fish Showcase.
+          are on Fish Showcase. Frosty ice power layers:{" "}
+          <Link to="/ice-lab" className="text-sky-400 underline">
+            Ice Lab
+          </Link>
+          .
         </p>
       </div>
     </div>
