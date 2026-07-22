@@ -30,8 +30,7 @@ import { TOXIC_PLASMA_V2_SPRITE_TUNING } from "./toxicPlasmaV2SpriteTuning";
 import { RUBY_SPRITE_TUNING } from "./rubySpriteTuning";
 import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
 import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
-import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, lockedTuningStorageKey } from "./spriteLab";
-import { isMatrixTuningLocked } from "./matrixTuningLock";
+import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked } from "./spriteLab";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -95,7 +94,7 @@ export const PRODUCTION_DICE_SKINS = [
     border: "border-sky-400",
     pipColor: "bg-white",
     glow: "shadow-sky-300/70",
-    description: "Carved from a glacier.",
+    description: "Carved from a glacier — Score Freeze locks the opponent's banked score.",
     realistic: true,
     spriteUrl: "/assets/e66ae9a18_WKqr8v-gNKNdg_505xf6y_K3ZiqoBX.png",
   },
@@ -445,7 +444,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Hot pink & cyan neon cyberpunk dice.",
     preview: true,
     realistic: true,
-    spriteUrl: "/assets/1faa6e66a_4sGTKX3C3u5uBHFW6rhKC_oVYyNtwY.png",
+    spriteUrl: "/assets/354eae8fe_generated_image.png",
     spriteGrid: { cols: 3, rows: 2 },
     ...CYBER_NEON_SPRITE_TUNING,
   },
@@ -917,11 +916,10 @@ export function normalizeSkinId(id) {
   return id;
 }
 
-/** Locked snapshots saved before zoom fix used 1.0 — keep catalog tuning instead. */
+/** Prefer locked snapshot zoom; fall back to catalog only when the lock has no zoom. */
 function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
   if (!locked) return draftZoom ?? catalogZoom;
   if (draftZoom == null) return catalogZoom;
-  if (draftZoom === 1 && catalogZoom > 1.2) return catalogZoom;
   return draftZoom;
 }
 
@@ -956,18 +954,26 @@ export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = t
   return null;
 }
 
+function applyLockedSpritePaths(skin, draft, locked) {
+  if (!locked || !draft) return skin;
+  const next = { ...skin };
+  if (typeof draft.spriteUrl === "string" && draft.spriteUrl) next.spriteUrl = draft.spriteUrl;
+  if (typeof draft.powerSpriteUrl === "string") next.powerSpriteUrl = draft.powerSpriteUrl || undefined;
+  if (typeof draft.powerVideoUrl === "string" && draft.powerVideoUrl) next.powerVideoUrl = draft.powerVideoUrl;
+  return next;
+}
+
 export function getSkin(id) {
-  const skin = DICE_SKINS.find((s) => s.id === normalizeSkinId(id)) || DICE_SKINS[0];
+  const base = DICE_SKINS.find((s) => s.id === normalizeSkinId(id)) || DICE_SKINS[0];
 
-  if (skin.id === "matrix" && isMatrixTuningLocked()) return skin;
-
-  const draft = loadSpriteLabDraft(skin.id);
+  const draft = loadSpriteLabDraft(base.id);
+  const locked = isSpriteTuningLocked(base.id);
+  const skin = applyLockedSpritePaths(base, draft, locked);
   if (!draft) return skin;
-  const locked = isSpriteTuningLocked(skin.id);
-  const mergeRegular = (base) =>
-    mergeSpriteLabFaceOffsets(base, draft.regularFaces, { fullReplace: locked });
-  const mergePower = (base) =>
-    mergeSpriteLabFaceOffsets(base, draft.powerFaces, { fullReplace: locked });
+  const mergeRegular = (offsetsBase) =>
+    mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked });
+  const mergePower = (offsetsBase) =>
+    mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: locked });
 
   if (skin.id === "matrix") {
     return {

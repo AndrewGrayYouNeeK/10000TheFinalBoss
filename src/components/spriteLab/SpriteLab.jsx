@@ -13,6 +13,7 @@ import {
   FACES,
   loadSpriteLabDraft,
   saveLockedTuningSnapshot,
+  persistTuningLockFlag,
   saveSpriteLabDraft,
   tuningFileName,
   getSpriteLabSkins,
@@ -572,9 +573,7 @@ export default function SpriteLab({ skinId }) {
   const activeNudge = activeFaces[selectedFace] ?? { x: 0, y: 0 };
 
   const tunedSkin = useMemo(
-    () => {
-      if (skinId === "matrix" && tuningLocked) return catalogSkin;
-      return {
+    () => ({
       ...catalogSkin,
       spriteCrop: regularCrop,
       powerVideoZoom,
@@ -583,11 +582,8 @@ export default function SpriteLab({ skinId }) {
       spriteFaceOffsets: usesPowerFaceNudges
         ? { regular: regularFaces, power: powerFaces }
         : { regular: regularFaces },
-    };
-    },
+    }),
     [
-      skinId,
-      tuningLocked,
       catalogSkin,
       regularCrop,
       powerCrop,
@@ -680,22 +676,24 @@ export default function SpriteLab({ skinId }) {
     if (!lockConfig) return;
     try {
       const lockedVideos = await saveLockedVideoSnapshots(skinId);
-      if (skinId === "matrix") {
-        // Sprite tuning = catalog file; videos saved separately on device.
-      } else {
-        saveLockedTuningSnapshot(skinId, {
-          regularCrop,
-          powerCrop,
-          regularFaces,
-          powerFaces,
-          powerVideoZoom,
-          powerVideoCrop,
-          lockedVideos,
-        });
-      }
+      saveLockedTuningSnapshot(skinId, {
+        regularCrop,
+        powerCrop,
+        regularFaces,
+        powerFaces,
+        powerVideoZoom,
+        powerVideoCrop,
+        lockedVideos,
+        // Freeze which sprite sheets/videos this lock points at
+        spriteUrl: catalogSkin.spriteUrl,
+        powerSpriteUrl: catalogSkin.powerSpriteUrl,
+        powerVideoUrl: catalogSkin.powerVideoUrl,
+        videoUrl: catalogSkin.videoUrl,
+      });
       lockConfig.lock();
+      persistTuningLockFlag(skinId, true);
       setTuningUnlocked(false);
-      toast.success(`${catalogSkin.name} tuning and videos saved and locked on this device.`);
+      toast.success(`${catalogSkin.name} locked — saved on this device (survives restart).`);
     } catch {
       toast.error("Could not save video uploads — try again");
     }
@@ -704,13 +702,14 @@ export default function SpriteLab({ skinId }) {
   const handleUnlockTuning = () => {
     if (!lockConfig) return;
     lockConfig.unlock();
+    persistTuningLockFlag(skinId, false);
     setTuningUnlocked(true);
-    toast.success(`${catalogSkin.name} tuning and videos unlocked — sliders and uploads are live`);
+    toast.success(`${catalogSkin.name} unlocked — sliders and uploads are live`);
   };
 
   const handleRestoreUploads = async () => {
     try {
-      const restored = await recoverAllVideoSettings();
+      const restored = await recoverAllVideoSettings({ force: true });
       if (restored > 0) {
         toast.success(
           `Restored ${restored} saved video${restored === 1 ? "" : "s"} on this device`

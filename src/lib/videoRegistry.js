@@ -9,9 +9,14 @@ import {
 /** Same key as diceBillboardVideo — kept here to avoid import cycles on startup. */
 export const MATRIX_GAMEPLAY_BILLBOARD_KEY = "gameplay_billboard_matrix";
 
-/** IndexedDB backup slot — written on every upload, never cleared by restore. */
+/** IndexedDB backup slot — written on every upload. */
 export function backupVideoKey(videoKey) {
   return `backup_vid_${videoKey}`;
+}
+
+/** Durable vault slot — survives soft Remove; cleared only on hard purge. */
+export function vaultVideoKey(videoKey) {
+  return `vault_vid_${videoKey}`;
 }
 
 /** Every upload slot in the app (used for preload + recovery). */

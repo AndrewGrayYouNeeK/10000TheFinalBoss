@@ -117,6 +117,17 @@ export const POWERS = [
     tagline: "Ice in their veins.",
   },
   {
+    id: "freeze_score",
+    name: "Score Freeze",
+    kind: "sabo",
+    cost: 50,
+    icon: "🧊",
+    color: "#7dd3fc",
+    description:
+      "Lock the opponent's banked score for the rest of their turn — they can still roll, but banking cannot change their score.",
+    tagline: "Glacier lock.",
+  },
+  {
     id: "lockout",
     name: "Lockout",
     kind: "sabo",
@@ -185,8 +196,8 @@ export const POWERS = [
     icon: "🦈",
     color: "#0ea5e9",
     description:
-      "Mark the next player — when they bank, a shark eats that round's points. vs Angelfish / aquarium dice: sharks feast instantly and wipe their score to 0.",
-    tagline: "Feeding frenzy.",
+      "Shark Bite: mark the next player — when they bank, a shark eats that round's points. Feeding Frenzy: if they use aquarium / Angelfish dice, sharks feast instantly and wipe their score to 0.",
+    tagline: "Hunt. Mark. Bite.",
   },
 ];
 

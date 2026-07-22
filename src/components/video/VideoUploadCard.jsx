@@ -78,9 +78,31 @@ export default function VideoUploadCard({
       await clearLocalVideo(videoKey);
       setLoaded(false);
       setPreviewUrl(null);
-      toast.success("Video removed");
+      toast.success("Removed from this slot — Restore all uploads can bring a backup back");
     } catch {
       toast.error("Could not remove video");
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const { getLocalVideoBlob } = await import("@/lib/localVideoStore");
+      const blob = await getLocalVideoBlob(videoKey);
+      if (!blob) {
+        toast.error("No uploaded file to download");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${videoKey}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Download started — keep a copy outside the browser");
+    } catch {
+      toast.error("Could not download video");
     }
   };
 
@@ -114,16 +136,27 @@ export default function VideoUploadCard({
           {uploading ? "Saving…" : blockUpload ? "Locked" : loaded ? "Replace video" : "Upload video"}
         </Button>
         {loaded && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={blockRemove}
-            className="border-rose-500/40 text-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={handleClear}
-          >
-            Remove
-          </Button>
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-emerald-500/40 text-emerald-200"
+              onClick={handleDownload}
+            >
+              Download copy
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={blockRemove}
+              className="border-rose-500/40 text-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={handleClear}
+            >
+              Remove
+            </Button>
+          </>
         )}
       </div>
 

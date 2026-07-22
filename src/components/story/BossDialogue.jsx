@@ -23,7 +23,16 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
     setWinVideoDone(false);
   }, [mode, boss?.id]);
 
-  if (!boss) return null;
+  const introDoneRef = React.useRef(false);
+  React.useEffect(() => {
+    introDoneRef.current = false;
+  }, [mode, boss?.id]);
+
+  const finishIntro = React.useCallback(() => {
+    if (introDoneRef.current) return;
+    introDoneRef.current = true;
+    onContinue();
+  }, [onContinue]);
 
   const introPending = mode === "intro" && !introReady;
   const winPending = mode === "win" && !winReady;
@@ -33,18 +42,18 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
   const showDialogue =
     mode !== "intro" && !introPending && !winPending && !showIntroVideo && !showWinVideo;
 
-  const introSkipRef = React.useRef(false);
+  // No per-boss intro upload — start the fight once resolution finishes.
   React.useEffect(() => {
-    introSkipRef.current = false;
-  }, [mode, boss?.id]);
+    if (mode !== "intro" || !introReady || storyVideoSrc) return;
+    finishIntro();
+  }, [mode, introReady, storyVideoSrc, finishIntro]);
 
-  // Intro uses the cutscene video only — skip the quote card and go straight to the fight.
-  React.useEffect(() => {
-    if (mode !== "intro" || introPending || showIntroVideo) return;
-    if (introSkipRef.current) return;
-    introSkipRef.current = true;
-    onContinue();
-  }, [mode, introPending, showIntroVideo, onContinue]);
+  if (!boss) return null;
+
+  const handleIntroVideoDone = () => {
+    setIntroVideoDone(true);
+    finishIntro();
+  };
 
   const line = mode === "win" ? boss.winLine : boss.loseLine;
 
@@ -66,7 +75,7 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
       {showIntroVideo && (
         <FullscreenCutsceneVideo
           src={storyVideoSrc}
-          onDone={() => setIntroVideoDone(true)}
+          onDone={handleIntroVideoDone}
           label="Skip intro"
         />
       )}

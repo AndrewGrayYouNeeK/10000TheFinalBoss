@@ -70,6 +70,11 @@ export default function FullscreenCutsceneVideo({
     startPlayback();
     return () => {
       cancelled = true;
+      try {
+        video.pause();
+      } catch {
+        /* ignore */
+      }
     };
   }, [src]);
 

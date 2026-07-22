@@ -5,8 +5,12 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
+import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
+
+// Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
+hydrateSpriteLabPersistence();
 
 const Shop = lazy(() => import('@/pages/Shop'));
 

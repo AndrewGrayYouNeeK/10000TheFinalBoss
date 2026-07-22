@@ -1,4 +1,5 @@
 import { DICE_SKINS } from "@/lib/shopCatalog";
+import { loadProfile, updateProfile } from "@/lib/localProfile";
 import { isMatrixTuningLocked } from "@/lib/matrixTuningLock";
 import { isDiamondCutTuningLocked } from "@/lib/diamondCutTuningLock";
 import { isIceTuningLocked } from "@/lib/iceTuningLock";
@@ -61,6 +62,39 @@ const TUNING_LOCK_CHECKERS = {
   ruby: isRubyTuningLocked,
 };
 
+/** localStorage lock-flag keys (crystal_cut uses diamond_cut historically). */
+const TUNING_LOCK_FLAG_KEYS = {
+  matrix: "yourneek_matrix_tuning_locked",
+  crystal_cut: "yourneek_diamond_cut_tuning_locked",
+  ice: "yourneek_ice_tuning_locked",
+  ragnarok: "yourneek_ragnarok_tuning_locked",
+  galaxy: "yourneek_galaxy_tuning_locked",
+  fluorite: "yourneek_fluorite_tuning_locked",
+  amber_wasp: "yourneek_amber_wasp_tuning_locked",
+  amethyst: "yourneek_amethyst_tuning_locked",
+  paper: "yourneek_paper_tuning_locked",
+  dragon_scale: "yourneek_dragon_scale_tuning_locked",
+  snow_globe: "yourneek_snow_globe_tuning_locked",
+  teal_crackle: "yourneek_teal_crackle_tuning_locked",
+  aquamarine_light: "yourneek_aquamarine_light_tuning_locked",
+  aquamarine: "yourneek_aquamarine_tuning_locked",
+  wood: "yourneek_wood_tuning_locked",
+  silver: "yourneek_silver_tuning_locked",
+  circuit_board: "yourneek_circuit_board_tuning_locked",
+  cyber_neon: "yourneek_cyber_neon_tuning_locked",
+  obsidian: "yourneek_obsidian_tuning_locked",
+  labradorite: "yourneek_labradorite_tuning_locked",
+  labradorite_polished: "yourneek_labradorite_polished_tuning_locked",
+  love_is_love: "yourneek_love_is_love_tuning_locked",
+  gold: "yourneek_gold_tuning_locked",
+  moonstone: "yourneek_moonstone_tuning_locked",
+  neon_grid: "yourneek_neon_grid_tuning_locked",
+  plasma: "yourneek_plasma_tuning_locked",
+  pride: "yourneek_pride_tuning_locked",
+  toxic_plasma_v2: "yourneek_toxic_plasma_v2_tuning_locked",
+  ruby: "yourneek_ruby_tuning_locked",
+};
+
 export function isSpriteTuningLocked(skinId) {
   return TUNING_LOCK_CHECKERS[skinId]?.() ?? false;
 }
@@ -71,23 +105,364 @@ export function lockedTuningStorageKey(skinId) {
   return `yourneek_locked_tuning_${skinId}`;
 }
 
-/** Persist slider values when the user taps Lock in Sprite Lab. */
-export function saveLockedTuningSnapshot(skinId, payload) {
+function readProfileSpriteTuning() {
   try {
-    localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(payload));
+    return loadProfile()?.sprite_tuning ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function writeProfileSpriteTuningMap(nextMap) {
+  try {
+    updateProfile({ sprite_tuning: nextMap });
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeProfileSpriteTuningEntry(skinId, patch) {
+  try {
+    const sprite_tuning = { ...readProfileSpriteTuning() };
+    sprite_tuning[skinId] = {
+      ...(sprite_tuning[skinId] || {}),
+      ...patch,
+      updatedAt: Date.now(),
+    };
+    writeProfileSpriteTuningMap(sprite_tuning);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Persist slider + sprite path values when the user taps Lock in Sprite Lab. */
+export function saveLockedTuningSnapshot(skinId, payload) {
+  const data = { ...payload, savedAt: Date.now() };
+  try {
+    localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(data));
   } catch {
     /* ignore quota errors */
   }
+  writeProfileSpriteTuningEntry(skinId, { locked: true, snapshot: data });
 }
 
 export function loadLockedTuningSnapshot(skinId) {
   try {
     const raw = localStorage.getItem(lockedTuningStorageKey(skinId));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+  } catch {
+    /* fall through to profile backup */
+  }
+  try {
+    const snap = readProfileSpriteTuning()?.[skinId]?.snapshot;
+    if (snap && typeof snap === "object") {
+      try {
+        localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(snap));
+      } catch {
+        /* ignore */
+      }
+      return snap;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Mirror Lock / Unlock into the player profile so it survives restarts. */
+export function persistTuningLockFlag(skinId, locked) {
+  const key = TUNING_LOCK_FLAG_KEYS[skinId];
+  if (key) {
+    try {
+      localStorage.setItem(key, locked ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+  writeProfileSpriteTuningEntry(skinId, { locked: !!locked });
+}
+
+/** Read a Sprite Lab draft without preferring lock snapshots (recovery only). */
+function loadRawSpriteLabDraft(skinId) {
+  try {
+    let raw = localStorage.getItem(spriteLabStorageKey(skinId));
+    if (!raw && skinId === "ragnarok") {
+      raw = localStorage.getItem("yourneek_ragnarok_sprite_lab");
+    }
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
+}
+
+function catalogSkinById(skinId) {
+  return DICE_SKINS.find((s) => s.id === skinId) ?? null;
+}
+
+/** Build a lock snapshot from catalog paths + crop (authoritative shipped defaults). */
+function buildCatalogLockSnapshot(skin) {
+  if (!skin) return null;
+  return {
+    regularCrop: skin.spriteCrop ?? { ...DEFAULT_SPRITE_CROP },
+    powerCrop: skin.powerSpriteCrop ?? { ...DEFAULT_SPRITE_CROP },
+    regularFaces: emptyFaceMap(skin.spriteFaceOffsets?.regular),
+    powerFaces: emptyFaceMap(skin.spriteFaceOffsets?.power),
+    powerVideoZoom: skin.powerVideoZoom,
+    powerVideoCrop: skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 },
+    spriteUrl: skin.spriteUrl,
+    powerSpriteUrl: skin.powerSpriteUrl,
+    powerVideoUrl: skin.powerVideoUrl,
+    videoUrl: skin.videoUrl,
+    seededFrom: "catalog",
+  };
+}
+
+function snapshotHasSpritePaths(snapshot) {
+  return !!(
+    snapshot &&
+    (typeof snapshot.spriteUrl === "string" ||
+      typeof snapshot.powerSpriteUrl === "string" ||
+      typeof snapshot.powerVideoUrl === "string" ||
+      typeof snapshot.videoUrl === "string")
+  );
+}
+
+/** Prefer complete lock data — never let a path-less localStorage stub clobber a richer profile backup. */
+function preferRicherSnapshot(a, b) {
+  if (!a || typeof a !== "object") return b && typeof b === "object" ? b : null;
+  if (!b || typeof b !== "object") return a;
+  const score = (s) =>
+    (snapshotHasSpritePaths(s) ? 100 : 0) +
+    (s.regularCrop ? 10 : 0) +
+    (s.powerCrop ? 5 : 0) +
+    (typeof s.savedAt === "number" ? Math.min(s.savedAt / 1e13, 1) : 0);
+  const sa = score(a);
+  const sb = score(b);
+  if (sa !== sb) return sa > sb ? a : b;
+  return (a.savedAt ?? 0) >= (b.savedAt ?? 0) ? a : b;
+}
+
+/** Prefer recovered draft/crop; always freeze current catalog sprite paths. */
+function mergeRecoveredLockSnapshot({ existing, draft, catalog }) {
+  const base = buildCatalogLockSnapshot(catalog) || {
+    regularCrop: { ...DEFAULT_SPRITE_CROP },
+    powerCrop: { ...DEFAULT_SPRITE_CROP },
+    regularFaces: emptyFaceMap(),
+    powerFaces: emptyFaceMap(),
+    powerVideoCrop: { offsetX: 0, offsetY: 0 },
+  };
+  const cropSource = existing || draft || null;
+  if (!cropSource) return base;
+
+  return {
+    ...base,
+    regularCrop: cropSource.regularCrop ?? base.regularCrop,
+    powerCrop: cropSource.powerCrop ?? base.powerCrop,
+    regularFaces: emptyFaceMap(cropSource.regularFaces ?? base.regularFaces),
+    powerFaces: emptyFaceMap(cropSource.powerFaces ?? base.powerFaces),
+    powerVideoZoom: cropSource.powerVideoZoom ?? base.powerVideoZoom,
+    powerVideoCrop: cropSource.powerVideoCrop ?? base.powerVideoCrop,
+    lockedVideos: cropSource.lockedVideos ?? existing?.lockedVideos,
+    // Paths always from catalog so art assignment is frozen correctly
+    spriteUrl: base.spriteUrl ?? cropSource.spriteUrl,
+    powerSpriteUrl: base.powerSpriteUrl ?? cropSource.powerSpriteUrl,
+    powerVideoUrl: base.powerVideoUrl ?? cropSource.powerVideoUrl,
+    videoUrl: base.videoUrl ?? cropSource.videoUrl,
+    seededFrom: existing
+      ? snapshotHasSpritePaths(existing)
+        ? existing.seededFrom || "existing"
+        : "path_backfill"
+      : draft
+        ? "draft"
+        : "catalog",
+  };
+}
+
+/**
+ * Ensure every lockable skin has a complete lock snapshot (crop + sprite paths)
+ * and is locked — so the user does not have to click through Sprite Lab.
+ * Recovery order: existing snapshot → draft → catalog defaults.
+ * Never deletes richer existing data; only backfills missing snapshots/paths.
+ */
+function seedMissingLockedTuningSnapshots(sprite_tuning) {
+  let profileDirty = false;
+
+  for (const skinId of SPRITE_TUNING_LOCK_SKIN_IDS) {
+    const catalog = catalogSkinById(skinId);
+    const flagKey = TUNING_LOCK_FLAG_KEYS[skinId];
+    let existing = null;
+
+    try {
+      const raw = localStorage.getItem(lockedTuningStorageKey(skinId));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") existing = parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!existing) {
+      const profileSnap = sprite_tuning[skinId]?.snapshot;
+      if (profileSnap && typeof profileSnap === "object") existing = profileSnap;
+    }
+
+    const draft = loadRawSpriteLabDraft(skinId);
+    const needsSeed = !existing;
+    const needsPathBackfill = !!(existing && !snapshotHasSpritePaths(existing) && catalog);
+
+    if (!needsSeed && !needsPathBackfill) {
+      // Still mirror lock flag into profile if missing
+      if (flagKey) {
+        try {
+          const flag = localStorage.getItem(flagKey);
+          const locked = flag === null ? true : flag === "1";
+          if (flag === null) localStorage.setItem(flagKey, "1");
+          const entry = sprite_tuning[skinId];
+          if (!entry || entry.locked !== locked || !entry.snapshot) {
+            sprite_tuning[skinId] = {
+              ...(entry || {}),
+              locked,
+              snapshot: existing,
+              updatedAt: Date.now(),
+            };
+            profileDirty = true;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      continue;
+    }
+
+    const snapshot = {
+      ...mergeRecoveredLockSnapshot({ existing, draft, catalog }),
+      savedAt: Date.now(),
+    };
+
+    try {
+      localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(snapshot));
+    } catch {
+      /* ignore quota */
+    }
+
+    // Auto-lock so Sprite Lab doesn't ask the user to re-lock each skin.
+    // Respect an explicit unlock ("0") — still write the snapshot for when they lock.
+    let locked = true;
+    if (flagKey) {
+      try {
+        const flag = localStorage.getItem(flagKey);
+        if (flag === "0") locked = false;
+        else {
+          localStorage.setItem(flagKey, "1");
+          locked = true;
+        }
+      } catch {
+        locked = true;
+      }
+    }
+
+    sprite_tuning[skinId] = {
+      ...(sprite_tuning[skinId] || {}),
+      locked,
+      snapshot,
+      updatedAt: Date.now(),
+    };
+    profileDirty = true;
+  }
+
+  return profileDirty;
+}
+
+/**
+ * On app start:
+ * 1) Back up any existing localStorage lock snapshots into the player profile
+ * 2) Restore missing localStorage keys from the profile
+ * 3) Auto-seed / backfill complete lock snapshots (paths + crop) for every skin
+ * Never deletes existing snapshots.
+ */
+export function hydrateSpriteLabPersistence() {
+  const sprite_tuning = { ...readProfileSpriteTuning() };
+  let profileDirty = false;
+
+  // Merge localStorage ↔ profile: keep the richer snapshot, never clobber paths/crop with a stub
+  for (const skinId of SPRITE_TUNING_LOCK_SKIN_IDS) {
+    try {
+      let lsSnap = null;
+      const raw = localStorage.getItem(lockedTuningStorageKey(skinId));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") lsSnap = parsed;
+      }
+      const profileSnap = sprite_tuning[skinId]?.snapshot;
+      const snapshot = preferRicherSnapshot(lsSnap, profileSnap);
+      if (!snapshot) continue;
+
+      const flagKey = TUNING_LOCK_FLAG_KEYS[skinId];
+      const flag = flagKey ? localStorage.getItem(flagKey) : null;
+      const profileLocked = sprite_tuning[skinId]?.locked;
+      const locked =
+        flag === null
+          ? typeof profileLocked === "boolean"
+            ? profileLocked
+            : true
+          : flag === "1";
+
+      sprite_tuning[skinId] = {
+        ...(sprite_tuning[skinId] || {}),
+        locked,
+        snapshot,
+        updatedAt: Date.now(),
+      };
+      profileDirty = true;
+
+      // Keep localStorage in sync when profile won (or LS was missing/stale)
+      try {
+        if (JSON.stringify(lsSnap) !== JSON.stringify(snapshot)) {
+          localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(snapshot));
+        }
+        if (flagKey && flag === null) {
+          localStorage.setItem(flagKey, locked ? "1" : "0");
+        }
+      } catch {
+        /* ignore quota */
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Restore any remaining missing lock flags / snapshots from profile → localStorage
+  for (const [skinId, entry] of Object.entries(sprite_tuning)) {
+    if (!entry || typeof entry !== "object") continue;
+    const flagKey = TUNING_LOCK_FLAG_KEYS[skinId];
+    if (flagKey && typeof entry.locked === "boolean") {
+      try {
+        if (localStorage.getItem(flagKey) === null) {
+          localStorage.setItem(flagKey, entry.locked ? "1" : "0");
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (entry.snapshot) {
+      try {
+        if (!localStorage.getItem(lockedTuningStorageKey(skinId))) {
+          localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(entry.snapshot));
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  if (seedMissingLockedTuningSnapshots(sprite_tuning)) profileDirty = true;
+  if (profileDirty) writeProfileSpriteTuningMap(sprite_tuning);
 }
 
 /** Featured skins — shop category headers link to these labs first */
@@ -140,189 +515,11 @@ export function mergeSpriteLabFaceOffsets(catalogOffsets = {}, draftOffsets, { f
   return merged;
 }
 
-const MATRIX_DRAFT_RESET_FLAG = "yourneek_sprite_lab_matrix_reset_v4";
-const MATRIX_LOCKED_SNAPSHOT_RESET_FLAG = "yourneek_locked_tuning_matrix_reset_v1";
-const PAPER_DRAFT_RESET_FLAG = "yourneek_sprite_lab_paper_reset_v1";
-const DRAGON_SCALE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_dragon_scale_reset_v1";
-const TEAL_CRACKLE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_teal_crackle_reset_v1";
-const AQUAMARINE_LIGHT_DRAFT_RESET_FLAG = "yourneek_sprite_lab_aquamarine_light_reset_v1";
-const AQUAMARINE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_aquamarine_reset_v1";
-const WOOD_DRAFT_RESET_FLAG = "yourneek_sprite_lab_wood_reset_v1";
-const SILVER_DRAFT_RESET_FLAG = "yourneek_sprite_lab_silver_reset_v1";
-const CIRCUIT_BOARD_DRAFT_RESET_FLAG = "yourneek_sprite_lab_circuit_board_reset_v1";
-const CYBER_NEON_DRAFT_RESET_FLAG = "yourneek_sprite_lab_cyber_neon_reset_v1";
-const OBSIDIAN_DRAFT_RESET_FLAG = "yourneek_sprite_lab_obsidian_reset_v1";
-const LABRADORITE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_labradorite_reset_v1";
-const LABRADORITE_POLISHED_DRAFT_RESET_FLAG = "yourneek_sprite_lab_labradorite_polished_reset_v1";
-const LOVE_IS_LOVE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_love_is_love_reset_v1";
-const GOLD_DRAFT_RESET_FLAG = "yourneek_sprite_lab_gold_reset_v1";
-const MOONSTONE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_moonstone_reset_v1";
-const NEON_GRID_DRAFT_RESET_FLAG = "yourneek_sprite_lab_neon_grid_reset_v1";
-const PLASMA_DRAFT_RESET_FLAG = "yourneek_sprite_lab_plasma_reset_v1";
-const PRIDE_DRAFT_RESET_FLAG = "yourneek_sprite_lab_pride_reset_v1";
-const TOXIC_PLASMA_V2_DRAFT_RESET_FLAG = "yourneek_sprite_lab_toxic_plasma_v2_reset_v1";
-const RUBY_DRAFT_RESET_FLAG = "yourneek_sprite_lab_ruby_reset_v1";
-
 export function loadSpriteLabDraft(skinId) {
   try {
+    // Locked skins: always prefer the saved lock snapshot. Never wipe it.
     if (isSpriteTuningLocked(skinId)) {
-      // Matrix locked = catalog file only; drop stale device snapshots once.
-      if (skinId === "matrix") {
-        if (localStorage.getItem(MATRIX_LOCKED_SNAPSHOT_RESET_FLAG) !== "1") {
-          localStorage.removeItem(lockedTuningStorageKey("matrix"));
-          localStorage.setItem(MATRIX_LOCKED_SNAPSHOT_RESET_FLAG, "1");
-        }
-        return null;
-      }
       return loadLockedTuningSnapshot(skinId);
-    }
-
-    // One-time nuke of the Matrix draft: months of broken crop/nudge values
-    // accumulated in localStorage. Clear once, then the lab works from a clean slate.
-    if (skinId === "matrix" && localStorage.getItem(MATRIX_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("matrix"));
-      localStorage.setItem(MATRIX_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    // Prison Dice: old drafts override the locked catalog alignment.
-    if (skinId === "paper" && localStorage.getItem(PAPER_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("paper"));
-      localStorage.setItem(PAPER_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    // Dragon Scale: old drafts override the locked catalog alignment.
-    if (skinId === "dragon_scale" && localStorage.getItem(DRAGON_SCALE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("dragon_scale"));
-      localStorage.setItem(DRAGON_SCALE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "teal_crackle" && localStorage.getItem(TEAL_CRACKLE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("teal_crackle"));
-      localStorage.removeItem(lockedTuningStorageKey("teal_crackle"));
-      localStorage.setItem(TEAL_CRACKLE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "aquamarine_light" && localStorage.getItem(AQUAMARINE_LIGHT_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("aquamarine_light"));
-      localStorage.removeItem(lockedTuningStorageKey("aquamarine_light"));
-      localStorage.setItem(AQUAMARINE_LIGHT_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "aquamarine" && localStorage.getItem(AQUAMARINE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("aquamarine"));
-      localStorage.removeItem(lockedTuningStorageKey("aquamarine"));
-      localStorage.setItem(AQUAMARINE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "wood" && localStorage.getItem(WOOD_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("wood"));
-      localStorage.removeItem(lockedTuningStorageKey("wood"));
-      localStorage.setItem(WOOD_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "silver" && localStorage.getItem(SILVER_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("silver"));
-      localStorage.removeItem(lockedTuningStorageKey("silver"));
-      localStorage.setItem(SILVER_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "circuit_board" && localStorage.getItem(CIRCUIT_BOARD_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("circuit_board"));
-      localStorage.removeItem(lockedTuningStorageKey("circuit_board"));
-      localStorage.setItem(CIRCUIT_BOARD_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "cyber_neon" && localStorage.getItem(CYBER_NEON_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("cyber_neon"));
-      localStorage.removeItem(lockedTuningStorageKey("cyber_neon"));
-      localStorage.setItem(CYBER_NEON_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "obsidian" && localStorage.getItem(OBSIDIAN_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("obsidian"));
-      localStorage.removeItem(lockedTuningStorageKey("obsidian"));
-      localStorage.setItem(OBSIDIAN_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "labradorite" && localStorage.getItem(LABRADORITE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("labradorite"));
-      localStorage.removeItem(lockedTuningStorageKey("labradorite"));
-      localStorage.setItem(LABRADORITE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "labradorite_polished" && localStorage.getItem(LABRADORITE_POLISHED_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("labradorite_polished"));
-      localStorage.removeItem(lockedTuningStorageKey("labradorite_polished"));
-      localStorage.setItem(LABRADORITE_POLISHED_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "love_is_love" && localStorage.getItem(LOVE_IS_LOVE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("love_is_love"));
-      localStorage.removeItem(lockedTuningStorageKey("love_is_love"));
-      localStorage.setItem(LOVE_IS_LOVE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "gold" && localStorage.getItem(GOLD_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("gold"));
-      localStorage.removeItem(lockedTuningStorageKey("gold"));
-      localStorage.setItem(GOLD_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "moonstone" && localStorage.getItem(MOONSTONE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("moonstone"));
-      localStorage.removeItem(lockedTuningStorageKey("moonstone"));
-      localStorage.setItem(MOONSTONE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "neon_grid" && localStorage.getItem(NEON_GRID_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("neon_grid"));
-      localStorage.removeItem(lockedTuningStorageKey("neon_grid"));
-      localStorage.setItem(NEON_GRID_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "plasma" && localStorage.getItem(PLASMA_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("plasma"));
-      localStorage.removeItem(lockedTuningStorageKey("plasma"));
-      localStorage.setItem(PLASMA_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "pride" && localStorage.getItem(PRIDE_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("pride"));
-      localStorage.removeItem(lockedTuningStorageKey("pride"));
-      localStorage.setItem(PRIDE_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "toxic_plasma_v2" && localStorage.getItem(TOXIC_PLASMA_V2_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("toxic_plasma_v2"));
-      localStorage.removeItem(lockedTuningStorageKey("toxic_plasma_v2"));
-      localStorage.setItem(TOXIC_PLASMA_V2_DRAFT_RESET_FLAG, "1");
-      return null;
-    }
-
-    if (skinId === "ruby" && localStorage.getItem(RUBY_DRAFT_RESET_FLAG) !== "1") {
-      localStorage.removeItem(spriteLabStorageKey("ruby"));
-      localStorage.removeItem(lockedTuningStorageKey("ruby"));
-      localStorage.setItem(RUBY_DRAFT_RESET_FLAG, "1");
-      return null;
     }
 
     const key = spriteLabStorageKey(skinId);

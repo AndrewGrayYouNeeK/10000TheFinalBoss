@@ -1,8 +1,15 @@
 import {
+  clearVideoUserCleared,
   getLocalVideoBlob,
+  isVideoUserCleared,
   listAllLocalVideoKeys,
+  loadProfileVideoUploadKeys,
+  persistVideoDurability,
   putLocalVideoBlob,
+  VIDEO_FALLBACK_PATHS,
   VIDEO_KEYS,
+  vaultVideoStorageKey,
+  opfsRead,
 } from "@/lib/localVideoStore";
 import {
   MATRIX_GAMEPLAY_BILLBOARD_KEY,
@@ -10,7 +17,7 @@ import {
 } from "@/lib/diceBillboardVideo";
 import { isMatrixTuningLocked } from "@/lib/matrixTuningLock";
 import { storyBossIntroKey, storyBossWinKey, storyBossAvatarKey } from "@/lib/storyBossVideos";
-import { isSpriteTuningLocked, loadLockedTuningSnapshot, SPRITE_TUNING_LOCK_SKIN_IDS } from "@/lib/spriteLab";
+import { loadLockedTuningSnapshot } from "@/lib/spriteLab";
 import {
   backupVideoKey,
   getAllManagedVideoKeys,
@@ -23,6 +30,7 @@ const SKIN_STORY_BOSS = {
   crystal_cut: "diamond_cut",
   ice: "ice_witch",
   dragon_scale: "dragon_knight",
+  blue_gel: null, // power video only — no story boss slots
 };
 
 /** @deprecated Wrong slot — migrated to Neo story intro/win keys. */
@@ -52,6 +60,7 @@ export function getSpriteLabVideoKeys(skinId) {
     keys.push(VIDEO_KEYS.MATRIX_POWER);
   }
   if (skinId === "crystal_cut") keys.push(VIDEO_KEYS.DIAMOND_CUT_POWER);
+  if (skinId === "blue_gel") keys.push(VIDEO_KEYS.BLUE_GEL_POWER);
   const bossId = SKIN_STORY_BOSS[skinId];
   if (bossId) {
     keys.push(
@@ -68,10 +77,12 @@ export function getSkinIdsForVideoKey(videoKey) {
   const skinIds = new Set();
   if (videoKey === VIDEO_KEYS.MATRIX_POWER) skinIds.add("matrix");
   if (videoKey === VIDEO_KEYS.DIAMOND_CUT_POWER) skinIds.add("crystal_cut");
+  if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER) skinIds.add("blue_gel");
   if (videoKey === MATRIX_GAMEPLAY_BILLBOARD_KEY || videoKey === VIDEO_KEYS.GAMEPLAY_BILLBOARD) {
     skinIds.add("matrix");
   }
   for (const [skinId, bossId] of Object.entries(SKIN_STORY_BOSS)) {
+    if (!bossId) continue;
     if (
       videoKey === storyBossIntroKey(bossId) ||
       videoKey === storyBossWinKey(bossId) ||
@@ -83,10 +94,26 @@ export function getSkinIdsForVideoKey(videoKey) {
   return [...skinIds];
 }
 
+function liveKeyFromAuxStorageKey(storageKey) {
+  if (storageKey.startsWith("backup_vid_")) {
+    return storageKey.slice("backup_vid_".length);
+  }
+  if (storageKey.startsWith("vault_vid_")) {
+    return storageKey.slice("vault_vid_".length);
+  }
+  if (storageKey.startsWith("locked_vid_")) {
+    const sep = storageKey.indexOf("__");
+    if (sep === -1) return null;
+    return storageKey.slice(sep + 2);
+  }
+  return null;
+}
+
 /** Extra snapshot / legacy keys to scan when recovering one live slot. */
 function recoverySourceKeysForVideoKey(videoKey) {
   const sources = new Set([
     backupVideoKey(videoKey),
+    vaultVideoStorageKey(videoKey),
     videoKey,
   ]);
 
@@ -111,6 +138,10 @@ function recoverySourceKeysForVideoKey(videoKey) {
 
   if (videoKey === VIDEO_KEYS.DIAMOND_CUT_POWER) {
     sources.add(lockedVideoStorageKey("crystal_cut", VIDEO_KEYS.DIAMOND_CUT_POWER));
+  }
+
+  if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER) {
+    sources.add(lockedVideoStorageKey("blue_gel", VIDEO_KEYS.BLUE_GEL_POWER));
   }
 
   for (const skinId of getSkinIdsForVideoKey(videoKey)) {
@@ -148,45 +179,94 @@ async function copyBlobToLiveKey(fromKey, toKey) {
 }
 
 /** Migrate deprecated keys and sweep lock snapshots into live upload slots. */
-export async function recoverAllVideoUploads() {
+export async function recoverAllVideoUploads({ force = false } = {}) {
   await migrateLegacyGameplayBillboard();
 
   for (const [fromKey, toKey] of LEGACY_VIDEO_KEY_MIGRATIONS) {
+    if (!force && isVideoUserCleared(toKey)) continue;
     await copyBlobToLiveKey(fromKey, toKey);
   }
 
-  const allKeys = await listAllLocalVideoKeys();
+  const allKeys = await listAllLocalVideoKeys().catch(() => []);
   for (const storageKey of allKeys) {
     if (
       storageKey.startsWith("gameplay_billboard_") &&
       storageKey !== MATRIX_GAMEPLAY_BILLBOARD_KEY
     ) {
+      if (!force && isVideoUserCleared(MATRIX_GAMEPLAY_BILLBOARD_KEY)) continue;
       await copyBlobToLiveKey(storageKey, MATRIX_GAMEPLAY_BILLBOARD_KEY);
     }
   }
 
   for (const storageKey of allKeys) {
-    if (!storageKey.startsWith("locked_vid_") && !storageKey.startsWith("backup_vid_")) continue;
-    const sep = storageKey.indexOf("__");
-    const videoKey =
-      sep === -1 ? storageKey.slice("backup_vid_".length) : storageKey.slice(sep + 2);
+    const videoKey = liveKeyFromAuxStorageKey(storageKey);
     if (!videoKey) continue;
+    if (!force && isVideoUserCleared(videoKey)) continue;
     await copyBlobToLiveKey(storageKey, videoKey);
   }
 }
 
-/** Recover one live key from backups, legacy keys, or lock snapshots. */
-export async function recoverVideoKeyFromSnapshots(videoKey) {
+/** Recover one live key from backups, vault, OPFS, legacy keys, or lock snapshots. */
+export async function recoverVideoKeyFromSnapshots(videoKey, { force = false } = {}) {
   if (await getLocalVideoBlob(videoKey)) return true;
+  // Respect intentional Remove unless user tapped Restore (force).
+  if (!force && isVideoUserCleared(videoKey)) return false;
 
   for (const sourceKey of recoverySourceKeysForVideoKey(videoKey)) {
-    if (await copyBlobToLiveKey(sourceKey, videoKey)) return true;
+    if (await copyBlobToLiveKey(sourceKey, videoKey)) {
+      const blob = await getLocalVideoBlob(videoKey);
+      if (blob) {
+        clearVideoUserCleared(videoKey);
+        await persistVideoDurability(videoKey, blob);
+      }
+      return true;
+    }
   }
 
-  const allKeys = await listAllLocalVideoKeys();
+  const opfsBlob = await opfsRead(videoKey);
+  if (opfsBlob) {
+    await putLocalVideoBlob(videoKey, opfsBlob);
+    clearVideoUserCleared(videoKey);
+    await persistVideoDurability(videoKey, opfsBlob);
+    return true;
+  }
+
+  // Recovered shark bite lives in public/assets — seed IndexedDB if this origin is empty.
+  if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER && typeof fetch === "function") {
+    const fallbackPath = VIDEO_FALLBACK_PATHS[videoKey];
+    if (fallbackPath) {
+      try {
+        const res = await fetch(fallbackPath, { cache: "force-cache" });
+        if (res.ok) {
+          const raw = await res.blob();
+          if (raw?.size > 0) {
+            const catalogBlob = new Blob([raw], { type: "video/mp4" });
+            await putLocalVideoBlob(videoKey, catalogBlob);
+            clearVideoUserCleared(videoKey);
+            await persistVideoDurability(videoKey, catalogBlob);
+            return true;
+          }
+        }
+      } catch {
+        /* catalog file missing */
+      }
+    }
+  }
+
+  const allKeys = await listAllLocalVideoKeys().catch(() => []);
   for (const storageKey of allKeys) {
-    if (!storageKey.endsWith(`__${videoKey}`)) continue;
-    if (await copyBlobToLiveKey(storageKey, videoKey)) return true;
+    if (!storageKey.endsWith(`__${videoKey}`) && !storageKey.endsWith(`_${videoKey}`)) {
+      continue;
+    }
+    if (storageKey === videoKey) continue;
+    if (await copyBlobToLiveKey(storageKey, videoKey)) {
+      const blob = await getLocalVideoBlob(videoKey);
+      if (blob) {
+        clearVideoUserCleared(videoKey);
+        await persistVideoDurability(videoKey, blob);
+      }
+      return true;
+    }
   }
 
   return false;
@@ -208,18 +288,30 @@ export async function recoverLockedVideoSnapshots(skinId) {
   return restored;
 }
 
-/** Recover every managed upload slot from backups, legacy keys, and snapshots. */
-export async function recoverAllVideoSettings() {
+/**
+ * Recover every managed upload slot from backups, vault, OPFS, legacy keys, and snapshots.
+ * @param {{ force?: boolean }} [opts] force=true ignores Remove tombstones (Restore button).
+ */
+export async function recoverAllVideoSettings({ force = false } = {}) {
   try {
-    await recoverAllVideoUploads();
+    await recoverAllVideoUploads({ force });
 
-    const keys = new Set([...getAllManagedVideoKeys(), ...loadSavedVideoKeys()]);
+    const keys = new Set([
+      ...getAllManagedVideoKeys(),
+      ...loadSavedVideoKeys(),
+      ...loadProfileVideoUploadKeys(),
+    ]);
     let restored = 0;
 
     for (const videoKey of keys) {
       const hadLive = await getLocalVideoBlob(videoKey);
-      if (hadLive) continue;
-      if (await recoverVideoKeyFromSnapshots(videoKey)) restored += 1;
+      if (hadLive) {
+        // Re-seal durability for anything still live (upgrades old single-copy uploads).
+        const blob = await getLocalVideoBlob(videoKey);
+        if (blob) await persistVideoDurability(videoKey, blob);
+        continue;
+      }
+      if (await recoverVideoKeyFromSnapshots(videoKey, { force })) restored += 1;
     }
 
     return restored;
@@ -228,12 +320,12 @@ export async function recoverAllVideoSettings() {
   }
 }
 
-/** Mirror a live upload into backup + optional lock snapshots — called after every save. */
+/** Mirror a live upload into backup + vault + OPFS + optional lock snapshots. */
 export async function mirrorUploadToSnapshots(videoKey) {
   const blob = await getLocalVideoBlob(videoKey);
   if (!blob) return;
 
-  await putLocalVideoBlob(backupVideoKey(videoKey), blob);
+  await persistVideoDurability(videoKey, blob);
   markVideoSaved(videoKey, true);
 
   const skinIds = getSkinIdsForVideoKey(videoKey);
@@ -259,7 +351,7 @@ export async function saveLockedVideoSnapshots(skinId) {
       const blob = await getLocalVideoBlob(videoKey);
       lockedVideos[videoKey] = !!blob;
       if (blob) {
-        await putLocalVideoBlob(backupVideoKey(videoKey), blob);
+        await persistVideoDurability(videoKey, blob);
         markVideoSaved(videoKey, true);
         const snapshotKey = lockedVideoStorageKey(skinId, videoKey);
         await putLocalVideoBlob(snapshotKey, blob);

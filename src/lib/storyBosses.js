@@ -461,15 +461,15 @@ const ALL_BOSSES = [
 
 /** Active story ladder — add boss IDs here one at a time as they're ready. */
 export const STORY_LADDER_IDS = [
-  "snowman",     // Frosty
-  "fisherman",   // Marlin Joe — unlocks Blue Gel (Angelfish) dice + Shark Bite
-  "phantom",     // The Phantom
-  "ghost",       // The Ghost
-  "lavadragon",  // Ragnarok
-  "dragon_knight", // Sir Scalewyrm — unlocks Dragon Scale
-  "neo",         // Matrix
-  "diamond_cut", // Vitrea (diamond)
-  "gq",          // GQ — final boss
+  "snowman",       // Frosty
+  "dragon_knight", // Sir Scalewyrm (Sir Scale) — unlocks Dragon Scale
+  "phantom",       // The Phantom
+  "ghost",         // The Ghost
+  "lavadragon",    // Ragnarok
+  "neo",           // Matrix
+  "diamond_cut",   // Vitrea (diamond)
+  "fisherman",     // Marlin Joe — second-to-last; unlocks Blue Gel + Shark Bite
+  "gq",            // GQ — final boss
 ];
 
 export const BOSSES = STORY_LADDER_IDS.map((id) => ALL_BOSSES.find((b) => b.id === id)).filter(Boolean);

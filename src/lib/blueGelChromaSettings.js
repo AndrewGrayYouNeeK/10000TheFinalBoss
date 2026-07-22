@@ -3,16 +3,18 @@
  * Controls how the video background is removed so only the shark shows
  * swimming over the gameplay screen. Saved per device in localStorage.
  */
-const STORAGE_KEY = "dice10k_blue_gel_chroma";
+const STORAGE_KEY = "dice10k_blue_gel_chroma_v5";
 
 export const DEFAULT_CHROMA_SETTINGS = {
   enabled: true,
-  // "auto" samples the background color from the video's frame corners.
-  // "custom" uses `color` below.
-  autoKey: true,
+  // Prefer explicit black for the catalog shark clip (auto still works for green screens).
+  autoKey: false,
   color: "#000000",
-  tolerance: 70, // fully transparent under this color distance
-  softness: 55, // feather width above the tolerance
+  // Kill the black plate without eating mid-gray shark skin.
+  tolerance: 72,
+  softness: 48,
+  /** Nuke near-black low-chroma pixels (0–255 luma). */
+  lumaThreshold: 38,
 };
 
 const listeners = new Set();

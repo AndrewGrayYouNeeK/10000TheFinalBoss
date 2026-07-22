@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_silver_tuning_locked";
 
-/** Chrome Silver sprite tuning is locked by default — only catalog values apply in-game. */
+/** Chrome Silver sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isSilverTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

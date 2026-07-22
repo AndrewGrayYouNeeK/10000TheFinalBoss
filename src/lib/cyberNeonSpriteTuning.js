@@ -1,6 +1,6 @@
 /**
  * Cyber Neon sprite alignment — locked from /sprite-lab/cyber_neon.
- * Uses the pink/cyan cyber dice sheet (not the 10,000 sign billboard).
+ * Sheet: /assets/354eae8fe_generated_image.png
  */
 export const CYBER_NEON_SPRITE_TUNING = {
   spriteFaceOffsets: {

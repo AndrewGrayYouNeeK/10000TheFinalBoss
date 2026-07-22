@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_ruby_tuning_locked";
 
-/** Ruby sprite tuning is locked by default — only catalog values apply in-game. */
+/** Ruby sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isRubyTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

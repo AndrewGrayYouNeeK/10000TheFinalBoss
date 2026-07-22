@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_ice_tuning_locked";
 
-/** Frozen Ice sprite tuning is locked by default — only catalog values apply in-game. */
+/** Frozen Ice sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isIceTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

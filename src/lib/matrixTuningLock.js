@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_matrix_tuning_locked";
 
-/** Matrix sprite tuning is locked by default — only catalog values apply in-game. */
+/** Matrix sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isMatrixTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

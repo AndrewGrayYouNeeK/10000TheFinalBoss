@@ -43,7 +43,6 @@ import { canAfford, getPower } from "@/lib/powers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
 import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
-  BlueGelPowerVideoScreen,
   SharkBiteScreenFX,
 } from "@/components/game/BlueGelPowerFX";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
@@ -66,7 +65,6 @@ export default function Game() {
   const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
-  const [practiceSharkVideo, setPracticeSharkVideo] = useState(false);
   const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
   const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, setGhostDisguise, isLoading } = useCosmetics();
@@ -118,6 +116,11 @@ export default function Game() {
     practiceSharkBiteRef.current = true;
     setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
   }, []);
+
+  // Practice "Shark vid" — one-shot bite FX only (never a looping bite during charge).
+  const onPracticeSharkVideo = useCallback(() => {
+    replaySharkBitePreview();
+  }, [replaySharkBitePreview]);
 
   // Keep slot-0 Ghost disguise in sync with profile picker (shop or in-game).
   useEffect(() => {
@@ -229,6 +232,8 @@ export default function Game() {
       return;
     }
     setState(consumeSkinPower(result.state));
+    // Power was spent — drop feast / bloody lock so dice return to normal.
+    setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
@@ -245,6 +250,7 @@ export default function Game() {
       return;
     }
     setState(consumeSkinPower(result.state));
+    setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
@@ -350,14 +356,29 @@ export default function Game() {
   }, [shakeTriggered, state, doRoll, onRollAgain, rollAnim]);
 
   const onBank = () => {
-    if (!state || state.sharkBiteFx) return;
-    const prevScore = state.players[state.currentIndex].score;
-    const prevName = state.players[state.currentIndex].name;
-    const next = bankAndPass(state);
-    const after = next.players.find(p => p.name === prevName);
-    const gained = (after?.score ?? prevScore) - prevScore;
-    if (gained > 0) addCoins(Math.floor(gained / 1000));
-    setState(next);
+    if (!state || rollAnim || state.sharkBiteFx) return;
+    setState((s) => {
+      if (!s || s.sharkBiteFx || s.farkle || s.winner) return s;
+      const info = getHeldInfo(s);
+      const points = heldSelectionPoints(info, s.perfectTenKPending);
+      const player = s.players[s.currentIndex];
+      const needsEntry = !player.onBoard;
+      const potentialTotal = (s.turnScore || 0) + (info.valid ? points : 0);
+      const allowed =
+        s.hasRolled &&
+        !s.farkle &&
+        info.valid &&
+        points > 0 &&
+        (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
+      if (!allowed) return s;
+      const prevScore = player.score;
+      const prevName = player.name;
+      const next = bankAndPass(s);
+      const after = next.players.find((p) => p.name === prevName);
+      const gained = (after?.score ?? prevScore) - prevScore;
+      if (gained > 0) addCoins(Math.floor(gained / 1000));
+      return next;
+    });
   };
 
   const playAgain = () => {
@@ -382,7 +403,7 @@ export default function Game() {
   const potentialTotal = state.turnScore + (info.valid ? heldPoints : 0);
   const needsEntry = !currentPlayer.onBoard;
   const wouldOvershoot = currentPlayer.score + potentialTotal > 10000;
-  const canBank = state.hasRolled && !state.farkle && info.valid && heldPoints > 0 &&
+  const canBank = !rollAnim && state.hasRolled && !state.farkle && info.valid && heldPoints > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
   const scoreFill = Math.min(1, (currentPlayer.score + state.turnScore) / 10000);
   const obscuredScores = getObscuredScoreIndices(state);
@@ -412,18 +433,28 @@ export default function Game() {
       : practiceVariant === "gq"
         ? getPower("siphon")
         : null;
-  const trayPowerMode = !!currentPlayer?.powerCharge || practicePowerPreview;
+  // Shark Bite power mode — only the charged player's turn (never opponent inherit).
+  const trayPowerMode =
+    (!!currentPlayer?.powerCharge && skinPower?.id === "shark_bite") ||
+    (practicePowerPreview && practiceVariant === "marlin");
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
-  const fishFeastOnTray =
-    (bloodWaterLocked && equippedSkinId === "blue_gel") ||
-    (practicePowerPreview && practiceVariant === "marlin");
-  const showSharkVideo =
-    !lowPower &&
-    !state.sharkBiteFx &&
-    ((powerModeActive && skinPower?.id === "shark_bite") ||
-      (practiceSharkVideo && practiceVariant === "marlin") ||
-      (previewSharkBite && practiceVariant === "marlin"));
+  // Feeding Frenzy — only when fish dice were targeted (separate from Shark Bite charge).
+  const fishFeastOnTray = !!state.sharkFishFeast;
+  const feastTargetIdx = state.sharkFishFeastTargetIdx;
+  const feastTraySkinId =
+    fishFeastOnTray && typeof feastTargetIdx === "number" && state.players[feastTargetIdx]
+      ? getPrisonTraySkinId(
+          state,
+          feastTargetIdx,
+          getDisplaySkinId(state.players[feastTargetIdx], ghostOptions)
+        )
+      : null;
+  const diceTraySkinId = feastTraySkinId || practiceTraySkinId;
+  // Never loop the bite clip during power charge — one-shot only via SharkBiteScreenFX.
+  // Charged Shark Bite uses in-die BlueGelSharkBiteCharge + panel, not a repeating fullscreen bite.
+  const trayBloodWater =
+    bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-6 relative">
@@ -606,8 +637,8 @@ export default function Game() {
               disabled={!!state.winner || rollAnim}
               powerPreview={practicePowerPreview}
               onPowerPreviewChange={setPracticePowerPreview}
-              sharkVideoPreview={practiceSharkVideo}
-              onSharkVideoPreviewChange={setPracticeSharkVideo}
+              sharkVideoPreview={!!state.sharkBiteFx}
+              onSharkVideoPreviewChange={onPracticeSharkVideo}
               onReplaySharkBite={replaySharkBitePreview}
               sharkBiteActive={!!state.sharkBiteFx}
             />
@@ -617,7 +648,7 @@ export default function Game() {
             rolling={rollAnim}
             onToggle={onToggleDie}
             disabled={!state.hasRolled || state.farkle || !!state.winner}
-            skinId={practiceTraySkinId}
+            skinId={diceTraySkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}
@@ -626,8 +657,8 @@ export default function Game() {
             fishFeastMode={fishFeastOnTray}
             sharkBiteFx={!!state.sharkBiteFx}
             sharkDiceHidden={!!state.sharkDiceHidden}
-            bloodWaterLocked={bloodWaterLocked}
-            onBloodWaterSettled={lockBloodWater}
+            bloodWaterLocked={trayBloodWater}
+            onBloodWaterSettled={fishFeastOnTray ? lockBloodWater : undefined}
           />
           {info.held.length > 0 && (
             <div className="mt-2 text-center text-sm">
@@ -743,17 +774,18 @@ export default function Game() {
         onPlayAgain={playAgain}
       />
 
-      <BlueGelPowerVideoScreen active={showSharkVideo} loop />
       <SharkBiteScreenFX
         active={!!state.sharkBiteFx}
-        onComplete={() =>
+        onComplete={() => {
+          // Bite finished — restore normal dice (no lingering power feast / blood lock).
+          setBloodWaterLocked(false);
           setState((s) => {
             const cleared = clearSharkBiteFx(s);
             const wasPractice = practiceSharkBiteRef.current || previewSharkBite;
             practiceSharkBiteRef.current = false;
             return wasPractice ? restoreSharkDice(cleared) : cleared;
-          })
-        }
+          });
+        }}
       />
 
       <BigPopup

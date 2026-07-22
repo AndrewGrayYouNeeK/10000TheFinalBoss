@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/button";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
+import BlueGelChromaControls from "@/components/game/BlueGelChromaControls";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import { BOSSES } from "@/lib/storyBosses";
 import {
@@ -39,11 +40,11 @@ export default function VideoAssets() {
   const handleRestoreAll = async () => {
     try {
       const { recoverAllVideoSettings } = await import("@/lib/spriteLabLockedVideos");
-      const restored = await recoverAllVideoSettings();
+      const restored = await recoverAllVideoSettings({ force: true });
       toast.success(
         restored > 0
           ? `Restored ${restored} video${restored === 1 ? "" : "s"} from backup`
-          : "All uploads already present — nothing to restore"
+          : "No backup copies found on this device — re-upload if still missing"
       );
     } catch {
       toast.error("Could not restore videos");
@@ -72,9 +73,12 @@ export default function VideoAssets() {
 
       <div className="max-w-2xl mx-auto p-4 space-y-4">
         <p className="text-xs text-slate-400 rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2">
-          Videos auto-save to this device (IndexedDB + backup) when you upload. They work offline
-          and do not sync to other devices. You can also drop files in{" "}
-          <code className="text-cyan-200">public/assets/</code> as a fallback.
+          Videos auto-save on this device in multiple copies (live + backup + vault + file cache).
+          Use the same browser URL every time (e.g. always{" "}
+          <code className="text-cyan-200">http://localhost:5173</code>
+          — not a different port or IP). They do not sync to other devices. Tap{" "}
+          <b>Restore all uploads</b> if a slot looks empty. You can also drop files in{" "}
+          <code className="text-cyan-200">public/assets/</code> as a catalog fallback.
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -98,9 +102,49 @@ export default function VideoAssets() {
         </div>
 
         <VideoUploadCard videoKey={VIDEO_KEYS.DIAMOND_CUT_POWER} />
-        <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_POWER} />
+
+        <section className="rounded-2xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black text-rose-200">Blue Gel — Shark Bite workbench</h2>
+              <p className="text-[11px] text-slate-400 mt-1 max-w-md">
+                Upload or use the catalog clip, tune background removal live, then preview the full
+                bite over real gameplay. Settings save on this device.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/game?previewSharkBite=1"
+                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white"
+              >
+                ▶ Game Bite preview
+              </Link>
+              <Link
+                to="/fish-showcase"
+                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
+              >
+                Fish Showcase
+              </Link>
+            </div>
+          </div>
+          <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_POWER} />
+          <BlueGelChromaControls showWorkbenchLinks={false} />
+        </section>
+
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_MODE} />
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_BOSS_WIN} />
+
+        <p className="text-xs text-slate-400 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2">
+          Shark Bite quick links:{" "}
+          <Link to="/game?previewSharkBite=1" className="text-rose-300 underline font-bold">
+            /game?previewSharkBite=1
+          </Link>{" "}
+          (Marlin practice — POWER DICE / SHARK VID / ▶ BITE FX) ·{" "}
+          <Link to="/fish-showcase" className="text-rose-300 underline font-bold">
+            /fish-showcase
+          </Link>{" "}
+          (feast → chomp tray preview + chroma tuner).
+        </p>
 
         <p className="text-xs text-slate-400 rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-3 py-2">
           <b>Matrix power dice</b> and <b>Neo story videos</b> upload on{" "}
@@ -168,11 +212,11 @@ export default function VideoAssets() {
           . Neo story videos (intro, win, avatar loop) are there too and under <b>Neo</b> above.
           Other power dice uploads are on each dice&apos;s Sprite Lab (Diamond Cut, etc.). Story
           before/after videos for Glacia, Vitrea, Sir Scalewyrm, and Neo are on matching dice labs.
-          Frosty and all other bosses upload above. Blue Gel / shark power video is also on{" "}
+          Frosty and all other bosses upload above. Blue Gel / shark power video and{" "}
           <Link to="/fish-showcase" className="text-cyan-400 underline">
-            Fish Showcase
-          </Link>
-          .
+            Preview shark attack
+          </Link>{" "}
+          are on Fish Showcase.
         </p>
       </div>
     </div>

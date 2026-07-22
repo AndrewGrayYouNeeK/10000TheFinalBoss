@@ -1,4 +1,5 @@
 import { getBossDefinition, STORY_LADDER_IDS } from "./storyBosses";
+import { isLowPowerDevice } from "./platform";
 import {
   getLocalVideoBlob,
   getLocalVideoObjectUrl,
@@ -118,9 +119,12 @@ export async function resolveStoryBossVideoPlayback(bossId, slot) {
   }
 
   if (slot === "avatar") {
-    const introLocal = await getLocalVideoObjectUrl(storyBossIntroKey(bossId));
-    if (introLocal) {
-      return { src: introLocal, hasLocal: true };
+    // Intro clips are fullscreen cutscenes — too heavy to loop as fight avatars on phones.
+    if (!isLowPowerDevice()) {
+      const introLocal = await getLocalVideoObjectUrl(storyBossIntroKey(bossId));
+      if (introLocal) {
+        return { src: introLocal, hasLocal: true };
+      }
     }
     return { src: null, hasLocal: false };
   }

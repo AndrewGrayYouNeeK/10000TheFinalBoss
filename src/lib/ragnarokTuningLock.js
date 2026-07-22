@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_ragnarok_tuning_locked";
 
-/** Ragnarok sprite tuning is locked by default — only catalog values apply in-game. */
+/** Ragnarok sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isRagnarokTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

@@ -31,9 +31,9 @@ export function useBlueGelChromaSettings() {
 export const SHARK_BITE_CHOMP_EVENT = "yourneek:shark-bite-chomp";
 
 /** Ms from SVG swim start until the shark chomps (sync tray dice vanish). */
-export const SHARK_BITE_CHOMP_MS = 1440;
-/** Full-screen SVG swim duration. */
-export const SHARK_BITE_FX_MS = 3200;
+export const SHARK_BITE_CHOMP_MS = 1750;
+/** Full-screen SVG swim duration — long enough to fully exit off-screen. */
+export const SHARK_BITE_FX_MS = 3800;
 /**
  * Short beat so the gameplay screen is still visible when the shark
  * flies over it (does not wait for the in-die feast).
@@ -44,7 +44,20 @@ export const SHARK_BITE_SVG_BEAT_MS = 80;
 /** Total SVG sharkBiteFx lifetime after screen starts: beat → swim → clear. */
 export const SHARK_BITE_TOTAL_MS = SHARK_BITE_SVG_BEAT_MS + SHARK_BITE_FX_MS;
 /** Safety timeout if chomp event never fires (video or SVG). */
-export const SHARK_BITE_FALLBACK_VANISH_MS = 8000;
+export const SHARK_BITE_FALLBACK_VANISH_MS = 10000;
+/**
+ * Progress through the bite clip when tray dice should vanish.
+ * Catalog clip (~7s): jaws peak open ~0.78–0.80 — vanish just as the bite hits.
+ */
+export const SHARK_BITE_CHOMP_PROGRESS = 0.78;
+/** Only kill the plate at the very end — earlier fades look like mid-screen cutoff. */
+export const SHARK_BITE_FADE_START = 0.94;
+/** Soft fade band (px at process res) so the video rect never shows a hard edge/line. */
+const CHROMA_EDGE_FEATHER_PX = 36;
+/** Nudge full-viewport shark clip right (fraction of viewport width) for jaw/tray align. */
+const SHARK_BITE_VIDEO_OFFSET_X = 0.18;
+/** Late-clip slide so the shark finishes exiting off the right edge. */
+const SHARK_BITE_EXIT_PAN_START = 0.88;
 
 /** Calm blue-gel water before the shark feast. */
 const BLUE_GEL_WATER_IDLE =
@@ -122,10 +135,10 @@ function getSharkBiteLayout(trayAnchor) {
     h: 140,
   };
 
-  // Big, dramatic shark — dominates the middle of the screen.
+  // Big, dramatic shark — dominates the middle of the screen (nudged right for tray).
   const sharkW = Math.min(vw * 0.98, 860);
   const sharkH = sharkW * 0.5;
-  const screenCx = vw * 0.5;
+  const screenCx = vw * 0.5 + vw * SHARK_BITE_VIDEO_OFFSET_X;
   const screenCy = vh * 0.47;
 
   // Center the whole shark on screen; dip at chomp so the jaw reaches the dice tray.
@@ -144,11 +157,11 @@ function getSharkBiteLayout(trayAnchor) {
     chompTop,
     chompDip,
     offLeft: -(baseLeft + sharkW + 64),
-    offRight: vw - baseLeft + 64,
+    offRight: vw - baseLeft + sharkW + 120,
   };
 }
 
-/** Resolve uploaded blue_gel_power blob URL (null if none). */
+/** Resolve blue_gel_power: local upload blob, else catalog /assets/blue_gel_power.mp4. */
 export function useBlueGelPowerVideoUrl(enabled = true) {
   const [url, setUrl] = React.useState(() =>
     enabled ? getCachedBlueGelPowerVideoObjectUrl() : null
@@ -163,7 +176,10 @@ export function useBlueGelPowerVideoUrl(enabled = true) {
       if (!cancelled) setUrl(next);
     });
     const unsub = subscribeBlueGelPowerVideo((next) => {
-      if (!cancelled) setUrl(next);
+      if (!cancelled) {
+        // Prefer live upload; fall back to catalog path when cleared.
+        setUrl(next || getCachedBlueGelPowerVideoObjectUrl());
+      }
     });
     return () => {
       cancelled = true;
@@ -220,7 +236,11 @@ function SharkSvg({ chomping, size = "100%" }) {
  * Renders a video to a <canvas> with its background color keyed out, so only
  * the subject (the shark) is visible over whatever is behind it. Samples the
  * background color from the frame corners and makes matching pixels transparent
- * with a soft edge. Works for solid-ish backgrounds (black, white, blue, green).
+ * with a soft edge. Dark plates also use a luma gate so compression haze
+ * doesn't leave a rectangular fog / square over gameplay.
+ *
+ * `fullViewport` draws into a screen-sized canvas (shark centered) so any
+ * leftover frame edge sits at the page boundary — never a mid-screen line.
  */
 export function ChromaKeyVideo({
   src,
@@ -229,12 +249,22 @@ export function ChromaKeyVideo({
   onEnded,
   onError,
   className = "",
+  /** Extra CSS opacity (0–1) for end fade — applied on the canvas. */
+  fadeOpacity = 1,
+  /** Clip progress (0–1) where end fade begins. Driven every painted frame. */
+  fadeOutFrom = null,
+  /** Fill the viewport; letterbox the clip so the video rect edge is off-screen / at page edge. */
+  fullViewport = false,
 }) {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const keyColorRef = React.useRef(null);
+  const fadeOpacityRef = React.useRef(fadeOpacity);
+  const fadeOutFromRef = React.useRef(fadeOutFrom);
   const settings = useBlueGelChromaSettings();
   const settingsRef = React.useRef(settings);
+  fadeOpacityRef.current = fadeOpacity;
+  fadeOutFromRef.current = fadeOutFrom;
 
   // Live settings without restarting the render loop. Re-sample when the key
   // mode / color changes so the preview updates immediately.
@@ -252,13 +282,14 @@ export function ChromaKeyVideo({
     let rafId = null;
     let vfcId = null;
     keyColorRef.current = null;
+    const lastBlit = { drawX: 0, drawY: 0, drawW: 0, drawH: 0, ready: false };
 
     const work = document.createElement("canvas");
     const wctx = work.getContext("2d", { willReadFrequently: true });
-    const octx = canvas.getContext("2d");
+    const octx = canvas.getContext("2d", { alpha: true });
 
     // Cap processing resolution for performance; canvas is scaled up by CSS.
-    const MAX_W = 640;
+    const MAX_W = fullViewport ? 960 : 640;
 
     const sampleKeyColor = (w, h) => {
       // Average the four corners — the background usually lives there.
@@ -280,6 +311,23 @@ export function ChromaKeyVideo({
       return { r: r / pts.length, g: g / pts.length, b: b / pts.length };
     };
 
+    /** Soften / zero alpha near the clip rect so a hard stop-line never shows. */
+    const featherFrameEdges = (data, fw, fh) => {
+      const band = CHROMA_EDGE_FEATHER_PX;
+      for (let y = 0; y < fh; y++) {
+        for (let x = 0; x < fw; x++) {
+          const edge = Math.min(x, y, fw - 1 - x, fh - 1 - y);
+          if (edge >= band) continue;
+          const i = (y * fw + x) * 4 + 3;
+          if (edge <= 1) {
+            data[i] = 0;
+          } else {
+            data[i] = Math.round(data[i] * (edge / band));
+          }
+        }
+      }
+    };
+
     const renderFrame = () => {
       if (cancelled) return;
       const vw = video.videoWidth;
@@ -288,57 +336,140 @@ export function ChromaKeyVideo({
         scheduleNext();
         return;
       }
+
+      // Process at clip resolution (capped).
       const scale = Math.min(1, MAX_W / vw);
-      const w = Math.round(vw * scale);
-      const h = Math.round(vh * scale);
-      if (work.width !== w || work.height !== h) {
-        work.width = w;
-        work.height = h;
-        canvas.width = w;
-        canvas.height = h;
+      const fw = Math.round(vw * scale);
+      const fh = Math.round(vh * scale);
+      if (work.width !== fw || work.height !== fh) {
+        work.width = fw;
+        work.height = fh;
       }
 
-      wctx.drawImage(video, 0, 0, w, h);
+      wctx.drawImage(video, 0, 0, fw, fh);
 
       const cfg = settingsRef.current;
+      let endFade = 1;
+      const fadeFrom = fadeOutFromRef.current;
+      if (!loop && fadeFrom != null && video.duration > 0) {
+        const p = video.currentTime / video.duration;
+        if (p >= fadeFrom) {
+          endFade = Math.max(0, 1 - (p - fadeFrom) / Math.max(0.001, 1 - fadeFrom));
+        }
+      }
+      const combinedFade =
+        Math.max(0, Math.min(1, fadeOpacityRef.current)) * endFade;
+      canvas.style.opacity = String(combinedFade);
+
+      // Output canvas size: full viewport or clip-sized.
+      let outW = fw;
+      let outH = fh;
+      let drawX = 0;
+      let drawY = 0;
+      let drawW = fw;
+      let drawH = fh;
+      if (fullViewport && typeof window !== "undefined") {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        outW = Math.max(1, Math.round(window.innerWidth * dpr));
+        outH = Math.max(1, Math.round(window.innerHeight * dpr));
+        // Cover-ish so the shark fills the tray; slight overscale avoids letterbox plate.
+        const fit = Math.min(outW / fw, outH / fh) * 1.08;
+        drawW = fw * fit;
+        drawH = fh * fit;
+        drawX = (outW - drawW) / 2 + outW * SHARK_BITE_VIDEO_OFFSET_X;
+        drawY = Math.max(0, outH - drawH - outH * 0.01);
+        // Late exit pan — clip ends mid-shark; keep sliding right until fully off-screen.
+        if (!loop && video.duration > 0) {
+          const p = video.currentTime / video.duration;
+          if (p >= SHARK_BITE_EXIT_PAN_START) {
+            const t = (p - SHARK_BITE_EXIT_PAN_START) / Math.max(0.001, 1 - SHARK_BITE_EXIT_PAN_START);
+            drawX += outW * (0.15 + 0.95 * t);
+          }
+        }
+      }
+      if (canvas.width !== outW || canvas.height !== outH) {
+        canvas.width = outW;
+        canvas.height = outH;
+      }
+
+      const blit = (src) => {
+        octx.clearRect(0, 0, outW, outH);
+        if (fullViewport) {
+          octx.drawImage(src, drawX, drawY, drawW, drawH);
+          lastBlit.drawX = drawX;
+          lastBlit.drawY = drawY;
+          lastBlit.drawW = drawW;
+          lastBlit.drawH = drawH;
+          lastBlit.ready = true;
+        } else {
+          octx.drawImage(src, 0, 0);
+        }
+      };
+
       // Keying disabled — show the raw frame.
       if (cfg && cfg.enabled === false) {
-        octx.clearRect(0, 0, w, h);
-        octx.drawImage(work, 0, 0);
+        blit(work);
         scheduleNext();
         return;
       }
 
       let frame;
       try {
-        frame = wctx.getImageData(0, 0, w, h);
+        frame = wctx.getImageData(0, 0, fw, fh);
       } catch {
-        // Cross-origin / not ready — just show the raw frame.
-        octx.drawImage(video, 0, 0, w, h);
+        blit(video);
         scheduleNext();
         return;
       }
 
       if (!keyColorRef.current) {
         keyColorRef.current =
-          cfg && cfg.autoKey === false ? hexToRgb(cfg.color) : sampleKeyColor(w, h);
+          cfg && cfg.autoKey === false ? hexToRgb(cfg.color) : sampleKeyColor(fw, fh);
       }
       const key = keyColorRef.current;
-      const inner = cfg?.tolerance ?? 70;
-      const outer = inner + (cfg?.softness ?? 55);
+      const keyLuma = 0.299 * key.r + 0.587 * key.g + 0.114 * key.b;
+      const keyIsDark = keyLuma < 40;
+      const inner = cfg?.tolerance ?? 72;
+      const soft = cfg?.softness ?? 48;
+      const outer = inner + soft;
+      const lumaCut = cfg?.lumaThreshold ?? 38;
       const data = frame.data;
       for (let i = 0; i < data.length; i += 4) {
-        const dr = data[i] - key.r;
-        const dg = data[i + 1] - key.g;
-        const db = data[i + 2] - key.b;
-        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-        if (dist < inner) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+        if (keyIsDark && luma <= lumaCut && chroma <= 22) {
           data[i + 3] = 0;
-        } else if (dist < outer) {
-          data[i + 3] = Math.round((data[i + 3] * (dist - inner)) / (outer - inner));
+          continue;
         }
+        if (keyIsDark && luma <= lumaCut + 14 && chroma <= 12) {
+          data[i + 3] = 0;
+          continue;
+        }
+        const dr = r - key.r;
+        const dg = g - key.g;
+        const db = b - key.b;
+        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+        let alpha = data[i + 3];
+        if (dist < inner) {
+          if (!keyIsDark || luma < 70) alpha = 0;
+        } else if (dist < outer) {
+          if (!keyIsDark || luma < 85) {
+            alpha = Math.round((alpha * (dist - inner)) / (outer - inner));
+          }
+        }
+        if (alpha > 0 && alpha < 18 && keyIsDark && luma < 55 && chroma < 20) {
+          alpha = 0;
+        }
+        data[i + 3] = alpha;
       }
-      octx.putImageData(frame, 0, 0);
+      featherFrameEdges(data, fw, fh);
+      wctx.putImageData(frame, 0, 0);
+
+      blit(work);
+      onTimeUpdate?.(video);
       scheduleNext();
     };
 
@@ -352,8 +483,43 @@ export function ChromaKeyVideo({
     };
 
     const handleTime = () => onTimeUpdate?.(video);
-    const handleEnded = () => onEnded?.();
+    const handleEnded = () => {
+      // Hold the last frame and finish sliding off-screen so the shark
+      // never "cuts off" mid-viewport when the clip ends early.
+      if (!fullViewport || !lastBlit.ready) {
+        canvas.style.opacity = "0";
+        octx.clearRect(0, 0, canvas.width, canvas.height);
+        onEnded?.();
+        return;
+      }
+      let start = null;
+      const EXIT_MS = 560;
+      const baseX = lastBlit.drawX;
+      const { drawY: by, drawW: bw, drawH: bh } = lastBlit;
+      const step = (ts) => {
+        if (cancelled) return;
+        if (start == null) start = ts;
+        const t = Math.min(1, (ts - start) / EXIT_MS);
+        octx.clearRect(0, 0, canvas.width, canvas.height);
+        const slide = canvas.width * 1.15 * t;
+        octx.drawImage(work, baseX + slide, by, bw, bh);
+        canvas.style.opacity = String(Math.max(0, 1 - t * t));
+        if (t < 1) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          octx.clearRect(0, 0, canvas.width, canvas.height);
+          canvas.style.opacity = "0";
+          onEnded?.();
+        }
+      };
+      rafId = requestAnimationFrame(step);
+    };
     const handleError = () => onError?.();
+
+    const onResize = () => {
+      // Next frame recalculates full-viewport canvas size.
+    };
+    if (fullViewport) window.addEventListener("resize", onResize);
 
     video.addEventListener("timeupdate", handleTime);
     video.addEventListener("ended", handleEnded);
@@ -369,11 +535,12 @@ export function ChromaKeyVideo({
       if (vfcId && typeof video.cancelVideoFrameCallback === "function") {
         video.cancelVideoFrameCallback(vfcId);
       }
+      if (fullViewport) window.removeEventListener("resize", onResize);
       video.removeEventListener("timeupdate", handleTime);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, onTimeUpdate, onEnded, onError]);
+  }, [src, loop, fullViewport, onTimeUpdate, onEnded, onError]);
 
   return (
     <>
@@ -390,8 +557,24 @@ export function ChromaKeyVideo({
       />
       <canvas
         ref={canvasRef}
-        className={className}
-        style={{ filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.55))" }}
+        className={
+          fullViewport
+            ? "absolute inset-0 w-full h-full pointer-events-none"
+            : className
+        }
+        style={{
+          opacity: Math.max(0, Math.min(1, fadeOpacity)),
+          filter: "none",
+          background: "transparent",
+          mixBlendMode: "normal",
+          // Soft edge-only veil — avoid mid-screen ellipse that clips the swim-off.
+          WebkitMaskImage: fullViewport
+            ? "radial-gradient(ellipse 140% 120% at 55% 60%, #000 72%, transparent 100%)"
+            : "linear-gradient(#000, #000)",
+          maskImage: fullViewport
+            ? "radial-gradient(ellipse 140% 120% at 55% 60%, #000 72%, transparent 100%)"
+            : undefined,
+        }}
       />
     </>
   );
@@ -414,20 +597,38 @@ export function BlueGelPowerVideoScreen({
 }) {
   const url = useBlueGelPowerVideoUrl();
   const [failed, setFailed] = React.useState(false);
+  const [fadeOpacity, setFadeOpacity] = React.useState(1);
   const chompSent = React.useRef(false);
+  const endedSent = React.useRef(false);
 
   React.useEffect(() => {
     setFailed(false);
+    setFadeOpacity(1);
     chompSent.current = false;
+    endedSent.current = false;
   }, [url, active]);
+
+  const finishOnce = React.useCallback(() => {
+    if (loop || endedSent.current) return;
+    endedSent.current = true;
+    setFadeOpacity(0);
+    onEnded?.();
+  }, [loop, onEnded]);
 
   const handleChompProgress = React.useCallback(
     (video) => {
-      if (loop || !onChompProgress) return;
-      if (!video?.duration || !Number.isFinite(video.duration)) return;
-      if (video.currentTime / video.duration >= 0.72 && !chompSent.current) {
+      if (loop) return;
+      if (!video?.duration || !Number.isFinite(video.duration) || video.duration <= 0) return;
+      const p = video.currentTime / video.duration;
+      if (p >= SHARK_BITE_CHOMP_PROGRESS && !chompSent.current) {
         chompSent.current = true;
-        onChompProgress();
+        onChompProgress?.();
+      }
+      if (p >= SHARK_BITE_FADE_START) {
+        const t = (p - SHARK_BITE_FADE_START) / Math.max(0.001, 1 - SHARK_BITE_FADE_START);
+        setFadeOpacity(Math.max(0, 1 - t));
+      } else {
+        setFadeOpacity(1);
       }
     },
     [loop, onChompProgress]
@@ -447,26 +648,25 @@ export function BlueGelPowerVideoScreen({
       <motion.div
         key={`blue-gel-power-video-${loop ? "loop" : "once"}`}
         className="fixed inset-0 overflow-hidden flex items-center justify-center pointer-events-none"
-        style={{ zIndex }}
+        style={{ zIndex, background: "transparent" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={{ duration: 0.2 }}
       >
         {overGameplay ? (
           <ChromaKeyVideo
             src={url}
             loop={loop}
+            fadeOpacity={fadeOpacity}
+            fadeOutFrom={loop ? null : SHARK_BITE_FADE_START}
+            fullViewport={biteOverlay || overGameplay}
             onTimeUpdate={handleChompProgress}
             onEnded={() => {
-              if (!loop) onEnded?.();
+              if (!loop) finishOnce();
             }}
             onError={handleError}
-            className={
-              biteOverlay
-                ? "w-[min(98vw,860px)] h-auto max-h-[min(72vh,520px)] object-contain translate-y-6"
-                : "w-full h-full object-contain"
-            }
+            className="w-full h-full"
           />
         ) : (
           <>
@@ -481,10 +681,11 @@ export function BlueGelPowerVideoScreen({
               preload="auto"
               onTimeUpdate={(e) => handleChompProgress(e.currentTarget)}
               onEnded={() => {
-                if (!loop) onEnded?.();
+                if (!loop) finishOnce();
               }}
               onError={handleError}
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ opacity: fadeOpacity }}
             />
           </>
         )}
@@ -612,7 +813,8 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
         onChompProgress={fireChomp}
         onEnded={() => {
           fireChomp();
-          setTimeout(() => fireComplete(), 350);
+          // Exit pan finishes after onEnded — give it a beat before clearing FX.
+          setTimeout(() => fireComplete(), 580);
         }}
         onError={() => setMode("svg")}
       />
@@ -644,14 +846,15 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
             }}
             initial={{ x: offLeft, y: -chompDip, opacity: 0 }}
             animate={{
-              x: [offLeft, 0, 0, offRight],
-              y: [-chompDip, 0, 0, -chompDip * 0.5],
+              x: [offLeft, 0, offRight * 0.35, offRight],
+              y: [-chompDip, 0, 0, -chompDip * 0.35],
+              // Stay fully visible until past the right edge — no mid-screen vanish.
               opacity: [0, 1, 1, 1],
               scale: chomping ? [1, 1.12, 1.04] : 1,
             }}
             transition={{
               duration: SHARK_BITE_FX_MS / 1000,
-              times: [0, 0.45, 0.65, 1],
+              times: [0, 0.32, 0.55, 1],
               ease: "easeInOut",
             }}
           >
@@ -681,9 +884,58 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
 }
 
 /**
- * Blue Gel in-die feast (power mode + shark bite):
- * Heavy bubbles → shark swims in and eats the fish → three bubble timers →
- * calm bubbles with bloody-red water for the rest of the match.
+ * Blue Gel Shark Bite power-mode charge (OWN power) — fish stay alive.
+ * Hunting cyan water / bubbles. Not Feeding Frenzy (that eats the fish).
+ */
+export function BlueGelSharkBiteCharge({ size, radius, count = 1, children }) {
+  const bubbleCount = count >= 5 ? 18 : count === 4 ? 12 : 8;
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ borderRadius: radius }}>
+      <motion.div
+        className="absolute inset-0"
+        style={{ borderRadius: radius }}
+        animate={{
+          background: [
+            "radial-gradient(ellipse at 50% 40%, rgba(14,165,233,0.28) 0%, transparent 62%)",
+            "radial-gradient(ellipse at 45% 35%, rgba(6,182,212,0.4) 0%, transparent 65%)",
+            "radial-gradient(ellipse at 50% 40%, rgba(14,165,233,0.28) 0%, transparent 62%)",
+          ],
+        }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <div className="absolute inset-0">{children}</div>
+      {Array.from({ length: bubbleCount }, (_, i) => {
+        const sz = size * (0.02 + (i % 5) * 0.012);
+        return (
+          <motion.div
+            key={`sb-${i}`}
+            className="absolute rounded-full"
+            style={{
+              width: sz,
+              height: sz,
+              left: `${(i * 37 + 5) % 92}%`,
+              bottom: -4,
+              background:
+                "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(56,189,248,0.4))",
+              border: "1px solid rgba(186,230,253,0.45)",
+            }}
+            animate={{ y: [0, -size * 1.25], opacity: [0, 0.9, 0], scale: [0.55, 1.1, 0.8] }}
+            transition={{
+              duration: 1.6 + (i % 4) * 0.2,
+              repeat: Infinity,
+              delay: (i * 0.05) % 1,
+              ease: "easeOut",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Feeding Frenzy — in-die sharks eat fish when an opponent's Shark Bite
+ * targets aquarium / Blue Gel dice. Not Blue Gel's own power-mode charge.
  */
 export function BlueGelSharkAttack({
   size,
@@ -865,9 +1117,13 @@ export function skinHasDedicatedPowerVisual(skin) {
   return false;
 }
 
-/** Fallback bloody-water power FX for skins without a dedicated power visual. */
-export function skinUsesBloodPowerFx(skin) {
-  return !!skin && !skinHasDedicatedPowerVisual(skin);
+/**
+ * Legacy catch-all blood overlay — disabled.
+ * Blue Gel uses BlueGelSharkAttack / BloodyWaterTint on its own path.
+ * Applying this to other skins hid pips and looked like Shark Bite.
+ */
+export function skinUsesBloodPowerFx(_skin) {
+  return false;
 }
 
 /** Permanent bloody tint + calm bubbles (rest of match after power FX settles). */

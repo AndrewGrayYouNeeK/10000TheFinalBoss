@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_paper_tuning_locked";
 
-/** Prison Dice sprite tuning is locked by default — only catalog values apply in-game. */
+/** Prison Dice sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isPaperTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

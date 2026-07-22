@@ -12,7 +12,13 @@ const THEMES = {
 
   // Tier 2
   carpenter:    { glyphs: ["🪵","◊","✶"], color: "rgba(200,150,90,0.85)", glow: "rgba(180,120,60,0.4)", bg: "#0e0804" },
-  snowman:      { glyphs: ["❄","❅","❆","*","·"], color: "rgba(220,240,255,0.9)", glow: "rgba(180,220,255,0.6)", bg: "#04080e" },
+  snowman:      {
+    glyphs: ["❄","❅","❆","*","·"],
+    color: "rgba(220,240,255,0.9)",
+    glow: "rgba(180,220,255,0.6)",
+    bg: "#04080e",
+    rain: { count: { normal: 52, low: 14 }, speed: [1.0, 3.2], trailAlpha: 0.12 },
+  },
   fisherman:    {
     bg: "#031828",
     glow: "rgba(80,200,255,0.35)",
@@ -1137,7 +1143,7 @@ export default function BossRainBackground({
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowColor = theme.glow;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = isLowPowerDevice() ? 0 : 8;
         ctx.fillStyle = theme.color;
         ctx.fillText(p.glyph, p.x, p.y);
         ctx.restore();

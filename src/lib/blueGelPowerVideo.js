@@ -1,10 +1,9 @@
 import {
   VIDEO_KEYS,
   clearLocalVideo,
-  getCachedLocalVideoObjectUrl,
-  getLocalVideoObjectUrl,
   hasLocalVideo,
-  preloadLocalVideo,
+  resolveVideoSrc,
+  resolveVideoSrcSync,
   saveLocalVideo,
   subscribeLocalVideo,
 } from "@/lib/localVideoStore";
@@ -13,16 +12,16 @@ const KEY = VIDEO_KEYS.BLUE_GEL_POWER;
 
 /** Warm IndexedDB cache on app start / first die render. */
 export function preloadBlueGelPowerVideo() {
-  return preloadLocalVideo(KEY);
+  return resolveVideoSrc(KEY);
 }
 
-/** Returns cached blob URL synchronously after preload/save. */
+/** Returns cached blob URL synchronously after preload/save (or catalog fallback). */
 export function getCachedBlueGelPowerVideoObjectUrl() {
-  return getCachedLocalVideoObjectUrl(KEY);
+  return resolveVideoSrcSync(KEY);
 }
 
 export async function getBlueGelPowerVideoObjectUrl() {
-  return getLocalVideoObjectUrl(KEY);
+  return resolveVideoSrc(KEY);
 }
 
 export async function hasBlueGelPowerVideo() {

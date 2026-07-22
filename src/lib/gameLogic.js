@@ -1,5 +1,5 @@
 // Core game state manipulation for Dice 10,000
-import { scoreSelection, hasAnyScore, isSixOfAKind } from "./scoring";
+import { scoreSelection, hasAnyScore, isSixOfAKind, heldSelectionPoints } from "./scoring";
 import { getPowerChargeHotDiceThreshold } from "./skinPowers";
 import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
 
@@ -58,6 +58,15 @@ function playerHasDebuff(player, debuffId) {
   return (player?.debuffs || []).some((d) => (typeof d === "string" ? d : d.id) === debuffId);
 }
 
+/** Shark Bite mark entry (object with optional `from` caster index). */
+function getSharkBiteDebuff(player) {
+  const entry = (player?.debuffs || []).find(
+    (d) => (typeof d === "string" ? d : d.id) === "shark_bite"
+  );
+  if (!entry) return null;
+  return typeof entry === "string" ? { id: "shark_bite" } : entry;
+}
+
 /** Keep a pending Shark Bite mark across farkle clears (resolves only on bank). */
 function sharkBiteDebuffOnly(player) {
   const entry = (player?.debuffs || []).find(
@@ -72,8 +81,15 @@ function sharkBiteDebuffOnly(player) {
  * (see rollDice clearing sharkDiceHidden).
  */
 export function clearSharkBiteFx(state) {
-  if (!state?.sharkBiteFx) return state;
-  return { ...state, sharkBiteFx: false };
+  if (!state?.sharkBiteFx && !state?.sharkFishFeast && state?.sharkFishFeastTargetIdx == null) {
+    return state;
+  }
+  return {
+    ...state,
+    sharkBiteFx: false,
+    sharkFishFeast: false,
+    sharkFishFeastTargetIdx: null,
+  };
 }
 
 /** Restore tray dice after a shark bite (preview / next round). */
@@ -126,6 +142,8 @@ export function createInitialState(playerNames, options = {}) {
     prisonDice: null,
     sharkBiteFx: false,
     sharkDiceHidden: false,
+    sharkFishFeast: false,
+    sharkFishFeastTargetIdx: null,
   };
 }
 
@@ -382,10 +400,10 @@ export function confirmAndReroll(state) {
     return { state: sixWin, instantWin: true };
   }
 
+  const idx = state.currentIndex;
   const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
   const hotDiceNeeded = getPowerChargeHotDiceThreshold(state.players[idx]);
   const earnedCharge = allUsed && newHotCount >= hotDiceNeeded;
-  const idx = state.currentIndex;
   const hadCharge = !!state.players[idx]?.powerCharge;
   const players = earnedCharge && !hadCharge
     ? state.players.map((p, i) => (i === idx ? { ...p, powerCharge: true } : p))
@@ -438,7 +456,11 @@ export function consumeSkinPower(state) {
 // Shark Bite: if the banker is marked, steal this bank's points and trigger FX
 // (no turn skip — mark resolves only on bank).
 export function bankAndPass(state) {
+  if (state.farkle || state.winner || !state.hasRolled) return state;
+
   const info = getHeldInfo(state);
+  const heldPts = heldSelectionPoints(info, state.perfectTenKPending);
+  if (!info.valid || heldPts <= 0) return state;
 
   if (isSixOfAKind(info.held) && info.held.length === 6) {
     const players = state.players.map((p, i) =>
@@ -463,7 +485,9 @@ export function bankAndPass(state) {
 
   const finishedIdx = state.currentIndex;
   const player = state.players[finishedIdx];
-  const pendingSharkBite = playerHasDebuff(player, "shark_bite");
+  const sharkMark = getSharkBiteDebuff(player);
+  const pendingSharkBite = !!sharkMark;
+  const scoreFrozen = playerHasDebuff(player, "freeze_score");
   const wasOnBoard = !!player.onBoard;
   const newPlayers = [...state.players];
 
@@ -471,7 +495,11 @@ export function bankAndPass(state) {
   let variant;
   let amountAdded = 0;
 
-  if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
+  if (scoreFrozen) {
+    // Score Freeze — turn can still play out, but banked score cannot change.
+    message = `🧊 ${player.name}'s score is frozen — bank had no effect!`;
+    variant = "warning";
+  } else if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
     // Didn't make entry
     message = `${player.name} needs 1,000 to get on the board. Banked 0.`;
     variant = "warning";
@@ -490,10 +518,19 @@ export function bankAndPass(state) {
     variant = "success";
   }
 
-  // Pending Shark Bite resolves on bank: undo this round's banked points.
+  // Pending Shark Bite resolves on the MARKED opponent's bank only:
+  // eat that round's banked points (never the caster's own bank).
   let sharkBiteFx = false;
   if (pendingSharkBite) {
-    if (amountAdded > 0) {
+    const casterIdx = typeof sharkMark?.from === "number" ? sharkMark.from : null;
+    const selfMarked = casterIdx === finishedIdx;
+    if (selfMarked) {
+      // Bad mark on the caster — keep their bank; finishBankedTurn clears the mark.
+      if (amountAdded > 0) {
+        message = `${player.name} banked ${amountAdded.toLocaleString()}!`;
+        variant = "success";
+      }
+    } else if (amountAdded > 0) {
       const afterBank = newPlayers[finishedIdx];
       newPlayers[finishedIdx] = {
         ...afterBank,
@@ -502,11 +539,12 @@ export function bankAndPass(state) {
       };
       message = `🦈 Shark ate ${player.name}'s bank (−${amountAdded.toLocaleString()})!`;
       variant = "danger";
+      sharkBiteFx = true;
     } else {
       message = `🦈 Shark struck as ${player.name} banked — nothing to eat.`;
       variant = "danger";
+      sharkBiteFx = true;
     }
-    sharkBiteFx = true;
   }
 
   // Check win (after any shark steal so a bitten bank can't claim the win)
@@ -521,18 +559,22 @@ export function bankAndPass(state) {
       winner,
       sharkBiteFx: false,
       sharkDiceHidden: false,
+      sharkFishFeast: false,
+      sharkFishFeastTargetIdx: null,
       message: `🎉 ${winner.name} wins with ${winner.score.toLocaleString()}!`,
       messageVariant: "success",
     };
   }
 
-  // Sabotage debuffs on the banker clear; power charge carries to their next turn.
+  // Sabotage debuffs on the banker clear; power charge carries to their next turn
+  // unless Shark Bite just resolved (power visuals must drop after the bite).
+  const biteResolved = sharkBiteFx || pendingSharkBite;
   const chargeSaved =
-    !pendingSharkBite &&
+    !biteResolved &&
     !!newPlayers[finishedIdx]?.powerCharge &&
     !state.skinPowerUsedThisTurn;
   const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx, {
-    skinPowerUsedThisTurn: state.skinPowerUsedThisTurn,
+    skinPowerUsedThisTurn: state.skinPowerUsedThisTurn || biteResolved,
   });
 
   const nextIndex = (finishedIdx + 1) % state.players.length;
@@ -554,6 +596,9 @@ export function bankAndPass(state) {
     sharkBiteFx,
     // Dice stay gone through FX; cleared when FX completes / next round is ready.
     sharkDiceHidden: sharkBiteFx,
+    // Bank-steal Shark Bite is not Feeding Frenzy.
+    sharkFishFeast: false,
+    sharkFishFeastTargetIdx: null,
     ...turnPowerReset(),
     message: `${bankMessage} ${playersAfterBank[nextIndex].name}'s turn.`,
     messageVariant: variant,

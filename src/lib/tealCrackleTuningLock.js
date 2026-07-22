@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_teal_crackle_tuning_locked";
 
-/** Antarctic Blue Ice sprite tuning is locked by default — only catalog values apply in-game. */
+/** Antarctic Blue Ice sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isTealCrackleTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

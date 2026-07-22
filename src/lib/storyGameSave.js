@@ -7,7 +7,9 @@ export function loadStoryFight(bossId) {
     const raw = sessionStorage.getItem(key(bossId));
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (data?.bossId !== bossId || !data?.game || data.game.winner) return null;
+    if (data?.bossId !== bossId || !data?.game) return null;
+    const ended = !!data.game.winner;
+    if (ended && data.dialogue !== "win" && data.dialogue !== "lose") return null;
     return {
       game: data.game,
       dialogue: data.dialogue ?? null,
@@ -21,7 +23,9 @@ export function loadStoryFight(bossId) {
 }
 
 export function saveStoryFight(bossId, snapshot) {
-  if (!bossId || !snapshot?.game || snapshot.game.winner) return;
+  if (!bossId || !snapshot?.game) return;
+  const ended = !!snapshot.game.winner;
+  if (ended && snapshot.dialogue !== "win" && snapshot.dialogue !== "lose") return;
   try {
     sessionStorage.setItem(
       key(bossId),

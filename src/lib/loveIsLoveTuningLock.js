@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_love_is_love_tuning_locked";
 
-/** Love Is Love sprite tuning is locked by default — only catalog values apply in-game. */
+/** Love Is Love sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isLoveIsLoveTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

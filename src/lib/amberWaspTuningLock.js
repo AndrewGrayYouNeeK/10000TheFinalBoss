@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_amber_wasp_tuning_locked";
 
-/** Amber Wasp sprite tuning is locked by default — only catalog values apply in-game. */
+/** Amber Wasp sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isAmberWaspTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

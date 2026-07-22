@@ -49,7 +49,6 @@ import { canAfford, getPower } from "@/lib/powers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
 import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
-  BlueGelPowerVideoScreen,
   SharkBiteScreenFX,
 } from "@/components/game/BlueGelPowerFX";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
@@ -59,8 +58,12 @@ import PowerModePracticeBar, {
   practicePreviewSkinId,
 } from "@/components/game/PowerModePracticeBar";
 import { isLowPowerDevice } from "@/lib/platform";
-import { isFishDiceSkin } from "@/lib/fishDice";
-import { abandonStoryFight, clearStoryFight } from "@/lib/storyGameSave";
+import {
+  abandonStoryFight,
+  clearStoryFight,
+  loadStoryFight,
+  saveStoryFight,
+} from "@/lib/storyGameSave";
 
 const PLAYER_NAME = "You";
 
@@ -82,7 +85,6 @@ export default function StoryGame() {
   const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
-  const [practiceSharkVideo, setPracticeSharkVideo] = useState(false);
   const practiceSharkBiteRef = useRef(false);
   const foregroundCanvasRef = useRef(null);
   const foregroundFx = bossId === "fisherman" || bossId === "gq";
@@ -90,10 +92,16 @@ export default function StoryGame() {
     practiceSharkBiteRef.current = true;
     setGame((g) => (g ? { ...g, sharkBiteFx: true, sharkDiceHidden: true } : g));
   }, []);
+  const onPracticeSharkVideo = useCallback(() => {
+    replayPracticeSharkBite();
+  }, [replayPracticeSharkBite]);
   const [rewardSummary, setRewardSummary] = useState(null);
   const farkleShieldUsedRef = useRef(false);
   const rewardsClaimedRef = useRef(false);
   const prevBustRef = useRef(0);
+  const fightStartedRef = useRef(false);
+  const dialogueRef = useRef(dialogue);
+  dialogueRef.current = dialogue;
   const resolvedPower =
     game?.players[game.currentIndex]?.name === PLAYER_NAME
       ? resolvePlayerPower(game, game.currentIndex)
@@ -116,10 +124,27 @@ export default function StoryGame() {
     const fightBoss = getBoss(bossId);
     if (!bossId || !fightBoss) return;
 
-    abandonStoryFight(fightBoss.id);
     updateMe.mutate({ story_active_boss: fightBoss.id });
 
+    const saved = loadStoryFight(bossId);
+    if (saved?.game) {
+      prevBustRef.current = saved.game.bustCount || 0;
+      rewardsClaimedRef.current = saved.rewardsClaimed;
+      farkleShieldUsedRef.current = saved.farkleShieldUsed;
+      setRewardSummary(null);
+      setBloodWaterLocked(saved.bloodWaterLocked);
+      setPracticePowerPreview(false);
+      setPracticeSharkVideo(false);
+      practiceSharkBiteRef.current = false;
+      setDialogue(saved.dialogue ?? null);
+      setGame(saved.game);
+      fightStartedRef.current = true;
+      return;
+    }
+
+    abandonStoryFight(fightBoss.id);
     prevBustRef.current = 0;
+    fightStartedRef.current = false;
     setDialogue("intro");
     rewardsClaimedRef.current = false;
     farkleShieldUsedRef.current = false;
@@ -128,9 +153,42 @@ export default function StoryGame() {
     setPracticePowerPreview(false);
     setPracticeSharkVideo(false);
     practiceSharkBiteRef.current = false;
-    setGame(makeInitialGame(fightBoss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+    setGame(null);
     // Fresh fight when bossId changes only — avoid resetting mid-match on profile/cosmetics updates.
   }, [bossId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!bossId || !game) return;
+    saveStoryFight(bossId, {
+      game,
+      dialogue,
+      bloodWaterLocked,
+      farkleShieldUsed: farkleShieldUsedRef.current,
+      rewardsClaimed: rewardsClaimedRef.current,
+    });
+  }, [bossId, game, dialogue, bloodWaterLocked]);
+
+  const handleDialogueContinue = useCallback(() => {
+    const mode = dialogueRef.current;
+    if (mode === "intro") {
+      if (fightStartedRef.current) return;
+      fightStartedRef.current = true;
+      setDialogue(null);
+      setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+    } else if (mode === "win") {
+      clearStoryFight(boss.id);
+      navigate("/story");
+    } else if (mode === "lose") {
+      abandonStoryFight(boss.id);
+      fightStartedRef.current = true;
+      setBloodWaterLocked(false);
+      farkleShieldUsedRef.current = false;
+      rewardsClaimedRef.current = false;
+      setRewardSummary(null);
+      setDialogue(null);
+      setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+    }
+  }, [boss, storyPlayerSkin, ownedSkins, ghostDisguiseId, navigate]);
 
   // Full-screen YEEEET! / SKRRRT! on player bust only (not when boss busts)
   useEffect(() => {
@@ -198,6 +256,7 @@ export default function StoryGame() {
       return;
     }
     setGame(consumeSkinPower(result.state));
+    setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
@@ -214,6 +273,7 @@ export default function StoryGame() {
       return;
     }
     setGame(consumeSkinPower(result.state));
+    setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
@@ -390,8 +450,24 @@ export default function StoryGame() {
     setTimeout(() => setRollAnim(false), 900);
   };
   const handleBank = () => {
-    if (!isMyTurn() || game?.sharkBiteFx) return;
-    setGame(bankAndPass(game));
+    if (!game || !isMyTurn() || rollAnim || game.sharkBiteFx || game.farkle || !game.hasRolled) return;
+    setGame((g) => {
+      if (!g || g.players[g.currentIndex]?.name !== PLAYER_NAME || g.sharkBiteFx || g.farkle || g.winner) {
+        return g;
+      }
+      const heldInfo = getHeldInfo(g);
+      const points = heldSelectionPoints(heldInfo, g.perfectTenKPending);
+      const player = g.players[g.currentIndex];
+      const needsEntry = !player.onBoard;
+      const potentialTotal = (g.turnScore || 0) + (heldInfo.valid ? points : 0);
+      const allowed =
+        g.hasRolled &&
+        !g.farkle &&
+        heldInfo.valid &&
+        points > 0 &&
+        (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
+      return allowed ? bankAndPass(g) : g;
+    });
   };
 
   // Apply boss "Crown of Sixes" gimmick — if AI is current player, mutate dice
@@ -462,6 +538,46 @@ export default function StoryGame() {
   };
 
   if (!boss) return null;
+
+  const lowPower = isLowPowerDevice();
+  const cutsceneOverlay = !!dialogue;
+
+  if (dialogue === "intro" && !game) {
+    return (
+      <div className="min-h-screen text-white flex flex-col relative">
+        <BossRainBackground bossId={boss.id} lite />
+        <div className="relative z-10 flex flex-col flex-1">
+          <div
+            className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
+            style={{
+              ...PAGE_HEADER_SAFE_STYLE,
+              borderColor: "rgba(0,255,200,0.25)",
+              background: "rgba(3,4,10,0.85)",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <BackButton label="Back" onClick={exitToLadder} />
+            <div
+              className="flex items-center gap-2 font-pixel text-[10px] tracking-widest"
+              style={{ color: "#fff", textShadow: "0 0 6px #ff00ea, 0 0 16px #00ffea" }}
+            >
+              <Swords className="w-4 h-4" />
+              VS {boss.name.toUpperCase()}
+            </div>
+            <div className="w-16" aria-hidden />
+          </div>
+        </div>
+        <BossDialogue
+          key={`${boss.id}-intro`}
+          boss={boss}
+          mode="intro"
+          onContinue={handleDialogueContinue}
+          onExit={exitToLadder}
+        />
+      </div>
+    );
+  }
+
   if (!game) return null;
 
   // Setup boss panel
@@ -474,6 +590,7 @@ export default function StoryGame() {
   const wouldOvershoot = currentPlayer && currentPlayer.score + potentialTotal > TARGET_SCORE;
   const canBank =
     myTurn &&
+    !rollAnim &&
     game.hasRolled &&
     !game.farkle &&
     heldInfo.valid &&
@@ -494,7 +611,6 @@ export default function StoryGame() {
     (!game.farkle || plasmaCutRescue) &&
     !game.winner &&
     (skinPower?.id !== "plasma_cut" || game.hasRolled);
-  const lowPower = isLowPowerDevice();
   const traySkinId = getPrisonTraySkinId(
     game,
     game.currentIndex,
@@ -504,31 +620,38 @@ export default function StoryGame() {
   const previewSkinId = practicePreviewSkinId(practiceVariant);
   const practiceTraySkinId =
     practicePowerPreview && previewSkinId ? previewSkinId : traySkinId;
-  const fishFeastOnTray =
-    (bloodWaterLocked && isFishDiceSkin(traySkinId)) ||
-    (practicePowerPreview && practiceVariant === "marlin");
+  // Feeding Frenzy — fish dice were targeted (not Blue Gel's own Shark Bite charge).
+  const fishFeastOnTray = !!game?.sharkFishFeast;
+  const feastTargetIdx = game?.sharkFishFeastTargetIdx;
+  const feastTraySkinId =
+    fishFeastOnTray && typeof feastTargetIdx === "number" && game.players[feastTargetIdx]
+      ? getPrisonTraySkinId(
+          game,
+          feastTargetIdx,
+          getDisplaySkinId(game.players[feastTargetIdx], { ghostDisguiseId, ownedSkins })
+        )
+      : null;
+  const diceTraySkinId = feastTraySkinId || practiceTraySkinId;
   const practiceSkinPower =
     practiceVariant === "marlin"
       ? getPower("shark_bite")
       : practiceVariant === "gq"
         ? getPower("siphon")
         : null;
+  // Shark Bite power mode — only on the Blue Gel player's charged turn.
   const trayPowerMode =
-    (myTurn && !!currentPlayer?.powerCharge) || practicePowerPreview;
+    (myTurn && !!currentPlayer?.powerCharge && skinPower?.id === "shark_bite") ||
+    (practicePowerPreview && practiceVariant === "marlin");
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
-  const showSharkVideo =
-    !lowPower &&
-    !game?.sharkBiteFx &&
-    ((powerModeActive && skinPower?.id === "shark_bite") ||
-      (practiceSharkVideo && practiceVariant === "marlin"));
-
+  const trayBloodWater = bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
   return (
     <div className="min-h-screen text-white pb-6 flex flex-col relative">
       <BossRainBackground
         bossId={boss.id}
+        lite={cutsceneOverlay || lowPower}
         bubblesFullScreen={bossId === "fisherman"}
-        frontCanvasRef={foregroundFx ? foregroundCanvasRef : null}
+        frontCanvasRef={foregroundFx && !cutsceneOverlay ? foregroundCanvasRef : null}
       />
       <div className="relative z-10 flex flex-col">
         {/* Header */}
@@ -557,10 +680,12 @@ export default function StoryGame() {
           <div className="w-16" aria-hidden />
         </div>
 
-        <StoryBossFightVideo bossId={bossId} enabled={!lowPower} />
+        {!cutsceneOverlay && (
+          <StoryBossFightVideo bossId={bossId} enabled={!lowPower} />
+        )}
       </div>
 
-      {foregroundFx && (
+      {foregroundFx && !cutsceneOverlay && (
         <div
           className="fixed top-0 left-0 z-[13] pointer-events-none"
           style={{ width: "100vw", height: "100dvh" }}
@@ -570,6 +695,8 @@ export default function StoryGame() {
         </div>
       )}
 
+      {!cutsceneOverlay && (
+      <>
       <div className="relative z-10 flex flex-col">
         <div className="p-3 space-y-2">
           <ScorePanel
@@ -647,8 +774,8 @@ export default function StoryGame() {
                 disabled={!!game.winner || rollAnim}
                 powerPreview={practicePowerPreview}
                 onPowerPreviewChange={setPracticePowerPreview}
-                sharkVideoPreview={practiceSharkVideo}
-                onSharkVideoPreviewChange={setPracticeSharkVideo}
+                sharkVideoPreview={!!game.sharkBiteFx}
+                onSharkVideoPreviewChange={onPracticeSharkVideo}
                 onReplaySharkBite={replayPracticeSharkBite}
                 sharkBiteActive={!!game.sharkBiteFx}
               />
@@ -658,7 +785,7 @@ export default function StoryGame() {
               rolling={rollAnim}
               onToggle={handleToggle}
               disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner}
-              skinId={practiceTraySkinId}
+              skinId={diceTraySkinId}
               feltId={storyFeltId}
               feltIntense={bossId === "neo"}
               heldStyleId={heldDiceStyleId}
@@ -667,8 +794,8 @@ export default function StoryGame() {
               fishFeastMode={fishFeastOnTray}
               sharkBiteFx={!!game.sharkBiteFx}
               sharkDiceHidden={!!game.sharkDiceHidden}
-              bloodWaterLocked={bloodWaterLocked}
-              onBloodWaterSettled={lockBloodWater}
+              bloodWaterLocked={trayBloodWater}
+              onBloodWaterSettled={fishFeastOnTray ? lockBloodWater : undefined}
             />
             {heldInfo.held.length > 0 && (
               <div className="mt-2 text-center text-sm">
@@ -759,6 +886,8 @@ export default function StoryGame() {
           )}
         </div>
       </div>
+      </>
+      )}
 
       <PlasmaCutModal
         open={plasmaCutOpen}
@@ -767,17 +896,17 @@ export default function StoryGame() {
         onCancel={() => setPlasmaCutOpen(false)}
       />
 
-      <BlueGelPowerVideoScreen active={showSharkVideo} loop />
       <SharkBiteScreenFX
         active={!!game?.sharkBiteFx}
         onComplete={() => {
           const wasPractice = practiceSharkBiteRef.current;
           practiceSharkBiteRef.current = false;
+          // Bite finished — normal dice again (do not lock bloody power visuals).
+          setBloodWaterLocked(false);
           setGame((g) => {
             const cleared = clearSharkBiteFx(g);
             return wasPractice ? restoreSharkDice(cleared) : cleared;
           });
-          if (!wasPractice) lockBloodWater();
         }}
       />
 
@@ -790,28 +919,13 @@ export default function StoryGame() {
       />
 
       {/* Boss dialogue overlays */}
-      {dialogue && (
+      {dialogue && dialogue !== "intro" && (
         <BossDialogue
           key={`${boss.id}-${dialogue}`}
           boss={boss}
           mode={dialogue}
           summary={dialogue === "win" ? rewardSummary : null}
-          onContinue={() => {
-            if (dialogue === "intro") {
-              setDialogue(null);
-            } else if (dialogue === "win") {
-              clearStoryFight(boss.id);
-              navigate("/story");
-            } else {
-              // lose — reset to play again (skip intro video on rematch)
-              setBloodWaterLocked(false);
-              farkleShieldUsedRef.current = false;
-              rewardsClaimedRef.current = false;
-              setRewardSummary(null);
-              setDialogue(null);
-              setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
-            }
-          }}
+          onContinue={handleDialogueContinue}
           onExit={exitToLadder}
         />
       )}

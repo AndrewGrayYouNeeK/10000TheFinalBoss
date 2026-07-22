@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_pride_tuning_locked";
 
-/** Pride sprite tuning is locked by default — only catalog values apply in-game. */
+/** Pride sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isPrideTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

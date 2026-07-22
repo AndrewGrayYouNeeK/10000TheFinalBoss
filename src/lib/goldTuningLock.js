@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_gold_tuning_locked";
 
-/** Molten Gold sprite tuning is locked by default — only catalog values apply in-game. */
+/** Molten Gold sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isGoldTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

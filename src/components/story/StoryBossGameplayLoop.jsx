@@ -38,7 +38,7 @@ export default function StoryBossGameplayLoop({
         loop
         muted
         playsInline
-        preload="auto"
+        preload="metadata"
         onError={() => {
           onError();
           setHidden(true);

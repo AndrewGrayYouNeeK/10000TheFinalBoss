@@ -15,7 +15,7 @@ import { layoutGrid } from "@/lib/diceAssets";
 import { useXrayMorphLayout } from "@/hooks/useXrayMorphLayout";
 import Pip from "./Pip";
 import FishOverlay from "./FishOverlay";
-import { BlueGelSharkAttack, BloodPowerFx, BloodyWaterTint, skinUsesBloodPowerFx } from "./BlueGelPowerFX";
+import { BlueGelSharkAttack, BlueGelSharkBiteCharge, BloodPowerFx, BloodyWaterTint, skinUsesBloodPowerFx } from "./BlueGelPowerFX";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
 import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
@@ -79,6 +79,8 @@ function Die({
   lowPower = false,
   powerMode = false,
   sharkBiteFx = false,
+  /** Feeding Frenzy — opponent targeted these fish dice (not Blue Gel's own Shark Bite charge). */
+  fishFeastMode = false,
   bloodWaterLocked = false,
   onBloodWaterSettled,
   devSkin = null,
@@ -501,10 +503,10 @@ function Die({
           const { xNudge, yNudge } = getAquamarineShellNudges(value, size);
           return (
             <>
-              {/* Fish / in-die sharks — power-mode feast only (shark bite is fullscreen over gameplay). */}
-              {powerMode && !reduceEffects ? (
+              {/* Feeding Frenzy (targeted fish) vs Shark Bite charge (own power mode). */}
+              {fishFeastMode && !reduceEffects ? (
                 <BlueGelSharkAttack
-                  key="power-feast"
+                  key="feeding-frenzy"
                   size={size}
                   radius={radius}
                   count={value}
@@ -520,6 +522,17 @@ function Die({
                     includeJellyfish={includeJellyfish}
                   />
                 </BlueGelSharkAttack>
+              ) : powerMode && !reduceEffects ? (
+                <BlueGelSharkBiteCharge size={size} radius={radius} count={value}>
+                  <FishOverlay
+                    size={size}
+                    radius={radius}
+                    count={value}
+                    bigFishVariantIndex={bigFishVariantIndex}
+                    bigFishExtraScale={bigFishExtraScale}
+                    includeJellyfish={includeJellyfish}
+                  />
+                </BlueGelSharkBiteCharge>
               ) : (
                 <>
                   <FishOverlay
@@ -693,6 +706,7 @@ function Die({
 function diePropsAreEqual(prev, next) {
   if (prev.devSkin !== next.devSkin) return false;
   if (prev.powerMode !== next.powerMode) return false;
+  if (prev.fishFeastMode !== next.fishFeastMode) return false;
   return (
     prev.value === next.value &&
     prev.held === next.held &&
@@ -709,6 +723,7 @@ function diePropsAreEqual(prev, next) {
     prev.dieSeed === next.dieSeed &&
     prev.lowPower === next.lowPower &&
     prev.sharkBiteFx === next.sharkBiteFx &&
+    prev.fishFeastMode === next.fishFeastMode &&
     prev.bloodWaterLocked === next.bloodWaterLocked &&
     prev.onBloodWaterSettled === next.onBloodWaterSettled &&
     prev.onToggleDie === next.onToggleDie &&

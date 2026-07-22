@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
-    "start": "npm run build && vite preview --host 127.0.0.1 --port 4173 --strictPort --open",
+    "dev": "vite --port 5173 --strictPort",
+    "dev:lan": "vite --host --port 5173 --strictPort",
+    "start": "npm run build && vite preview --host localhost --port 4173 --strictPort --open",
     "play": "bash scripts/play.sh",
     "smoke": "node scripts/smoke-test.mjs",
     "build": "vite build",

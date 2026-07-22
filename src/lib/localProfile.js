@@ -44,6 +44,10 @@ const DEFAULT_PROFILE = {
   held_dice_style: "amber_glow",
   sfx_muted: false,
   opponent_sfx_muted: false,
+  /** Sprite Lab locks + snapshots — survives restarts alongside this profile. */
+  sprite_tuning: {},
+  /** Video upload inventory (metadata only — blobs live in IndexedDB/OPFS). */
+  video_uploads: {},
 };
 
 export function loadProfile() {

@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_plasma_tuning_locked";
 
-/** Plasma Ball sprite tuning is locked by default — only catalog values apply in-game. */
+/** Plasma Ball sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isPlasmaTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_aquamarine_tuning_locked";
 
-/** Aquamarine sprite tuning is locked by default — only catalog values apply in-game. */
+/** Aquamarine sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isAquamarineTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

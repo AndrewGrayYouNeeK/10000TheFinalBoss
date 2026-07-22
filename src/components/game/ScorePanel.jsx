@@ -63,6 +63,15 @@ export default function ScorePanel({ players, currentIndex, target = 10000, obsc
                 <LevelBadge level={p.level} tierId={p.tierId ?? 0} size="xs" />
               )}
               <div className="flex items-center gap-1 ml-auto shrink-0">
+                {(p.debuffs || []).some((d) => (typeof d === "string" ? d : d.id) === "freeze_score") && (
+                  <span
+                    className="text-[9px] font-black uppercase tracking-wider"
+                    style={{ color: "#7dd3fc", textShadow: "0 0 6px rgba(125,211,252,0.85)" }}
+                    title="Banked score frozen this turn"
+                  >
+                    🧊 Score Frozen
+                  </span>
+                )}
                 {p.powerCharge && (
                   <span
                     className="text-[9px] font-black uppercase tracking-wider"

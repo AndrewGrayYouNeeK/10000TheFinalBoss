@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_circuit_board_tuning_locked";
 
-/** Circuit Board sprite tuning is locked by default — only catalog values apply in-game. */
+/** Circuit Board sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isCircuitBoardTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

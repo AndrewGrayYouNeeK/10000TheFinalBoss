@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { MAX_POWER } from "@/lib/powers";
 
 // Neon Power bar — fills as the player rolls, scores, hot-dices.
-// Pass `frozen` to render the depleted/iced state (Freeze sabotage).
+// Pass `frozen` to render the depleted/iced state (power-bar Freeze sabotage — not Score Freeze).
 export default function PowerBar({ power = 0, frozen = false, label = "POWER", compact = false }) {
   const pct = Math.max(0, Math.min(100, (power / MAX_POWER) * 100));
 
@@ -17,7 +17,7 @@ export default function PowerBar({ power = 0, frozen = false, label = "POWER", c
             textShadow: frozen ? "0 0 6px #00d4ff" : "0 0 6px rgba(0,255,200,0.8)",
           }}
         >
-          ▸ {frozen ? "FROZEN" : label}
+          ▸ {frozen ? "POWER FROZEN" : label}
         </span>
         <span
           className={`font-black tabular-nums ${compact ? "text-[9px]" : "text-xs"}`}

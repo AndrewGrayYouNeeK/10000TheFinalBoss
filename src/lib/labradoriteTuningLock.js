@@ -1,6 +1,6 @@
 const LOCK_KEY = "yourneek_labradorite_tuning_locked";
 
-/** Labradorite sprite tuning is locked by default — only catalog values apply in-game. */
+/** Labradorite sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
 export function isLabradoriteTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);

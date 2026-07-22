@@ -3,9 +3,23 @@ const DB_VERSION = 1;
 const STORE = "blobs";
 
 const VIDEO_SETTINGS_META_KEY = "yourneek_saved_video_keys";
+const VIDEO_CLEARED_META_KEY = "yourneek_cleared_video_keys";
+const OPFS_DIR = "yourneek-videos";
 
 function backupVideoStorageKey(key) {
   return `backup_vid_${key}`;
+}
+
+function vaultVideoStorageKey(key) {
+  return `vault_vid_${key}`;
+}
+
+function isAuxiliaryVideoKey(key) {
+  return (
+    key.startsWith("backup_vid_") ||
+    key.startsWith("vault_vid_") ||
+    key.startsWith("locked_vid_")
+  );
 }
 
 function clearVideoSavedFlag(key) {
@@ -17,6 +31,46 @@ function clearVideoSavedFlag(key) {
   } catch {
     /* ignore */
   }
+}
+
+function markVideoSavedFlag(key) {
+  try {
+    const raw = localStorage.getItem(VIDEO_SETTINGS_META_KEY);
+    const meta = raw ? JSON.parse(raw) : {};
+    meta[key] = true;
+    localStorage.setItem(VIDEO_SETTINGS_META_KEY, JSON.stringify(meta));
+  } catch {
+    /* ignore */
+  }
+}
+
+function readClearedVideoKeys() {
+  try {
+    const raw = localStorage.getItem(VIDEO_CLEARED_META_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function markVideoUserCleared(key, cleared = true) {
+  try {
+    const meta = readClearedVideoKeys();
+    if (cleared) meta[key] = true;
+    else delete meta[key];
+    localStorage.setItem(VIDEO_CLEARED_META_KEY, JSON.stringify(meta));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** True when the user tapped Remove — blocks auto-restore until Restore/Save. */
+export function isVideoUserCleared(key) {
+  return !!readClearedVideoKeys()[key];
+}
+
+export function clearVideoUserCleared(key) {
+  markVideoUserCleared(key, false);
 }
 
 /** @deprecated legacy key — migrated to matrix_power on read */
@@ -35,6 +89,7 @@ export const VIDEO_KEYS = {
 export const VIDEO_FALLBACK_PATHS = {
   [VIDEO_KEYS.MATRIX_POWER]: "/assets/matrix_power.mp4",
   [VIDEO_KEYS.DIAMOND_CUT_POWER]: "/assets/diamond_cut_power.mp4",
+  [VIDEO_KEYS.BLUE_GEL_POWER]: "/assets/blue_gel_power.mp4",
   [VIDEO_KEYS.STORY_MODE]: "/assets/story_mode.mp4",
   [VIDEO_KEYS.STORY_BOSS_WIN]: "/assets/story_boss_win.mp4",
   [VIDEO_KEYS.GAMEPLAY_LOOP]: "/assets/gameplay_header_loop.mp4",
@@ -57,7 +112,7 @@ export const VIDEO_DESCRIPTIONS = {
   [VIDEO_KEYS.DIAMOND_CUT_POWER]:
     "3×2 face-grid MP4 shown on Diamond Cut dice when power is charged. Upload here or drop in public/assets/diamond_cut_power.mp4.",
   [VIDEO_KEYS.BLUE_GEL_POWER]:
-    "Fullscreen shark / Blue Gel power video over gameplay when Shark Bite power is charged or resolves. Upload here — does not play inside dice. If none is uploaded, the built-in full-screen SVG shark swim still runs for bites.",
+    "Fullscreen shark / Blue Gel power video over gameplay when Shark Bite is charged or resolves. Black background is keyed out. Preview: /game?previewSharkBite=1 or /fish-showcase. Catalog fallback: public/assets/blue_gel_power.mp4.",
   [VIDEO_KEYS.STORY_MODE]:
     "Looping banner on the Story hub ladder page only — not used as a boss-fight intro.",
   [VIDEO_KEYS.STORY_BOSS_WIN]:
@@ -72,6 +127,7 @@ const cache = new Map();
 const listeners = new Map();
 
 let dbPromise = null;
+let persistRequested = false;
 
 function ensureListeners(key) {
   if (!listeners.has(key)) listeners.set(key, new Set());
@@ -96,12 +152,40 @@ function revokeCached(key) {
   }
 }
 
+function requestPersistentStorage() {
+  if (persistRequested) return;
+  persistRequested = true;
+  try {
+    if (navigator?.storage?.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => {
+      dbPromise = null;
+      reject(req.error);
+    };
+    req.onblocked = () => {
+      /* another tab holds an older version — keep waiting */
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE)) {
@@ -161,6 +245,71 @@ export function listAllLocalVideoKeys() {
   );
 }
 
+async function opfsWrite(key, blob) {
+  try {
+    if (!navigator?.storage?.getDirectory) return;
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle(OPFS_DIR, { create: true });
+    const handle = await dir.getFileHandle(`${key}.bin`, { create: true });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  } catch {
+    /* OPFS unavailable (private mode / older WebView) */
+  }
+}
+
+async function opfsRead(key) {
+  try {
+    if (!navigator?.storage?.getDirectory) return null;
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle(OPFS_DIR);
+    const handle = await dir.getFileHandle(`${key}.bin`);
+    const file = await handle.getFile();
+    if (!file?.size) return null;
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+async function opfsDelete(key) {
+  try {
+    if (!navigator?.storage?.getDirectory) return;
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle(OPFS_DIR);
+    await dir.removeEntry(`${key}.bin`);
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeProfileVideoMeta(key, meta) {
+  try {
+    import("./localProfile").then(({ loadProfile, updateProfile }) => {
+      const profile = loadProfile();
+      const video_uploads = { ...(profile.video_uploads || {}) };
+      if (meta) video_uploads[key] = meta;
+      else delete video_uploads[key];
+      updateProfile({ video_uploads });
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadProfileVideoUploadKeys() {
+  try {
+    // sync path — localProfile is tiny
+    const raw = localStorage.getItem("dice10k_profile");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Object.keys(parsed?.video_uploads || {}).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 async function migrateLegacyMatrixKey() {
   const legacy = await idbGet(LEGACY_MATRIX_KEY);
   if (!legacy) return;
@@ -201,8 +350,34 @@ export async function hasLocalVideo(key) {
   return !!blob;
 }
 
+/**
+ * Write durable copies (backup + vault + OPFS + profile meta).
+ * Does not touch the live cache/listeners for auxiliary keys.
+ */
+export async function persistVideoDurability(key, blob) {
+  if (!blob || isAuxiliaryVideoKey(key)) return;
+  requestPersistentStorage();
+  const normalized =
+    blob instanceof Blob ? blob : new Blob([blob], { type: blob.type || "video/mp4" });
+
+  await Promise.all([
+    idbPut(backupVideoStorageKey(key), normalized),
+    idbPut(vaultVideoStorageKey(key), normalized),
+    opfsWrite(key, normalized),
+  ]);
+
+  markVideoSavedFlag(key);
+  writeProfileVideoMeta(key, {
+    savedAt: Date.now(),
+    size: normalized.size,
+    type: normalized.type || "video/mp4",
+  });
+}
+
 export async function saveLocalVideo(key, file) {
   if (!file) throw new Error("No file selected");
+  requestPersistentStorage();
+  markVideoUserCleared(key, false);
   const blob =
     file instanceof Blob ? file : new Blob([file], { type: file.type || "video/mp4" });
   await idbPut(key, blob);
@@ -210,21 +385,48 @@ export async function saveLocalVideo(key, file) {
   const url = URL.createObjectURL(blob);
   cache.set(key, url);
   notify(key, url);
-  import("./spriteLabLockedVideos")
-    .then(({ mirrorUploadToSnapshots }) => mirrorUploadToSnapshots(key))
-    .catch(() => {});
+
+  // Await durability — never report success without backup/vault/OPFS attempted.
+  await persistVideoDurability(key, blob);
+
+  try {
+    const { mirrorUploadToSnapshots } = await import("./spriteLabLockedVideos");
+    await mirrorUploadToSnapshots(key);
+  } catch {
+    /* lock snapshots are best-effort; vault/backup already written */
+  }
+
+  writeProfileVideoMeta(key, {
+    savedAt: Date.now(),
+    size: blob.size,
+    type: blob.type || "video/mp4",
+    fileName: typeof file?.name === "string" ? file.name : undefined,
+  });
+
   return url;
 }
 
-export async function clearLocalVideo(key) {
+/**
+ * Remove the live upload from the UI.
+ * Keeps vault + OPFS so "Restore all uploads" can bring it back.
+ * Pass { purgeVault: true } for a hard delete.
+ */
+export async function clearLocalVideo(key, { purgeVault = false } = {}) {
   await idbDelete(key);
   await idbDelete(backupVideoStorageKey(key));
+  markVideoUserCleared(key, true);
+  if (purgeVault) {
+    await idbDelete(vaultVideoStorageKey(key));
+    await opfsDelete(key);
+    clearVideoSavedFlag(key);
+    writeProfileVideoMeta(key, null);
+    markVideoUserCleared(key, false);
+  }
   revokeCached(key);
   notify(key, null);
-  clearVideoSavedFlag(key);
 }
 
-/** Raw blob from IndexedDB (no object URL). */
+/** Raw blob from IndexedDB (no object URL). Checks live key only. */
 export async function getLocalVideoBlob(key) {
   if (key === VIDEO_KEYS.MATRIX_POWER) {
     await migrateLegacyMatrixKey();
@@ -232,15 +434,21 @@ export async function getLocalVideoBlob(key) {
   return idbGet(key);
 }
 
-/** Write blob to IndexedDB and refresh cache/listeners for the active key. */
+/** Write blob to IndexedDB. Live keys refresh cache/listeners; aux keys stay silent. */
 export async function putLocalVideoBlob(key, blob) {
   if (!blob) {
-    await clearLocalVideo(key);
+    // Soft-delete THIS key only — never cascade into backup/vault (old bug wiped backups).
+    await idbDelete(key);
+    if (!isAuxiliaryVideoKey(key)) {
+      revokeCached(key);
+      notify(key, null);
+    }
     return null;
   }
   const normalized =
     blob instanceof Blob ? blob : new Blob([blob], { type: blob.type || "video/mp4" });
   await idbPut(key, normalized);
+  if (isAuxiliaryVideoKey(key)) return null;
   revokeCached(key);
   const url = URL.createObjectURL(normalized);
   cache.set(key, url);
@@ -278,15 +486,19 @@ export function resolveVideoSrcSync(key) {
   return getCachedLocalVideoObjectUrl(key) ?? VIDEO_FALLBACK_PATHS[key] ?? null;
 }
 
+export { backupVideoStorageKey, vaultVideoStorageKey, opfsRead, opfsWrite };
+
 export function preloadAllLocalVideos() {
-  return import("./storyBossVideos")
-    .then(({ preloadStoryBossVideos }) =>
-      Promise.all([
-        ...Object.values(VIDEO_KEYS).map((key) => preloadLocalVideo(key)),
-        preloadStoryBossVideos(),
-      ])
-    )
-    .then(() => import("./spriteLabLockedVideos"))
+  // Recovery must always run — do not chain it behind storyBossVideos (old bug skipped restore).
+  const recover = import("./spriteLabLockedVideos")
     .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
-    .catch(() => Promise.all(Object.values(VIDEO_KEYS).map((key) => preloadLocalVideo(key))));
+    .catch(() => 0);
+
+  const preloadKeys = Promise.all(Object.values(VIDEO_KEYS).map((key) => preloadLocalVideo(key)));
+
+  const preloadStory = import("./storyBossVideos")
+    .then(({ preloadStoryBossVideos }) => preloadStoryBossVideos())
+    .catch(() => {});
+
+  return Promise.all([recover, preloadKeys, preloadStory]).then(() => undefined);
 }
