@@ -88,6 +88,8 @@ export function chooseDiceToHold(state, difficulty) {
 // Decide whether to bank or roll again, given the current state.
 // Returns "bank" | "roll".
 export function chooseBankOrRoll(state, difficulty, player) {
+  if (state?.storyIceFreeze) return "bank";
+
   const turnScore = state.turnScore || 0;
   const playerScore = player?.score ?? 0;
   const needsEntry = !player?.onBoard;

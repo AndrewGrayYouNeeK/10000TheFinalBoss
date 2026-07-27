@@ -3,19 +3,39 @@ import { Link } from "react-router-dom";
 import { Snowflake } from "lucide-react";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
-import {
-  ICE_POWER_SHAPE_URL,
-  ICE_POWER_FROZEN_URL,
-  useIcePowerSettings,
-} from "@/components/game/IcePowerOverlay";
+import DiceTray from "@/components/game/DiceTray";
+import { useIcePowerSettings } from "@/components/game/IcePowerOverlay";
 import {
   DEFAULT_ICE_POWER_SETTINGS,
+  DEFAULT_FROZEN_FACE,
+  DEFAULT_FROZEN_TINT_COLOR,
   ICE_BLEND_MODES,
+  ICE_TINT_BLEND_MODES,
+  applyFrozenFaceToAll,
+  getFrozenFaceSettings,
+  makeDefaultFrozenFaces,
+  patchFrozenFace,
+  resetFrozenFace,
+  saveAllFrozenFaces,
   saveIcePowerSettings,
   resetIcePowerSettings,
 } from "@/lib/icePowerSettings";
+import {
+  ICE_POWER_FROZEN_SHEET_URL,
+  icePowerFrozenFaceUrl,
+} from "@/lib/icePowerFaceAssets";
+import { DICE_SKINS, getSkin } from "@/lib/shopCatalog";
 
 const FACE_VALUES = [1, 2, 3, 4, 5, 6];
+
+const TRAY_PREVIEW_DICE = [
+  { id: "ice-lab-1", value: 1, held: false, used: false },
+  { id: "ice-lab-2", value: 2, held: false, used: false },
+  { id: "ice-lab-3", value: 3, held: false, used: false },
+  { id: "ice-lab-4", value: 4, held: false, used: false },
+  { id: "ice-lab-5", value: 5, held: false, used: false },
+  { id: "ice-lab-6", value: 6, held: false, used: false },
+];
 
 function SliderRow({ label, value, min, max, step = 0.01, onChange, format, disabled }) {
   const display =
@@ -51,17 +71,17 @@ function ToggleRow({ label, checked, onChange }) {
   );
 }
 
-function BlendSelect({ value, onChange, disabled }) {
+function BlendSelect({ label = "Blend mode", value, onChange, disabled, modes = ICE_BLEND_MODES }) {
   return (
     <label className={`block text-[11px] text-slate-400 ${disabled ? "opacity-40" : ""}`}>
-      Blend mode
+      {label}
       <select
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full h-8 rounded-md border border-white/15 bg-slate-900 px-2 text-xs font-semibold text-white"
       >
-        {ICE_BLEND_MODES.map((mode) => (
+        {modes.map((mode) => (
           <option key={mode} value={mode}>
             {mode}
           </option>
@@ -71,26 +91,23 @@ function BlendSelect({ value, onChange, disabled }) {
   );
 }
 
-function LayerCard({ title, hint, children }) {
-  return (
-    <section className="rounded-xl border border-sky-500/30 bg-slate-900/60 p-3 space-y-3">
-      <div>
-        <h2 className="text-sm font-black text-sky-100">{title}</h2>
-        {hint ? <p className="text-[10px] text-slate-500 mt-0.5">{hint}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 export default function IcePowerLab() {
   const settings = useIcePowerSettings();
   const update = (patch) => saveIcePowerSettings({ ...settings, ...patch });
 
   const dieSize = Math.round(settings.labDieSize || 88);
-  const previewFaces = settings.labShowAll
-    ? FACE_VALUES
-    : [Math.min(6, Math.max(1, Math.round(settings.labFace) || 1))];
+  const labSkinId = settings.labSkinId || "classic_white";
+  const selectedSkin = getSkin(labSkinId) || DICE_SKINS[0];
+  const trayMode = !!settings.labTrayMode;
+  const showAllFaces = !trayMode && !!settings.labShowAll;
+  const editFace = Math.min(6, Math.max(1, Math.round(settings.labFace) || 1));
+  const faceTune = getFrozenFaceSettings(settings, editFace);
+  const previewFaces = showAllFaces ? FACE_VALUES : [editFace];
+  const overlayOn = settings.frozenEnabled !== false;
+  const setOverlayOn = (frozenEnabled) => update({ frozenEnabled: !!frozenEnabled });
+
+  const selectFace = (face) => update({ labFace: face });
+  const updateFace = (patch) => saveIcePowerSettings(patchFrozenFace(settings, editFace, patch));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-sky-950/40 to-black text-white pb-12">
@@ -103,9 +120,11 @@ export default function IcePowerLab() {
           <div className="min-w-0 flex-1 flex items-center gap-2">
             <Snowflake className="w-5 h-5 text-sky-300 shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-lg font-black truncate text-sky-100">Frosty Ice Power Lab</h1>
+              <h1 className="text-lg font-black truncate text-sky-100">
+                Preview freeze overlay
+              </h1>
               <p className="text-[10px] text-slate-400 truncate">
-                Tune shape · frame · frozen layers — saves on this device
+                Per-face ice cubes — zoom &amp; offset each face · saves on this device
               </p>
             </div>
           </div>
@@ -115,28 +134,22 @@ export default function IcePowerLab() {
       <div className="max-w-4xl mx-auto p-4 space-y-5">
         <div className="flex flex-wrap gap-2">
           <Link
-            to="/game"
+            to="/story"
             className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white"
           >
-            ▶ Game (Frosty practice)
+            ▶ Story (Frosty fights)
+          </Link>
+          <Link
+            to="/game"
+            className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-sky-500/45 text-sky-200 hover:bg-sky-950/40"
+          >
+            Game practice
           </Link>
           <Link
             to="/sprite-lab/ice"
             className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
           >
             Ice Sprite Lab
-          </Link>
-          <Link
-            to="/video-assets"
-            className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-slate-500/45 text-slate-200 hover:bg-slate-900/60"
-          >
-            Video Assets
-          </Link>
-          <Link
-            to="/fish-showcase"
-            className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-rose-500/40 text-rose-200 hover:bg-rose-950/40"
-          >
-            Fish Showcase
           </Link>
           <button
             type="button"
@@ -147,9 +160,11 @@ export default function IcePowerLab() {
           </button>
         </div>
 
-        {/* Live preview */}
+        {/* 1. Live preview */}
         <section
-          className="rounded-2xl border border-sky-400/35 bg-slate-950/70 p-4 sm:p-6 overflow-hidden"
+          className={`rounded-2xl border border-sky-400/35 bg-slate-950/70 p-4 sm:p-6 ${
+            overlayOn ? "overflow-visible" : "overflow-hidden"
+          }`}
           style={{
             backgroundImage:
               "radial-gradient(ellipse at 30% 20%, rgba(56,189,248,0.18) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(14,165,233,0.12) 0%, transparent 45%)",
@@ -158,26 +173,33 @@ export default function IcePowerLab() {
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
             <div>
               <h2 className="text-base font-black text-sky-100">Live preview</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 max-w-md">
-                Regular Frozen Ice skin → shape mask → dripping frame → frozen cubes. Changes apply
-                in-game immediately (Score Freeze / Frosty practice).
+              <p className="text-[11px] text-slate-400 mt-0.5 max-w-lg">
+                Same ice-cube sheet story mode puts on the opponent tray for ~2s when Frozen Ice
+                fires. Overlay sliders are directly below — changes apply in fights immediately.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <ToggleRow
-                label="Show all 6"
-                checked={settings.labShowAll}
-                onChange={(labShowAll) => update({ labShowAll })}
+                label="Full tray (6)"
+                checked={trayMode}
+                onChange={(labTrayMode) => update({ labTrayMode })}
               />
-              {!settings.labShowAll && (
+              {!trayMode && (
+                <ToggleRow
+                  label="All faces"
+                  checked={showAllFaces}
+                  onChange={(labShowAll) => update({ labShowAll })}
+                />
+              )}
+              {!trayMode && !showAllFaces && (
                 <div className="flex gap-1">
                   {FACE_VALUES.map((face) => (
                     <button
                       key={face}
                       type="button"
-                      onClick={() => update({ labFace: face })}
+                      onClick={() => selectFace(face)}
                       className={`h-7 w-7 rounded-md text-[11px] font-black border ${
-                        settings.labFace === face
+                        editFace === face
                           ? "bg-sky-500 border-sky-300 text-white"
                           : "border-slate-600 text-slate-300 hover:bg-slate-800"
                       }`}
@@ -190,189 +212,162 @@ export default function IcePowerLab() {
             </div>
           </div>
 
-          <div
-            className={`flex flex-wrap justify-center gap-5 sm:gap-6 py-4 ${
-              settings.labShowAll ? "max-w-lg mx-auto" : ""
-            }`}
-          >
-            {previewFaces.map((face) => (
-              <div key={face} className="flex flex-col items-center gap-1.5">
-                <div
-                  className="relative"
-                  style={{ width: dieSize, height: dieSize, overflow: "visible" }}
-                >
-                  <Die
-                    value={face}
-                    size={dieSize}
-                    skinId="ice"
-                    powerMode
-                    dieId={`ice-lab-${face}`}
-                  />
+          <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px]">
+            <span className="text-slate-500 font-bold uppercase tracking-wider">Skin</span>
+            <span className="text-sky-100 font-black">{selectedSkin?.name || labSkinId}</span>
+            <label className="flex items-center gap-2 rounded-full border border-sky-400/35 bg-sky-950/40 px-2.5 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={overlayOn}
+                onChange={(e) => setOverlayOn(e.target.checked)}
+                className="accent-sky-400 w-3.5 h-3.5"
+              />
+              <span
+                className={`text-[9px] font-black uppercase tracking-wider ${
+                  overlayOn ? "text-sky-200" : "text-rose-200"
+                }`}
+              >
+                {overlayOn ? "Freeze overlay on" : "Overlay disabled — tap to enable"}
+              </span>
+            </label>
+          </div>
+
+          {trayMode ? (
+            <div
+              className={`rounded-xl border border-sky-800/40 bg-slate-950/80 p-2 sm:p-3 ${
+                overlayOn ? "overflow-visible" : "overflow-hidden"
+              }`}
+            >
+              <DiceTray
+                dice={TRAY_PREVIEW_DICE}
+                rolling={false}
+                disabled
+                skinId={labSkinId}
+                feltId="classic_green"
+                iceFrozenOverlay={overlayOn}
+              />
+            </div>
+          ) : (
+            <div
+              className={`flex flex-wrap justify-center gap-5 sm:gap-6 py-4 ${
+                showAllFaces ? "max-w-lg mx-auto" : ""
+              }`}
+            >
+              {previewFaces.map((face) => (
+                <div key={face} className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="relative"
+                    style={{ width: dieSize, height: dieSize, overflow: "visible" }}
+                  >
+                    <Die
+                      value={face}
+                      size={dieSize}
+                      skinId={labSkinId}
+                      iceFrozenOverlay={overlayOn}
+                      dieId={`ice-lab-${labSkinId}-${face}`}
+                    />
+                  </div>
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                    Face {face}
+                  </span>
                 </div>
-                <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
-                  Face {face}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+
+          {!trayMode && (
+            <SliderRow
+              label="Preview die size"
+              value={dieSize}
+              min={48}
+              max={140}
+              step={1}
+              format={(v) => `${Math.round(v)}px`}
+              onChange={(labDieSize) => update({ labDieSize })}
+            />
+          )}
+        </section>
+
+        {/* 2. Frozen overlay adjustments (sliders only) */}
+        <section className="rounded-xl border border-sky-500/30 bg-slate-900/60 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-sky-100">Frozen overlay</h2>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Pick a face (1–6), then zoom / offset that ice cube only. Opacity, blend &amp; cyan
+              tint stay global — transparent ice sheet (skins show through).
+            </p>
+          </div>
+
+          <ToggleRow
+            label="Freeze overlay"
+            checked={overlayOn}
+            onChange={setOverlayOn}
+          />
+          {!overlayOn && (
+            <p className="text-[10px] text-rose-300/90 -mt-1">
+              Overlay is off — turn Freeze overlay on above (or in Live preview) to see ice on the
+              dice.
+            </p>
+          )}
+
+          <div>
+            <div className="text-[11px] text-slate-400 mb-1.5">
+              Editing face{" "}
+              <span className="text-sky-100 font-black tabular-nums">{editFace}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {FACE_VALUES.map((face) => (
+                <button
+                  key={face}
+                  type="button"
+                  onClick={() => selectFace(face)}
+                  disabled={!settings.frozenEnabled}
+                  className={`h-8 w-8 rounded-md text-xs font-black border transition-colors ${
+                    editFace === face
+                      ? "bg-sky-500 border-sky-300 text-white"
+                      : "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                  }`}
+                >
+                  {face}
+                </button>
+              ))}
+            </div>
           </div>
 
           <SliderRow
-            label="Preview die size"
-            value={dieSize}
-            min={48}
-            max={140}
-            step={1}
-            format={(v) => `${Math.round(v)}px`}
-            onChange={(labDieSize) => update({ labDieSize })}
+            label={`Face ${editFace} zoom`}
+            value={faceTune.zoom}
+            min={0.8}
+            max={2.2}
+            step={0.01}
+            disabled={!settings.frozenEnabled}
+            onChange={(zoom) => updateFace({ zoom })}
+          />
+          <SliderRow
+            label={`Face ${editFace} offset X %`}
+            value={faceTune.offsetX}
+            min={-40}
+            max={40}
+            step={0.5}
+            disabled={!settings.frozenEnabled}
+            format={(v) => v.toFixed(1)}
+            onChange={(offsetX) => updateFace({ offsetX })}
+          />
+          <SliderRow
+            label={`Face ${editFace} offset Y %`}
+            value={faceTune.offsetY}
+            min={-40}
+            max={40}
+            step={0.5}
+            disabled={!settings.frozenEnabled}
+            format={(v) => v.toFixed(1)}
+            onChange={(offsetY) => updateFace({ offsetY })}
           />
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-white/10 bg-black/30 p-2">
-              <p className="text-[9px] uppercase tracking-wider text-slate-500 mb-1.5 font-bold">
-                Shape sheet
-              </p>
-              <img
-                src={ICE_POWER_SHAPE_URL}
-                alt="Ice power shape"
-                className="w-full h-auto rounded border border-white/5"
-              />
-            </div>
-            <div className="rounded-lg border border-white/10 bg-black/30 p-2">
-              <p className="text-[9px] uppercase tracking-wider text-slate-500 mb-1.5 font-bold">
-                Frozen sheet
-              </p>
-              <img
-                src={ICE_POWER_FROZEN_URL}
-                alt="Ice power frozen"
-                className="w-full h-auto rounded border border-white/5"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Controls */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <LayerCard
-            title="Shape mask"
-            hint="CSS mask on the die body — organic dripping silhouette"
-          >
-            <ToggleRow
-              label="Enabled"
-              checked={settings.shapeEnabled}
-              onChange={(shapeEnabled) => update({ shapeEnabled })}
-            />
-            <SliderRow
-              label="Zoom"
-              value={settings.shapeZoom}
-              min={0.8}
-              max={2.2}
-              step={0.01}
-              disabled={!settings.shapeEnabled}
-              onChange={(shapeZoom) => update({ shapeZoom })}
-            />
-            <SliderRow
-              label="Offset X %"
-              value={settings.shapeOffsetX}
-              min={-40}
-              max={40}
-              step={0.5}
-              disabled={!settings.shapeEnabled}
-              format={(v) => v.toFixed(1)}
-              onChange={(shapeOffsetX) => update({ shapeOffsetX })}
-            />
-            <SliderRow
-              label="Offset Y %"
-              value={settings.shapeOffsetY}
-              min={-40}
-              max={40}
-              step={0.5}
-              disabled={!settings.shapeEnabled}
-              format={(v) => v.toFixed(1)}
-              onChange={(shapeOffsetY) => update({ shapeOffsetY })}
-            />
-          </LayerCard>
-
-          <LayerCard
-            title="Dripping frame"
-            hint="ice_power_shape.png — multiply keys out white; can extend past die"
-          >
-            <ToggleRow
-              label="Enabled"
-              checked={settings.frameEnabled}
-              onChange={(frameEnabled) => update({ frameEnabled })}
-            />
-            <SliderRow
-              label="Zoom"
-              value={settings.frameZoom}
-              min={0.8}
-              max={2.2}
-              step={0.01}
-              disabled={!settings.frameEnabled}
-              onChange={(frameZoom) => update({ frameZoom })}
-            />
-            <SliderRow
-              label="Opacity"
-              value={settings.frameOpacity}
-              min={0}
-              max={1}
-              step={0.01}
-              disabled={!settings.frameEnabled}
-              onChange={(frameOpacity) => update({ frameOpacity })}
-            />
-            <SliderRow
-              label="Offset X %"
-              value={settings.frameOffsetX}
-              min={-40}
-              max={40}
-              step={0.5}
-              disabled={!settings.frameEnabled}
-              format={(v) => v.toFixed(1)}
-              onChange={(frameOffsetX) => update({ frameOffsetX })}
-            />
-            <SliderRow
-              label="Offset Y %"
-              value={settings.frameOffsetY}
-              min={-40}
-              max={40}
-              step={0.5}
-              disabled={!settings.frameEnabled}
-              format={(v) => v.toFixed(1)}
-              onChange={(frameOffsetY) => update({ frameOffsetY })}
-            />
-            <SliderRow
-              label="Drip pad (size frac)"
-              value={settings.frameDripPad}
-              min={0}
-              max={0.3}
-              step={0.01}
-              disabled={!settings.frameEnabled}
-              onChange={(frameDripPad) => update({ frameDripPad })}
-            />
-            <BlendSelect
-              value={settings.frameBlend || "multiply"}
-              disabled={!settings.frameEnabled}
-              onChange={(frameBlend) => update({ frameBlend })}
-            />
-          </LayerCard>
-
-          <LayerCard
-            title="Frozen cubes"
-            hint="ice_power_frozen.png — screen keys out black plate"
-          >
-            <ToggleRow
-              label="Enabled"
-              checked={settings.frozenEnabled}
-              onChange={(frozenEnabled) => update({ frozenEnabled })}
-            />
-            <SliderRow
-              label="Zoom"
-              value={settings.frozenZoom}
-              min={0.8}
-              max={2.2}
-              step={0.01}
-              disabled={!settings.frozenEnabled}
-              onChange={(frozenZoom) => update({ frozenZoom })}
-            />
+          <div className="border-t border-white/10 pt-3 space-y-3">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+              Global (all faces)
+            </p>
             <SliderRow
               label="Opacity"
               value={settings.frozenOpacity}
@@ -383,80 +378,236 @@ export default function IcePowerLab() {
               onChange={(frozenOpacity) => update({ frozenOpacity })}
             />
             <SliderRow
-              label="Offset X %"
-              value={settings.frozenOffsetX}
-              min={-40}
-              max={40}
-              step={0.5}
-              disabled={!settings.frozenEnabled}
-              format={(v) => v.toFixed(1)}
-              onChange={(frozenOffsetX) => update({ frozenOffsetX })}
-            />
-            <SliderRow
-              label="Offset Y %"
-              value={settings.frozenOffsetY}
-              min={-40}
-              max={40}
-              step={0.5}
-              disabled={!settings.frozenEnabled}
-              format={(v) => v.toFixed(1)}
-              onChange={(frozenOffsetY) => update({ frozenOffsetY })}
-            />
-            <BlendSelect
-              value={settings.frozenBlend || "screen"}
-              disabled={!settings.frozenEnabled}
-              onChange={(frozenBlend) => update({ frozenBlend })}
-            />
-          </LayerCard>
-
-          <LayerCard title="Frost sheen" hint="Inset glow + soft-light highlight on the face">
-            <ToggleRow
-              label="Enabled"
-              checked={settings.sheenEnabled}
-              onChange={(sheenEnabled) => update({ sheenEnabled })}
-            />
-            <SliderRow
-              label="Opacity"
-              value={settings.sheenOpacity}
+              label="Center clear"
+              value={settings.frozenCenterClear ?? DEFAULT_ICE_POWER_SETTINGS.frozenCenterClear}
               min={0}
               max={1}
               step={0.01}
-              disabled={!settings.sheenEnabled}
-              onChange={(sheenOpacity) => update({ sheenOpacity })}
+              disabled={!settings.frozenEnabled}
+              onChange={(frozenCenterClear) => update({ frozenCenterClear })}
             />
+            <SliderRow
+              label="Clear radius"
+              value={settings.frozenCenterRadius ?? DEFAULT_ICE_POWER_SETTINGS.frozenCenterRadius}
+              min={0.15}
+              max={0.9}
+              step={0.01}
+              disabled={!settings.frozenEnabled}
+              onChange={(frozenCenterRadius) => update({ frozenCenterRadius })}
+            />
+            <p className="text-[10px] text-slate-500 -mt-1">
+              Higher center clear fades mid-face ice so pips show; clear radius widens that soft
+              window. Edges keep blue frost.
+            </p>
+            <BlendSelect
+              value={settings.frozenBlend || "normal"}
+              disabled={!settings.frozenEnabled}
+              onChange={(frozenBlend) => update({ frozenBlend })}
+            />
+          </div>
+
+          <div className="border-t border-white/10 pt-3 space-y-3">
+            <div>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                Icy blue tint
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Washes cyan onto the ice layer only (keeps pips readable). Match the blue ice-cube
+                reference — not gray frost.
+              </p>
+            </div>
+            <label
+              className={`flex items-center justify-between gap-3 text-[11px] text-slate-400 ${
+                !settings.frozenEnabled ? "opacity-40" : ""
+              }`}
+            >
+              <span>
+                Tint color{" "}
+                <span className="text-sky-100 font-mono tabular-nums">
+                  {settings.frozenTintColor || DEFAULT_FROZEN_TINT_COLOR}
+                </span>
+              </span>
+              <input
+                type="color"
+                value={settings.frozenTintColor || DEFAULT_FROZEN_TINT_COLOR}
+                disabled={!settings.frozenEnabled}
+                onChange={(e) => update({ frozenTintColor: e.target.value })}
+                className="h-8 w-12 cursor-pointer rounded border border-white/15 bg-slate-900 disabled:cursor-not-allowed"
+              />
+            </label>
+            <SliderRow
+              label="Tint strength"
+              value={settings.frozenTintStrength ?? DEFAULT_ICE_POWER_SETTINGS.frozenTintStrength}
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={!settings.frozenEnabled}
+              onChange={(frozenTintStrength) => update({ frozenTintStrength })}
+            />
+            <SliderRow
+              label="Ice saturate"
+              value={settings.frozenTintSaturate ?? DEFAULT_ICE_POWER_SETTINGS.frozenTintSaturate}
+              min={0.5}
+              max={2.5}
+              step={0.01}
+              disabled={!settings.frozenEnabled}
+              onChange={(frozenTintSaturate) => update({ frozenTintSaturate })}
+            />
+            <BlendSelect
+              label="Tint blend"
+              value={settings.frozenTintBlend || "color"}
+              modes={ICE_TINT_BLEND_MODES}
+              disabled={!settings.frozenEnabled}
+              onChange={(frozenTintBlend) => update({ frozenTintBlend })}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => saveAllFrozenFaces(settings)}
+              className="text-[11px] font-bold uppercase tracking-wider text-sky-300 hover:text-sky-100"
+            >
+              Save all faces
+            </button>
+            <button
+              type="button"
+              onClick={() => applyFrozenFaceToAll(settings, editFace)}
+              className="text-[11px] font-bold uppercase tracking-wider text-sky-300/80 hover:text-sky-100"
+            >
+              Apply face {editFace} → all
+            </button>
+            <button
+              type="button"
+              onClick={() => saveIcePowerSettings(resetFrozenFace(settings, editFace))}
+              className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white"
+            >
+              Reset this face
+            </button>
             <button
               type="button"
               onClick={() =>
                 update({
-                  shapeZoom: DEFAULT_ICE_POWER_SETTINGS.shapeZoom,
-                  shapeOffsetX: 0,
-                  shapeOffsetY: 0,
-                  frameZoom: DEFAULT_ICE_POWER_SETTINGS.frameZoom,
-                  frameOpacity: DEFAULT_ICE_POWER_SETTINGS.frameOpacity,
-                  frameOffsetX: 0,
-                  frameOffsetY: 0,
-                  frameDripPad: DEFAULT_ICE_POWER_SETTINGS.frameDripPad,
-                  frameBlend: DEFAULT_ICE_POWER_SETTINGS.frameBlend,
-                  frozenZoom: DEFAULT_ICE_POWER_SETTINGS.frozenZoom,
                   frozenOpacity: DEFAULT_ICE_POWER_SETTINGS.frozenOpacity,
-                  frozenOffsetX: 0,
-                  frozenOffsetY: 0,
+                  frozenCenterClear: DEFAULT_ICE_POWER_SETTINGS.frozenCenterClear,
+                  frozenCenterRadius: DEFAULT_ICE_POWER_SETTINGS.frozenCenterRadius,
                   frozenBlend: DEFAULT_ICE_POWER_SETTINGS.frozenBlend,
-                  sheenOpacity: DEFAULT_ICE_POWER_SETTINGS.sheenOpacity,
+                  frozenTintColor: DEFAULT_ICE_POWER_SETTINGS.frozenTintColor,
+                  frozenTintStrength: DEFAULT_ICE_POWER_SETTINGS.frozenTintStrength,
+                  frozenTintBlend: DEFAULT_ICE_POWER_SETTINGS.frozenTintBlend,
+                  frozenTintSaturate: DEFAULT_ICE_POWER_SETTINGS.frozenTintSaturate,
+                  frozenEnabled: true,
+                  frozenFaces: makeDefaultFrozenFaces(DEFAULT_FROZEN_FACE),
+                  frozenZoom: DEFAULT_FROZEN_FACE.zoom,
+                  frozenOffsetX: DEFAULT_FROZEN_FACE.offsetX,
+                  frozenOffsetY: DEFAULT_FROZEN_FACE.offsetY,
                 })
               }
-              className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white pt-1"
+              className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white"
             >
-              Zero offsets + default zooms
+              Reset overlay only
             </button>
-          </LayerCard>
-        </div>
+          </div>
+        </section>
+
+        {/* 3. Skin picker */}
+        <section className="rounded-xl border border-sky-500/30 bg-slate-900/60 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-sky-100">Dice skin</h2>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Preview the freeze cube on every skin (story puts it on the opponent&apos;s tray)
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 max-h-64 overflow-y-auto pr-1">
+            {DICE_SKINS.map((skin) => {
+              const active = labSkinId === skin.id;
+              return (
+                <button
+                  key={skin.id}
+                  type="button"
+                  onClick={() => update({ labSkinId: skin.id })}
+                  className={`rounded-lg border px-2 py-1.5 text-left transition-colors ${
+                    active
+                      ? "border-sky-400 bg-sky-500/25 text-white"
+                      : "border-white/10 bg-black/25 text-slate-300 hover:border-sky-500/40 hover:bg-slate-800/60"
+                  }`}
+                >
+                  <div className="text-[11px] font-black truncate">{skin.name}</div>
+                  <div className="text-[9px] text-slate-500 truncate font-mono">{skin.id}</div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 4. Per-face assets + source sheet reference */}
+        <section className="rounded-xl border border-sky-500/30 bg-slate-900/60 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-sky-100">Divided face assets</h2>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Each die uses its own PNG — no neighbor ice from the shared 3×2 sheet.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {FACE_VALUES.map((face) => (
+              <button
+                key={face}
+                type="button"
+                onClick={() => selectFace(face)}
+                className={`rounded-lg border p-1.5 text-left transition-colors ${
+                  editFace === face
+                    ? "border-sky-400 bg-sky-500/20"
+                    : "border-white/10 bg-black/25 hover:border-sky-500/40"
+                }`}
+              >
+                <div
+                  className="rounded border border-white/5 aspect-square overflow-hidden"
+                  style={{
+                    background:
+                      "repeating-conic-gradient(#334155 0% 25%, #1e293b 0% 50%) 50% / 10px 10px",
+                  }}
+                >
+                  <img
+                    src={icePowerFrozenFaceUrl(face)}
+                    alt={`Ice face ${face}`}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="text-[10px] font-black text-center mt-1 text-slate-300">
+                  Face {face}
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="max-w-xs">
+            <div className="rounded-lg border border-white/10 bg-black/30 p-2">
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 mb-1.5 font-bold">
+                Source sheet (3×2) — for regen only
+              </p>
+              <div
+                className="rounded border border-white/5 p-1"
+                style={{
+                  background:
+                    "repeating-conic-gradient(#334155 0% 25%, #1e293b 0% 50%) 50% / 12px 12px",
+                }}
+              >
+                <img
+                  src={ICE_POWER_FROZEN_SHEET_URL}
+                  alt="Ice power frozen sheet"
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
 
         <p className="text-[10px] text-slate-500 text-center pt-1">
-          Routes:{" "}
-          <code className="text-sky-300">/ice-lab</code> ·{" "}
+          Open{" "}
+          <code className="text-sky-300">/ice-lab</code> or{" "}
           <code className="text-sky-300">/frosty-lab</code>. Settings key{" "}
-          <code className="text-slate-400">dice10k_ice_power_settings_v1</code>.
+          <code className="text-slate-400">dice10k_ice_power_settings_v2</code> — used by Story
+          Frozen Ice reveal. Use <span className="text-sky-300">Save all faces</span> to persist
+          every face&apos;s zoom/offset on this device.
         </p>
       </div>
     </div>

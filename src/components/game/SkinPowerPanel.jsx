@@ -18,6 +18,7 @@ export default function SkinPowerPanel({
   isGhostMimic = false,
   mimicSkinLabel = null,
   mimicFromName = null,
+  hidePowerName = false,
 }) {
   if (!skinPower) return null;
 
@@ -58,11 +59,17 @@ export default function SkinPowerPanel({
           </div>
           <PowerBar power={power} label="CHARGE" frozen={frozen} compact />
           <p className="text-[8px] text-slate-300 leading-tight truncate">
-            <span className="font-bold text-white">{skinPower.name}</span>
-            <span className="text-slate-500 mx-1">·</span>
-            {isGhostMimic
-              ? `Steals ${mimicFromName ? `${mimicFromName}'s` : "opponent's"} ${mimicSkinLabel || "skin"} power`
-              : skinPower.tagline}
+            {hidePowerName ? (
+              <>Secret sabotage ready — fire before they bank.</>
+            ) : (
+              <>
+                <span className="font-bold text-white">{skinPower.name}</span>
+                <span className="text-slate-500 mx-1">·</span>
+                {isGhostMimic
+                  ? `Steals ${mimicFromName ? `${mimicFromName}'s` : "opponent's"} ${mimicSkinLabel || "skin"} power`
+                  : skinPower.tagline}
+              </>
+            )}
           </p>
         </motion.div>
       )}

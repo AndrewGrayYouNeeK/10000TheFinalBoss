@@ -80,12 +80,23 @@ export default function PowerModePracticeBar({
             boxShadow: "0 0 8px rgba(125,211,252,0.35)",
           }}
         >
-          Ice lab
+          Preview freeze
         </Link>
       )}
 
       {isMarlin && (
         <>
+          <Link
+            to="/sprite-lab/blue_gel"
+            className={cn(practiceBtnBase, "text-cyan-100 inline-flex items-center")}
+            style={{
+              borderColor: "rgba(34,211,238,0.65)",
+              background: "linear-gradient(90deg, rgba(8,47,73,0.55), rgba(14,116,144,0.45))",
+              boxShadow: "0 0 8px rgba(34,211,238,0.35)",
+            }}
+          >
+            Blue Gel lab
+          </Link>
           <button
             type="button"
             disabled={disabled}

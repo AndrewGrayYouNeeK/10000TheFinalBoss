@@ -128,6 +128,17 @@ export const POWERS = [
     tagline: "Glacier lock.",
   },
   {
+    id: "frosty_ice",
+    name: "Frozen Ice",
+    kind: "sabo",
+    cost: 50,
+    icon: "❄️",
+    color: "#7dd3fc",
+    description:
+      "Story mode — freeze the enemy's dice, skip their turn, and bank freely until you bust.",
+    tagline: "Ice them out.",
+  },
+  {
     id: "lockout",
     name: "Lockout",
     kind: "sabo",

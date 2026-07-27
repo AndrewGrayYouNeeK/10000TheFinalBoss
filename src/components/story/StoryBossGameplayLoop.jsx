@@ -1,19 +1,34 @@
 import React, { useRef } from "react";
 import { useStoryBossVideo } from "@/hooks/useStoryBossVideo";
 import { getBossDefinition } from "@/lib/storyBosses";
+import {
+  getStoryBossAvatarLoopFit,
+  getStoryBossAvatarLoopVideoStyle,
+} from "@/lib/storyBossVideos";
+import {
+  getFishermanAvatarLoopVideoStyle,
+  useFishermanAvatarLoopSettings,
+} from "@/lib/fishermanAvatarLoopSettings";
 
 /** Story fight gameplay loop — per-boss upload; Neo never uses bundled 10,000 sign mp4. */
 export default function StoryBossGameplayLoop({
   bossId,
   enabled = true,
-  fit = "contain",
-  objectPosition = "center center",
+  fit: fitOverride,
+  videoStyle: videoStyleOverride,
 }) {
+  const fishermanTuning = useFishermanAvatarLoopSettings();
   const { src, onError } = useStoryBossVideo(bossId, "avatar", { enabled: enabled && !!bossId });
   const videoRef = useRef(null);
   const [hidden, setHidden] = React.useState(false);
   const boss = getBossDefinition(bossId);
-  const objectClass = fit === "contain" ? "object-contain" : "object-cover";
+  const fit = fitOverride ?? getStoryBossAvatarLoopFit(bossId);
+  const baseStyle =
+    videoStyleOverride ??
+    (bossId === "fisherman"
+      ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
+      : getStoryBossAvatarLoopVideoStyle(bossId));
+  const videoStyle = fitOverride ? { ...baseStyle, objectFit: fit } : baseStyle;
 
   React.useEffect(() => {
     setHidden(false);
@@ -43,8 +58,8 @@ export default function StoryBossGameplayLoop({
           onError();
           setHidden(true);
         }}
-        className={`absolute inset-0 w-full h-full ${objectClass}`}
-        style={{ maxWidth: "none", maxHeight: "none", objectPosition }}
+        className="absolute inset-0 w-full h-full"
+        style={videoStyle}
       />
     );
   }
@@ -54,8 +69,8 @@ export default function StoryBossGameplayLoop({
       <img
         src={boss.avatar}
         alt={boss.name}
-        className={`absolute inset-0 w-full h-full ${objectClass}`}
-        style={{ objectPosition }}
+        className="absolute inset-0 w-full h-full"
+        style={videoStyle}
       />
     );
   }

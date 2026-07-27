@@ -81,7 +81,12 @@ function sharkBiteDebuffOnly(player) {
  * (see rollDice clearing sharkDiceHidden).
  */
 export function clearSharkBiteFx(state) {
-  if (!state?.sharkBiteFx && !state?.sharkFishFeast && state?.sharkFishFeastTargetIdx == null) {
+  if (
+    !state?.sharkBiteFx &&
+    !state?.sharkFishFeast &&
+    state?.sharkFishFeastTargetIdx == null &&
+    !state?.sharkDiceHidden
+  ) {
     return state;
   }
   return {
@@ -89,6 +94,8 @@ export function clearSharkBiteFx(state) {
     sharkBiteFx: false,
     sharkFishFeast: false,
     sharkFishFeastTargetIdx: null,
+    // FX finished — put tray dice back immediately (do not leave skins vanished).
+    sharkDiceHidden: false,
   };
 }
 
@@ -99,7 +106,11 @@ export function restoreSharkDice(state) {
 }
 
 export function createInitialState(playerNames, options = {}) {
-  const { playerSkins = [], startScores = null } = options;
+  const { playerSkins = [], startScores = null, firstPlayerIndex = 0 } = options;
+  const startIdx =
+    Number.isInteger(firstPlayerIndex) && firstPlayerIndex >= 0 && firstPlayerIndex < playerNames.length
+      ? firstPlayerIndex
+      : 0;
   return {
     players: playerNames.map((name, i) => {
       const skin = playerSkins[i] || { skinId: "classic_white" };
@@ -118,13 +129,13 @@ export function createInitialState(playerNames, options = {}) {
         ...(skin.ghostBare ? { ghostBare: true } : {}),
       };
     }),
-    currentIndex: 0,
+    currentIndex: startIdx,
     dice: makeFreshDice(),
     rolling: false,
     hasRolled: false,
     turnScore: 0,
     winner: null,
-    message: `${playerNames[0]}'s turn — roll the dice!`,
+    message: `${playerNames[startIdx]}'s turn — roll the dice!`,
     messageVariant: "info",
     farkle: false,
     bustCount: 0,
@@ -144,7 +155,96 @@ export function createInitialState(playerNames, options = {}) {
     sharkDiceHidden: false,
     sharkFishFeast: false,
     sharkFishFeastTargetIdx: null,
+    storyIceFreeze: null,
   };
+}
+
+/** Story Frosty freeze is active (enemy skipped until caster busts). */
+export function isStoryIceFreezeActive(state) {
+  return !!state?.storyIceFreeze;
+}
+
+export function clearStoryIceFreeze(state) {
+  if (!state?.storyIceFreeze) return state;
+  return { ...state, storyIceFreeze: null };
+}
+
+/** Whether the human can fire story Frosty (any player-turn phase, or before enemy banks). */
+export function canStoryIceFire(state, playerIndex = 0) {
+  if (!state || state.winner || state.storyIceFreeze) return false;
+  const player = state.players?.[playerIndex];
+  if (!player?.powerCharge) return false;
+  if (playerHasDebuff(player, "lockout")) return false;
+
+  const targetIdx = (playerIndex + 1) % (state.players?.length || 1);
+  if (state.currentIndex === playerIndex) return true;
+  if (state.currentIndex === targetIdx) {
+    return !!state.hasRolled && !state.farkle && !state.sharkBiteFx;
+  }
+  return false;
+}
+
+function beginStoryIceCasterTurn(state, casterIdx) {
+  const caster = state.players[casterIdx];
+  return {
+    ...state,
+    currentIndex: casterIdx,
+    dice: makeFreshDice(),
+    turnScore: 0,
+    hasRolled: false,
+    farkle: false,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
+    perfectTenKPending: false,
+    turnScoreMultiplier: 1,
+    doubleOrNothing: false,
+    luckyRollNext: false,
+    sharkDiceHidden: false,
+    sharkBiteFx: false,
+    ...turnPowerReset(),
+    message: `${caster?.name}'s turn — enemy frozen!`,
+    messageVariant: "info",
+  };
+}
+
+/** Fire story Frosty — mark enemy frozen, consume charge, yank turn from enemy if needed. */
+export function applyStoryIceFreeze(state, casterIdx = 0) {
+  const targetIdx = (casterIdx + 1) % state.players.length;
+  const targetName = state.players[targetIdx]?.name || "opponent";
+  let next = {
+    ...clearStoryIceFreeze(state),
+    storyIceFreeze: { casterIdx, targetIdx },
+    skinPowerUsedThisTurn: state.currentIndex === casterIdx ? true : state.skinPowerUsedThisTurn,
+    players: state.players.map((p, i) =>
+      i === casterIdx ? { ...p, powerCharge: false } : p
+    ),
+    message: `❄️ ${targetName} is frozen!`,
+    messageVariant: "success",
+  };
+  if (state.currentIndex === targetIdx) {
+    next = beginStoryIceCasterTurn(next, casterIdx);
+    next.message = `❄️ ${targetName} is frozen!`;
+    next.messageVariant = "success";
+  } else if (state.currentIndex === casterIdx && state.farkle) {
+    next = {
+      ...next,
+      farkle: false,
+      farkleTurnScore: null,
+      turnScore: 0,
+      hasRolled: false,
+      dice: makeFreshDice(),
+      message: `❄️ ${targetName} is frozen!`,
+      messageVariant: "success",
+    };
+  }
+  return next;
+}
+
+/** If the frozen enemy somehow becomes active, skip straight back to the caster. */
+export function skipFrozenOpponentTurn(state) {
+  const ice = state?.storyIceFreeze;
+  if (!ice || state.currentIndex !== ice.targetIdx) return state;
+  return beginStoryIceCasterTurn(state, ice.casterIdx);
 }
 
 function makeFreshDice() {
@@ -312,7 +412,8 @@ export function getHeldInfo(state) {
 
 // Confirm held dice into the turn, then re-roll remaining
 // Returns { state, instantWin }
-export function confirmAndReroll(state) {
+// options.powerChargeHotDiceThreshold — override hot-dice count needed for power charge (dev/testing).
+export function confirmAndReroll(state, options = {}) {
   const held = getHeldInfo(state);
   if (!held.valid || held.score === 0) return { state };
 
@@ -402,7 +503,9 @@ export function confirmAndReroll(state) {
 
   const idx = state.currentIndex;
   const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
-  const hotDiceNeeded = getPowerChargeHotDiceThreshold(state.players[idx]);
+  const hotDiceNeeded =
+    options.powerChargeHotDiceThreshold ??
+    getPowerChargeHotDiceThreshold(state.players[idx]);
   const earnedCharge = allUsed && newHotCount >= hotDiceNeeded;
   const hadCharge = !!state.players[idx]?.powerCharge;
   const players = earnedCharge && !hadCharge
@@ -577,6 +680,36 @@ export function bankAndPass(state) {
     skinPowerUsedThisTurn: state.skinPowerUsedThisTurn || biteResolved,
   });
 
+  const storyIce = state.storyIceFreeze;
+  if (storyIce && finishedIdx === storyIce.casterIdx) {
+    const stayMessage =
+      amountAdded > 0
+        ? `${message} ❄️ Enemy still frozen — roll or bank again!`
+        : `${message} ❄️ Enemy still frozen!`;
+    return {
+      ...state,
+      players: playersAfterBank,
+      currentIndex: storyIce.casterIdx,
+      dice: makeFreshDice(),
+      turnScore: 0,
+      hasRolled: false,
+      farkle: false,
+      farkleTurnScore: null,
+      pendingPrisonRelease: null,
+      perfectTenKPending: false,
+      turnScoreMultiplier: 1,
+      doubleOrNothing: false,
+      luckyRollNext: false,
+      sharkBiteFx: false,
+      sharkDiceHidden: false,
+      sharkFishFeast: false,
+      sharkFishFeastTargetIdx: null,
+      ...turnPowerReset(),
+      message: stayMessage,
+      messageVariant: variant,
+    };
+  }
+
   const nextIndex = (finishedIdx + 1) % state.players.length;
   const bankMessage = chargeSaved ? `${message} ⚡ Power charge saved for your next turn.` : message;
   return {
@@ -642,6 +775,9 @@ export function passAfterFarkle(state) {
   };
   if (state.skinPowerUsedThisTurn) {
     nextState = clearPrisonFromCaster(nextState, bustedIdx);
+  }
+  if (state.storyIceFreeze && bustedIdx === state.storyIceFreeze.casterIdx) {
+    nextState = clearStoryIceFreeze(nextState);
   }
   return nextState;
 }

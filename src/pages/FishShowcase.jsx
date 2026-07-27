@@ -5,11 +5,17 @@ import { CreatureIdeaGallery } from "@/components/game/CreatureIdeaGallery";
 import Die from "@/components/game/Die";
 import DiceTray from "@/components/game/DiceTray";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
+import SharkBiteControls from "@/components/game/SharkBiteControls";
 import BlueGelChromaControls from "@/components/game/BlueGelChromaControls";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
+import {
+  getCachedBlueGelPowerVideoObjectUrl,
+  getCachedSharkBiteIntroVideoObjectUrl,
+} from "@/lib/blueGelPowerVideo";
 import { useLocalVideo } from "@/hooks/useLocalVideo";
 import { SharkBiteScreenFX } from "@/components/game/BlueGelPowerFX";
 import { BLUE_GEL_AFTERMATH_MS } from "@/lib/blueGelPowerAudio";
+import { getBlueGelTrayFishProps } from "@/lib/fishDice";
 
 function WaterTile({ children, label, sub }) {
   return (
@@ -51,7 +57,8 @@ export default function FishShowcase() {
   const [attackKey, setAttackKey] = useState(0);
   const attackPhaseRef = useRef("idle"); // idle | feast | bite | done
   const attackTimerRef = useRef(null);
-  const { hasLocal: hasPowerVideo } = useLocalVideo(VIDEO_KEYS.BLUE_GEL_POWER);
+  const { hasLocal: hasChompVideo } = useLocalVideo(VIDEO_KEYS.BLUE_GEL_POWER);
+  const { hasLocal: hasIntroVideo } = useLocalVideo(VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO);
 
   const jellyDieId = useMemo(
     () => PREVIEW_DICE.find((d) => d.value >= 2)?.id ?? null,
@@ -96,9 +103,18 @@ export default function FishShowcase() {
     setPowerPreview(false);
     requestAnimationFrame(() => {
       setAttackKey((k) => k + 1);
+      const usesVideo =
+        getCachedSharkBiteIntroVideoObjectUrl() || getCachedBlueGelPowerVideoObjectUrl();
+      if (usesVideo) {
+        attackPhaseRef.current = "bite";
+        setBloodWaterLocked(true);
+        setFishFeastMode(false);
+        setSharkBiteFx(true);
+        setSharkDiceHidden(true);
+        return;
+      }
       attackPhaseRef.current = "feast";
       setFishFeastMode(true);
-      // After in-die feast turns the water red, launch the over-tray chomp.
       attackTimerRef.current = setTimeout(() => {
         attackPhaseRef.current = "bite";
         setBloodWaterLocked(true);
@@ -136,6 +152,18 @@ export default function FishShowcase() {
               className="text-xs font-black uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-500 rounded-full px-3 py-1.5"
             >
               ▶ Game Bite preview
+            </Link>
+            <Link
+              to="/sprite-lab/blue_gel"
+              className="text-xs font-black uppercase tracking-wider text-white bg-cyan-700 hover:bg-cyan-600 rounded-full px-3 py-1.5"
+            >
+              Blue Gel dice lab
+            </Link>
+            <Link
+              to="/shark-bite-lab"
+              className="text-xs font-black uppercase tracking-wider text-white bg-rose-700 hover:bg-rose-600 rounded-full px-3 py-1.5"
+            >
+              Shark Bite Lab
             </Link>
             <Link
               to="/video-assets"
@@ -217,9 +245,13 @@ export default function FishShowcase() {
             <div>
               <h2 className="text-lg font-bold text-cyan-200">Preview: shark eating the fish</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {hasPowerVideo
-                  ? "Custom shark power video is uploaded — in-game full-screen uses it; this preview still shows the in-die feast."
-                  : "In-die only: sharks swim in, eat the fish, three bubble timers, then bloody-red water stays."}
+                {hasIntroVideo || hasChompVideo
+                  ? hasIntroVideo && hasChompVideo
+                    ? "Swim forward + Chomps whole screen uploaded — two-beat sequence only."
+                    : hasIntroVideo
+                      ? "Swim forward uploaded — crossfades into chomp (your upload or catalog fallback)."
+                      : "Chomps whole screen uploaded — plays alone (no swim-forward beat)."
+                  : "No custom shark videos — catalog chomp clip or SVG fallback."}
               </p>
             </div>
             <div className="flex gap-2">
@@ -257,14 +289,19 @@ export default function FishShowcase() {
                 skinId="blue_gel"
                 powerMode={powerPreview}
                 includeJellyfish={d.id === jellyDieId}
-                bigFishVariantIndex={[7, 1, 6, 3, 1, 4][idx]}
-                bigFishExtraScale={idx === 0 ? 1.8 : 1.15}
+                {...getBlueGelTrayFishProps(idx)}
                 dieSeed={d.id + replayKey * 10}
               />
             ))}
           </div>
 
+          <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO} />
           <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_POWER} />
+
+          <SharkBiteControls
+            onPreviewBite={startSharkAttackPreview}
+            previewActive={sharkBiteFx}
+          />
 
           <BlueGelChromaControls showWorkbenchLinks={false} />
         </section>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Film, Swords } from "lucide-react";
 import { motion } from "framer-motion";
@@ -22,6 +22,11 @@ export default function Story() {
   const storyPlayerSkin = getStoryPlayerSkin(bossesDefeated);
   const storyPlayerSkinLabel = getSkin(storyPlayerSkin)?.name || storyPlayerSkin.replace(/_/g, " ");
   const lowPower = isLowPowerDevice();
+
+  // Prefetch boss fight chunk while browsing the ladder (main nav destination).
+  useEffect(() => {
+    import("@/pages/StoryGame");
+  }, []);
 
   return (
     <div className="min-h-screen text-white pb-10 relative">

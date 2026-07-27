@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
-import { Dices, PiggyBank, Swords } from "lucide-react";
+import { Dices, PiggyBank, Sparkles, Swords } from "lucide-react";
 import { toast } from "sonner";
 import {
   createInitialState,
@@ -20,6 +20,7 @@ import {
   ENTRY_THRESHOLD,
   getObscuredScoreIndices,
   consumeSkinPower,
+  skipFrozenOpponentTurn,
 } from "@/lib/gameLogic";
 import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import {
@@ -35,7 +36,10 @@ import { chooseDiceToHold, chooseBankOrRoll } from "@/lib/aiOpponent";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { useDiceSound } from "@/lib/useDiceSound";
 import DiceTray from "@/components/game/DiceTray";
+import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import StoryBossFightVideo from "@/components/story/StoryBossFightVideo";
+import MarlinLoopPositionTool from "@/components/story/MarlinLoopPositionTool";
 import ScorePanel from "@/components/game/ScorePanel";
 import TurnBanner from "@/components/game/TurnBanner";
 import BigPopup from "@/components/game/BigPopup";
@@ -51,6 +55,7 @@ import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
   SharkBiteScreenFX,
 } from "@/components/game/BlueGelPowerFX";
+import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
 import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
 import PowerModePracticeBar, {
@@ -64,28 +69,136 @@ import {
   loadStoryFight,
   saveStoryFight,
 } from "@/lib/storyGameSave";
+import { getStoryHotDicePowerConfirmOptions } from "@/lib/devConfig";
+import {
+  STORY_PLAYER_INDEX,
+  canFireStoryIce,
+  fireStoryIcePower,
+  isStoryIceBossFight,
+  isStoryIcePower,
+  resolveStorySkinPower,
+} from "@/lib/storyIcePower";
 
 const PLAYER_NAME = "You";
+
+/** Story AI pacing only — player roll/UI timing stays unchanged. */
+const AI_ROLL_ANIM_MS = 900;
+const AI_TURN_BANNER_MS = 1400;
+const AI_AFTER_EVALUATE_MS = 1500;
+const AI_FARKLE_PAUSE_MS = 1600;
+const AI_NO_HOLD_PAUSE_MS = 1400;
+const AI_AFTER_SHARK_BITE_MS = 700;
+/** Show opponent dice + ice-cube overlay before skipping their frozen turn. */
+const FROZEN_DICE_REVEAL_MS = 2000;
+
+/** Story mode: gameLogic emits "${PLAYER_NAME}'s turn" — fix grammar and avoid duplicating "Your turn". */
+function storyTurnBannerMessage(rawMessage, { myTurn, farkle }) {
+  if (!myTurn || farkle) return rawMessage;
+
+  const msg = (rawMessage || "").trim();
+  const rollPrompt = `${PLAYER_NAME}'s turn — roll the dice!`;
+  const enemyFrozen = `${PLAYER_NAME}'s turn — enemy frozen!`;
+
+  if (!msg || msg === rollPrompt) {
+    return "🎮 Your turn — roll the dice!";
+  }
+  if (msg === enemyFrozen) {
+    return "🎮 Your turn — enemy frozen!";
+  }
+  if (msg.endsWith(`${PLAYER_NAME}'s turn.`) || msg.endsWith(`${PLAYER_NAME}'s turn`)) {
+    const prefix = msg.replace(new RegExp(`\\s*${PLAYER_NAME}'s turn\\.?$`, "i"), "").trim();
+    return prefix ? `🎮 ${prefix} Your turn.` : "🎮 Your turn.";
+  }
+
+  // Mid-turn guidance (select dice, roll again, etc.) — no redundant prefix.
+  return msg;
+}
+
+function readSavedFight(bossId) {
+  if (!bossId) return null;
+  return loadStoryFight(bossId);
+}
 
 export default function StoryGame() {
   const { bossId } = useParams();
   const navigate = useNavigate();
   const boss = getBoss(bossId);
-  const { user, updateMe, sfxMuted, heldDiceStyleId, ownedSkins, ghostDisguiseId } = useCosmetics();
+  const { user, updateMe, sfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId } = useCosmetics();
   // Each boss brings their own table felt — no player choice in story mode.
   const storyFeltId = getStoryBossFeltId(bossId);
   const storyPlayerSkin = getStoryPlayerSkin(user?.bosses_defeated || []);
   const playDiceSound = useDiceSound();
 
-  const [dialogue, setDialogue] = useState("intro"); // "intro" | null | "win" | "lose"
-  const [game, setGame] = useState(null);
-  const [rollAnim, setRollAnim] = useState(false);
+  const initialSave = readSavedFight(bossId);
+
+  const [dialogue, setDialogue] = useState(() => {
+    if (initialSave?.game) return initialSave.dialogue ?? null;
+    return "intro";
+  });
+  const [game, setGame] = useState(() => initialSave?.game ?? null);
+  const [playerRolling, setPlayerRolling] = useState(false);
+  const [opponentRolling, setOpponentRolling] = useState(false);
+  const playerRollTimerRef = useRef(null);
+  const opponentRollTimerRef = useRef(null);
+  /** Sync guard — blocks double tap before playerRolling state commits. */
+  const playerRollLockRef = useRef(false);
+  const playerEvaluateTimerRef = useRef(null);
+  const clearPlayerRollTimer = useCallback(() => {
+    if (playerRollTimerRef.current != null) {
+      clearTimeout(playerRollTimerRef.current);
+      playerRollTimerRef.current = null;
+    }
+  }, []);
+  const clearOpponentRollTimer = useCallback(() => {
+    if (opponentRollTimerRef.current != null) {
+      clearTimeout(opponentRollTimerRef.current);
+      opponentRollTimerRef.current = null;
+    }
+  }, []);
+  const startPlayerRollAnim = useCallback(() => {
+    clearPlayerRollTimer();
+    setPlayerRolling(true);
+    playerRollTimerRef.current = setTimeout(() => {
+      setPlayerRolling(false);
+      playerRollTimerRef.current = null;
+    }, 900);
+  }, [clearPlayerRollTimer]);
+  const startOpponentRollAnim = useCallback(() => {
+    clearOpponentRollTimer();
+    setOpponentRolling(true);
+    opponentRollTimerRef.current = setTimeout(() => {
+      setOpponentRolling(false);
+      opponentRollTimerRef.current = null;
+    }, AI_ROLL_ANIM_MS);
+  }, [clearOpponentRollTimer]);
   const [popup, setPopup] = useState(null);
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
-  const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
+  const [bloodWaterLocked, setBloodWaterLocked] = useState(() => initialSave?.bloodWaterLocked ?? false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+
+  useEffect(() => {
+    if (game?.sharkFishFeast && hasSharkBiteChompVideoSync() && game?.sharkBiteFx) {
+      lockBloodWater();
+    }
+  }, [game?.sharkFishFeast, game?.sharkBiteFx, lockBloodWater]);
+
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
+  const [marlinLoopToolOpen, setMarlinLoopToolOpen] = useState(false);
+  /** Flash opponent dice with ice-cube skin on top while Frozen Ice is active. */
+  const [frozenDiceReveal, setFrozenDiceReveal] = useState(false);
+  const frozenRevealTimerRef = useRef(null);
   const practiceSharkBiteRef = useRef(false);
+
+  const startFrozenDiceReveal = useCallback(() => {
+    if (frozenRevealTimerRef.current != null) {
+      clearTimeout(frozenRevealTimerRef.current);
+    }
+    setFrozenDiceReveal(true);
+    frozenRevealTimerRef.current = setTimeout(() => {
+      setFrozenDiceReveal(false);
+      frozenRevealTimerRef.current = null;
+    }, FROZEN_DICE_REVEAL_MS);
+  }, []);
   const foregroundCanvasRef = useRef(null);
   const foregroundFx = bossId === "fisherman" || bossId === "gq";
   const replayPracticeSharkBite = useCallback(() => {
@@ -96,21 +209,19 @@ export default function StoryGame() {
     replayPracticeSharkBite();
   }, [replayPracticeSharkBite]);
   const [rewardSummary, setRewardSummary] = useState(null);
-  const farkleShieldUsedRef = useRef(false);
-  const rewardsClaimedRef = useRef(false);
-  const prevBustRef = useRef(0);
-  const fightStartedRef = useRef(false);
+  const farkleShieldUsedRef = useRef(initialSave?.farkleShieldUsed ?? false);
+  const rewardsClaimedRef = useRef(initialSave?.rewardsClaimed ?? false);
+  const prevBustRef = useRef(initialSave?.game?.bustCount ?? 0);
+  const fightStartedRef = useRef(!!initialSave?.game || !!initialSave?.fightStarted);
   const dialogueRef = useRef(dialogue);
   dialogueRef.current = dialogue;
-  const resolvedPower =
-    game?.players[game.currentIndex]?.name === PLAYER_NAME
-      ? resolvePlayerPower(game, game.currentIndex)
-      : null;
-  /** vs Marlin Joe — Shark Bite is always available (without swapping your story dice to Angelfish). */
-  const skinPower =
-    bossId === "fisherman"
-      ? getPower("shark_bite")
-      : resolvedPower?.power ?? null;
+  const fightSnapshotRef = useRef(null);
+  const playerPowerResolve = game ? resolvePlayerPower(game, STORY_PLAYER_INDEX) : null;
+  /** Player power comes from THEIR equipped skin — never steal Marlin's Shark Bite. */
+  const rawSkinPower = playerPowerResolve?.power ?? null;
+  const skinPower = resolveStorySkinPower(rawSkinPower, bossId);
+  const storyIceFight = isStoryIceBossFight(bossId);
+  const resolvedPower = playerPowerResolve;
 
   const exitToLadder = useCallback(() => {
     if (boss?.id) {
@@ -134,10 +245,26 @@ export default function StoryGame() {
       setRewardSummary(null);
       setBloodWaterLocked(saved.bloodWaterLocked);
       setPracticePowerPreview(false);
-      setPracticeSharkVideo(false);
       practiceSharkBiteRef.current = false;
       setDialogue(saved.dialogue ?? null);
-      setGame(saved.game);
+      // Repair Composer bug: player was wrongly given Marlin's shark_bite charge.
+      let restored = saved.game;
+      if (bossId === "fisherman" && restored?.players?.length >= 2) {
+        restored = {
+          ...restored,
+          players: restored.players.map((p, i) => {
+            if (i === 0 && p.chargePowerId === "shark_bite") {
+              const { chargePowerId: _drop, ...rest } = p;
+              return rest;
+            }
+            if (i === 1 && !p.chargePowerId) {
+              return { ...p, chargePowerId: "shark_bite" };
+            }
+            return p;
+          }),
+        };
+      }
+      setGame(restored);
       fightStartedRef.current = true;
       return;
     }
@@ -151,22 +278,67 @@ export default function StoryGame() {
     setRewardSummary(null);
     setBloodWaterLocked(false);
     setPracticePowerPreview(false);
-    setPracticeSharkVideo(false);
     practiceSharkBiteRef.current = false;
     setGame(null);
     // Fresh fight when bossId changes only — avoid resetting mid-match on profile/cosmetics updates.
   }, [bossId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!bossId || !game) return;
-    saveStoryFight(bossId, {
+  const persistFight = useCallback(() => {
+    if (!bossId || !fightSnapshotRef.current?.game) return;
+    saveStoryFight(bossId, fightSnapshotRef.current);
+  }, [bossId]);
+
+  useLayoutEffect(() => {
+    if (!bossId || !game) {
+      fightSnapshotRef.current = null;
+      return;
+    }
+    fightSnapshotRef.current = {
       game,
       dialogue,
       bloodWaterLocked,
       farkleShieldUsed: farkleShieldUsedRef.current,
       rewardsClaimed: rewardsClaimedRef.current,
-    });
+      fightStarted: fightStartedRef.current,
+    };
+    saveStoryFight(bossId, fightSnapshotRef.current);
   }, [bossId, game, dialogue, bloodWaterLocked]);
+
+  useEffect(() => {
+    const flushOnLifecycle = () => persistFight();
+    window.addEventListener("orientationchange", flushOnLifecycle);
+    window.addEventListener("pagehide", flushOnLifecycle);
+    window.addEventListener("visibilitychange", flushOnLifecycle);
+    return () => {
+      window.removeEventListener("orientationchange", flushOnLifecycle);
+      window.removeEventListener("pagehide", flushOnLifecycle);
+      window.removeEventListener("visibilitychange", flushOnLifecycle);
+    };
+  }, [persistFight]);
+
+  useEffect(
+    () => () => {
+      clearPlayerRollTimer();
+      clearOpponentRollTimer();
+      if (playerEvaluateTimerRef.current != null) {
+        clearTimeout(playerEvaluateTimerRef.current);
+      }
+    },
+    [clearPlayerRollTimer, clearOpponentRollTimer]
+  );
+
+  // Opponent roll animation must not leak onto the player's turn (and vice versa).
+  useEffect(() => {
+    clearPlayerRollTimer();
+    clearOpponentRollTimer();
+    if (playerEvaluateTimerRef.current != null) {
+      clearTimeout(playerEvaluateTimerRef.current);
+      playerEvaluateTimerRef.current = null;
+    }
+    playerRollLockRef.current = false;
+    setPlayerRolling(false);
+    setOpponentRolling(false);
+  }, [game?.currentIndex, clearPlayerRollTimer, clearOpponentRollTimer]);
 
   const handleDialogueContinue = useCallback(() => {
     const mode = dialogueRef.current;
@@ -174,7 +346,18 @@ export default function StoryGame() {
       if (fightStartedRef.current) return;
       fightStartedRef.current = true;
       setDialogue(null);
-      setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
+      const nextGame = makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId);
+      setGame(nextGame);
+      if (boss?.id && nextGame) {
+        saveStoryFight(boss.id, {
+          game: nextGame,
+          dialogue: null,
+          bloodWaterLocked: false,
+          farkleShieldUsed: false,
+          rewardsClaimed: false,
+          fightStarted: true,
+        });
+      }
     } else if (mode === "win") {
       clearStoryFight(boss.id);
       navigate("/story");
@@ -234,9 +417,23 @@ export default function StoryGame() {
   }, [game?.farkle, game?.bustCount, game?.currentIndex, game?.winner, dialogue, skinPower?.id, plasmaCutOpen]);
 
   const onFireSkinPower = () => {
-    if (!game || !skinPower || !isMyTurn() || !game.players[game.currentIndex]?.powerCharge) return;
+    if (!game || !skinPower) return;
+
+    const player = game.players[STORY_PLAYER_INDEX];
+    const storyIce = isStoryIcePower(skinPower, bossId);
+    const canFireStoryIceNow = storyIce && canFireStoryIce(game, STORY_PLAYER_INDEX, bossId);
+
+    if (storyIce) {
+      if (!canFireStoryIceNow) {
+        setPopup({ word: "CAN'T FREEZE RIGHT NOW", variant: "warning" });
+        return;
+      }
+    } else if (!isMyTurn() || !player?.powerCharge) {
+      return;
+    }
+
     if (!canAfford(MAX_POWER, skinPower.id)) return;
-    const debuffs = game.players[game.currentIndex]?.debuffs || [];
+    const debuffs = player?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
 
     if (skinPower.id === "plasma_cut") {
@@ -245,6 +442,25 @@ export default function StoryGame() {
         return;
       }
       setPlasmaCutOpen(true);
+      return;
+    }
+
+    if (storyIce) {
+      const result = fireStoryIcePower(game, STORY_PLAYER_INDEX, bossId);
+      if (result.variant === "warning") {
+        if (result.message) {
+          setPopup({ word: result.message.toUpperCase(), variant: "warning" });
+        }
+        return;
+      }
+      setGame(result.state);
+      setBloodWaterLocked(false);
+      // Show their dice with ice cubes on top (opponent skin under the freeze sheet).
+      startFrozenDiceReveal();
+      setPopup({
+        word: (result.message || "ENEMY FROZEN").toUpperCase(),
+        variant: "success",
+      });
       return;
     }
 
@@ -294,34 +510,114 @@ export default function StoryGame() {
     }
   }, [game?.winner, dialogue]);
 
+  // Apply boss "Crown of Sixes" gimmick — if AI is current player, mutate dice
+  // so any 6 it rolls is "secretly" treated as if the boss rolled an extra 6
+  // for three-of-a-kind scoring. We bias by re-rolling: with probability 0.3,
+  // turn a non-6 into a 6 on this turn (only applies to the boss's roll).
+  function applyBossDiceGimmick(state) {
+    if (!boss.gimmick?.doubledSixes) return state;
+    const current = state.players[state.currentIndex];
+    if (current?.name !== boss.name) return state;
+
+    // Subtle boost: convert ~25% of non-scoring dice to 6s
+    const newDice = state.dice.map((d) => {
+      if (d.used || d.held) return d;
+      if (d.value === 1 || d.value === 5 || d.value === 6) return d;
+      if (Math.random() < 0.25) return { ...d, value: 6 };
+      return d;
+    });
+    return { ...state, dice: newDice };
+  }
+
+  const doAiRoll = useCallback(() => {
+    startOpponentRollAnim();
+    playDiceSound({ opponent: true });
+    setGame((g) => rollDice(g));
+    setTimeout(() => {
+      setGame((g) => evaluateRoll(applyBossDiceGimmick(g)));
+    }, AI_ROLL_ANIM_MS);
+  }, [playDiceSound, startOpponentRollAnim, boss]);
+
+  // Frozen enemy: show their iced dice, then bounce turn back (never let AI act).
+  useEffect(() => {
+    if (!storyIceFight || !game?.storyIceFreeze || game.winner || dialogue) return;
+    if (game.players[game.currentIndex]?.name !== boss?.name) return;
+    startFrozenDiceReveal();
+    const t = setTimeout(() => {
+      setGame((g) => skipFrozenOpponentTurn(g));
+    }, FROZEN_DICE_REVEAL_MS);
+    return () => clearTimeout(t);
+  }, [
+    storyIceFight,
+    game?.currentIndex,
+    game?.storyIceFreeze,
+    game?.winner,
+    dialogue,
+    boss?.name,
+    startFrozenDiceReveal,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (frozenRevealTimerRef.current != null) {
+        clearTimeout(frozenRevealTimerRef.current);
+      }
+    };
+  }, []);
+
   // Drive AI turn when it's the AI's turn
   useEffect(() => {
     if (!game || game.winner || dialogue || game.sharkBiteFx) return;
+    // Frozen — no AI rolls; reveal + skip effect owns this beat.
+    if (game.storyIceFreeze) return;
     const currentPlayerName = game.players[game.currentIndex]?.name;
     if (currentPlayerName !== boss?.name) return;
 
     let cancelled = false;
     const runAiTurn = async () => {
-      // Small delay to let UI settle
-      await wait(700);
+      // Pause so the turn banner is readable before the opponent rolls
+      await wait(AI_TURN_BANNER_MS);
       if (cancelled) return;
 
       // First roll of the turn if not yet rolled
       if (!game.hasRolled) {
+        // Marlin Joe — fire Shark Bite at the player before rolling when charged.
+        if (bossId === "fisherman" && game.players[game.currentIndex]?.powerCharge) {
+          const result = applySkinPower(game, "shark_bite");
+          if (result.variant !== "warning") {
+            const next = consumeSkinPower(result.state);
+            setGame(next);
+            // Feeding Frenzy / bite FX — wait for onComplete, then this effect re-runs.
+            if (next.sharkBiteFx) return;
+            await wait(AI_AFTER_SHARK_BITE_MS);
+            if (cancelled) return;
+          }
+        }
         doAiRoll();
         return;
       }
     };
     runAiTurn();
     return () => { cancelled = true; };
-  }, [game?.currentIndex, game?.hasRolled, game?.winner, game?.sharkBiteFx, dialogue, boss?.name]);
+  }, [
+    game?.currentIndex,
+    game?.hasRolled,
+    game?.winner,
+    game?.sharkBiteFx,
+    game?.storyIceFreeze,
+    dialogue,
+    boss?.name,
+    bossId,
+    doAiRoll,
+  ]);
 
   // After AI has rolled and the dice have settled, decide hold + bank/roll
   useEffect(() => {
     if (!game || game.winner || dialogue || game.sharkBiteFx) return;
+    if (game.storyIceFreeze) return;
     const currentPlayerName = game.players[game.currentIndex]?.name;
     if (currentPlayerName !== boss?.name) return;
-    if (!game.hasRolled || rollAnim) return;
+    if (!game.hasRolled || opponentRolling) return;
 
     const timers = [];
     const schedule = (fn, ms) => {
@@ -350,7 +646,7 @@ export default function StoryGame() {
             ? passAfterFarkle(g)
             : g
         );
-      }, 1100);
+      }, AI_FARKLE_PAUSE_MS);
       return () => timers.forEach(clearTimeout);
     }
 
@@ -360,7 +656,7 @@ export default function StoryGame() {
         setGame((g) =>
           g?.players[g.currentIndex]?.name === boss?.name ? passAfterFarkle(g) : g
         );
-      }, 800);
+      }, AI_NO_HOLD_PAUSE_MS);
       return () => timers.forEach(clearTimeout);
     }
 
@@ -392,29 +688,29 @@ export default function StoryGame() {
         );
         return;
       }
-      setRollAnim(true);
+      startOpponentRollAnim();
       playDiceSound({ opponent: true });
       setGame((current) => {
         if (current?.players[current.currentIndex]?.name !== boss?.name) return current;
         const { state: next } = confirmAndReroll(current);
         return applyBossDiceGimmick(next);
       });
-      // Outside effect cleanup — rollAnim=true re-runs this effect and would cancel timers.
-      setTimeout(() => setRollAnim(false), 900);
-    }, 900);
+    }, AI_AFTER_EVALUATE_MS);
 
     return () => timers.forEach(clearTimeout);
-  }, [game?.hasRolled, game?.farkle, game?.currentIndex, game?.sharkBiteFx, rollAnim, game?.winner, dialogue, boss, playDiceSound]);
-
-  const doAiRoll = () => {
-    setRollAnim(true);
-    playDiceSound({ opponent: true });
-    setGame((g) => rollDice(g));
-    setTimeout(() => {
-      setGame((g) => evaluateRoll(applyBossDiceGimmick(g)));
-      setRollAnim(false);
-    }, 900);
-  };
+  }, [
+    game?.hasRolled,
+    game?.farkle,
+    game?.currentIndex,
+    game?.sharkBiteFx,
+    game?.storyIceFreeze,
+    opponentRolling,
+    game?.winner,
+    dialogue,
+    boss,
+    playDiceSound,
+    startOpponentRollAnim,
+  ]);
 
   // Player actions
   const handleToggle = useCallback((dieId) => {
@@ -424,33 +720,52 @@ export default function StoryGame() {
     });
   }, []);
   const handleRoll = () => {
-    if (!isMyTurn() || rollAnim || game?.sharkBiteFx) return;
-    setRollAnim(true);
+    if (playerRollLockRef.current) return;
+    if (frozenDiceReveal) return;
+    if (!isMyTurn() || playerRolling || opponentRolling || game?.sharkBiteFx) return;
+    playerRollLockRef.current = true;
+    startPlayerRollAnim();
     playDiceSound();
     setGame((g) => rollDice(g));
-    setTimeout(() => {
+    if (playerEvaluateTimerRef.current != null) {
+      clearTimeout(playerEvaluateTimerRef.current);
+    }
+    playerEvaluateTimerRef.current = setTimeout(() => {
+      playerEvaluateTimerRef.current = null;
       setGame((g) => evaluateRoll(g));
-      setRollAnim(false);
+      playerRollLockRef.current = false;
     }, 900);
   };
   const handleRollAgain = () => {
-    if (!isMyTurn() || rollAnim) return;
+    if (playerRollLockRef.current) return;
+    if (frozenDiceReveal) return;
+    if (!isMyTurn() || playerRolling || opponentRolling) return;
     const info = getHeldInfo(game);
     if (!info.valid || heldSelectionPoints(info, game.perfectTenKPending) === 0) return;
-    setRollAnim(true);
+    playerRollLockRef.current = true;
+    startPlayerRollAnim();
     playDiceSound();
-    const { state: next, instantWin } = confirmAndReroll(game);
+    const { state: next, instantWin } = confirmAndReroll(game, getStoryHotDicePowerConfirmOptions());
     if (instantWin) setPopup({ word: "SIX OF A KIND — YOU WIN!", variant: "success" });
     if (next.winner) {
+      clearPlayerRollTimer();
+      setPlayerRolling(false);
+      playerRollLockRef.current = false;
       setGame(next);
-      setRollAnim(false);
       return;
     }
     setGame(next);
-    setTimeout(() => setRollAnim(false), 900);
+    if (playerEvaluateTimerRef.current != null) {
+      clearTimeout(playerEvaluateTimerRef.current);
+    }
+    playerEvaluateTimerRef.current = setTimeout(() => {
+      playerEvaluateTimerRef.current = null;
+      playerRollLockRef.current = false;
+    }, 900);
   };
   const handleBank = () => {
-    if (!game || !isMyTurn() || rollAnim || game.sharkBiteFx || game.farkle || !game.hasRolled) return;
+    if (frozenDiceReveal) return;
+    if (!game || !isMyTurn() || playerRolling || opponentRolling || game.sharkBiteFx || game.farkle || !game.hasRolled) return;
     setGame((g) => {
       if (!g || g.players[g.currentIndex]?.name !== PLAYER_NAME || g.sharkBiteFx || g.farkle || g.winner) {
         return g;
@@ -469,25 +784,6 @@ export default function StoryGame() {
       return allowed ? bankAndPass(g) : g;
     });
   };
-
-  // Apply boss "Crown of Sixes" gimmick — if AI is current player, mutate dice
-  // so any 6 it rolls is "secretly" treated as if the boss rolled an extra 6
-  // for three-of-a-kind scoring. We bias by re-rolling: with probability 0.3,
-  // turn a non-6 into a 6 on this turn (only applies to the boss's roll).
-  function applyBossDiceGimmick(state) {
-    if (!boss.gimmick?.doubledSixes) return state;
-    const current = state.players[state.currentIndex];
-    if (current?.name !== boss.name) return state;
-
-    // Subtle boost: convert ~25% of non-scoring dice to 6s
-    const newDice = state.dice.map((d) => {
-      if (d.used || d.held) return d;
-      if (d.value === 1 || d.value === 5 || d.value === 6) return d;
-      if (Math.random() < 0.25) return { ...d, value: 6 };
-      return d;
-    });
-    return { ...state, dice: newDice };
-  }
 
   // Compute and award rewards on player win
   const claimRewards = () => {
@@ -564,7 +860,26 @@ export default function StoryGame() {
               <Swords className="w-4 h-4" />
               VS {boss.name.toUpperCase()}
             </div>
-            <div className="w-16" aria-hidden />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-amber-300 hover:text-amber-200 hover:bg-white/10"
+                  aria-label="Held dice glow styles"
+                  title="Held dice glow"
+                >
+                  <Sparkles className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-[min(20rem,calc(100vw-1.5rem))] border-amber-500/30 bg-slate-950/95 p-0"
+              >
+                <HeldDiceStylePicker value={heldDiceStyleId} onChange={setHeldDiceStyle} />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
         <BossDialogue
@@ -585,36 +900,61 @@ export default function StoryGame() {
   const heldPoints = heldSelectionPoints(heldInfo, game.perfectTenKPending);
   const currentPlayer = game.players[game.currentIndex];
   const myTurn = isMyTurn();
+  const rollAnim = playerRolling || opponentRolling;
+  const diceRolling = myTurn ? playerRolling : opponentRolling;
   const needsEntry = currentPlayer && !currentPlayer.onBoard;
   const potentialTotal = (game.turnScore || 0) + (heldInfo.valid ? heldPoints : 0);
   const wouldOvershoot = currentPlayer && currentPlayer.score + potentialTotal > TARGET_SCORE;
   const canBank =
     myTurn &&
-    !rollAnim &&
+    !playerRolling &&
     game.hasRolled &&
     !game.farkle &&
     heldInfo.valid &&
     heldPoints > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
   const obscuredScores = getObscuredScoreIndices(game);
-  const powerLocked = (currentPlayer?.debuffs || []).some(
+  const storyPlayer = game.players[STORY_PLAYER_INDEX];
+  const powerLocked = (storyPlayer?.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "lockout"
   );
-  const powerFrozen = (currentPlayer?.debuffs || []).some(
+  const powerFrozen = (storyPlayer?.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze"
   );
+  const playerCharge = game?.players[STORY_PLAYER_INDEX]?.powerCharge;
+  const storyIceReady =
+    storyIceFight &&
+    isStoryIcePower(skinPower, bossId) &&
+    canFireStoryIce(game, STORY_PLAYER_INDEX, bossId);
   const plasmaCutRescue =
-    myTurn && skinPower?.id === "plasma_cut" && !!currentPlayer?.powerCharge && game.farkle;
+    myTurn && skinPower?.id === "plasma_cut" && !!playerCharge && game.farkle;
   const powerModeActive =
-    myTurn &&
-    !!currentPlayer?.powerCharge &&
-    (!game.farkle || plasmaCutRescue) &&
+    !!playerCharge &&
     !game.winner &&
-    (skinPower?.id !== "plasma_cut" || game.hasRolled);
+    (storyIceReady ||
+      (myTurn &&
+        (!game.farkle || plasmaCutRescue) &&
+        (skinPower?.id !== "plasma_cut" || game.hasRolled)));
+  const isSaboPower = skinPower?.kind === "sabo";
+  const frozenTargetIdx = game?.storyIceFreeze?.targetIdx;
+  const showFrozenEnemyDice =
+    frozenDiceReveal ||
+    (storyIceFight &&
+      !!game.storyIceFreeze &&
+      game.currentIndex === frozenTargetIdx);
   const traySkinId = getPrisonTraySkinId(
     game,
-    game.currentIndex,
-    getDisplaySkinId(game.players[game.currentIndex], { ghostDisguiseId, ownedSkins })
+    showFrozenEnemyDice && typeof frozenTargetIdx === "number"
+      ? frozenTargetIdx
+      : game.currentIndex,
+    getDisplaySkinId(
+      game.players[
+        showFrozenEnemyDice && typeof frozenTargetIdx === "number"
+          ? frozenTargetIdx
+          : game.currentIndex
+      ],
+      { ghostDisguiseId, ownedSkins }
+    )
   );
   const practiceVariant = storyBossPracticeVariant(bossId);
   const previewSkinId = practicePreviewSkinId(practiceVariant);
@@ -638,12 +978,15 @@ export default function StoryGame() {
       : practiceVariant === "gq"
         ? getPower("siphon")
         : practiceVariant === "ice"
-          ? getPower("freeze_score")
+          ? getPower("frosty_ice")
           : null;
   // Dice tray power VFX when charged (or practice preview).
+  // Sabo powers stay secret — no charge glow on your dice until fired on the enemy.
   const trayPowerMode =
-    powerModeActive ||
-    (practicePowerPreview && !!practiceVariant);
+    !diceRolling &&
+    !isSaboPower &&
+    (powerModeActive || (practicePowerPreview && !!practiceVariant));
+  const trayIceFrozen = showFrozenEnemyDice;
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
   const trayBloodWater = bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
@@ -679,11 +1022,35 @@ export default function StoryGame() {
             <Swords className="w-4 h-4" />
             VS {boss.name.toUpperCase()}
           </div>
-          <div className="w-16" aria-hidden />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-amber-300 hover:text-amber-200 hover:bg-white/10"
+                aria-label="Held dice glow styles"
+                title="Held dice glow"
+              >
+                <Sparkles className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-[min(20rem,calc(100vw-1.5rem))] border-amber-500/30 bg-slate-950/95 p-0"
+            >
+              <HeldDiceStylePicker value={heldDiceStyleId} onChange={setHeldDiceStyle} />
+            </PopoverContent>
+          </Popover>
         </div>
 
         {!cutsceneOverlay && (
-          <StoryBossFightVideo bossId={bossId} enabled={!lowPower} />
+          <StoryBossFightVideo
+            bossId={bossId}
+            enabled={!lowPower}
+            loopPanEnabled={bossId === "fisherman" && marlinLoopToolOpen}
+            frozen={storyIceFight && !!game?.storyIceFreeze}
+          />
         )}
       </div>
 
@@ -695,6 +1062,14 @@ export default function StoryGame() {
         >
           <canvas ref={foregroundCanvasRef} className="block w-full h-full" />
         </div>
+      )}
+
+      {bossId === "fisherman" && !cutsceneOverlay && (
+        <MarlinLoopPositionTool
+          floating
+          open={marlinLoopToolOpen}
+          onOpenChange={setMarlinLoopToolOpen}
+        />
       )}
 
       {!cutsceneOverlay && (
@@ -711,11 +1086,7 @@ export default function StoryGame() {
 
         <div className="px-3 mb-2 space-y-2">
           <TurnBanner
-            message={
-              myTurn && !game.farkle
-                ? `🎮 Your turn! ${game.message || ""}`
-                : game.message
-            }
+            message={storyTurnBannerMessage(game.message, { myTurn, farkle: game.farkle })}
             variant={game.messageVariant}
           />
           <PrisonDiceStatus state={game} currentIndex={game.currentIndex} />
@@ -725,9 +1096,10 @@ export default function StoryGame() {
             powerMode={panelPowerMode}
             used={false}
             locked={powerLocked}
-            disabled={powerFrozen || practicePowerPreview}
+            disabled={(powerFrozen && !storyIceReady) || practicePowerPreview}
             frozen={powerFrozen}
             onFire={practicePowerPreview ? undefined : onFireSkinPower}
+            hidePowerName={isSaboPower && !storyIceFight}
             isGhostMimic={resolvedPower?.isMimic}
             mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
             mimicFromName={resolvedPower?.sourcePlayerName}
@@ -784,20 +1156,29 @@ export default function StoryGame() {
             )}
             <DiceTray
               dice={game.dice}
-              rolling={rollAnim}
+              rolling={diceRolling}
               onToggle={handleToggle}
-              disabled={!myTurn || !game.hasRolled || game.farkle || !!game.winner}
+              disabled={
+                showFrozenEnemyDice ||
+                !myTurn ||
+                !game.hasRolled ||
+                game.farkle ||
+                !!game.winner
+              }
               skinId={diceTraySkinId}
               feltId={storyFeltId}
               feltIntense={bossId === "neo"}
               heldStyleId={heldDiceStyleId}
               lowPower={lowPower}
-              powerMode={trayPowerMode}
-              fishFeastMode={fishFeastOnTray}
+              powerMode={trayPowerMode && !showFrozenEnemyDice}
+              iceFrozenOverlay={trayIceFrozen}
+              fishFeastMode={fishFeastOnTray && !hasSharkBiteChompVideoSync()}
               sharkBiteFx={!!game.sharkBiteFx}
               sharkDiceHidden={!!game.sharkDiceHidden}
               bloodWaterLocked={trayBloodWater}
-              onBloodWaterSettled={fishFeastOnTray ? lockBloodWater : undefined}
+              onBloodWaterSettled={
+                fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
+              }
             />
             {heldInfo.held.length > 0 && (
               <div className="mt-2 text-center text-sm">
@@ -830,6 +1211,10 @@ export default function StoryGame() {
             >
               Back to Ladder
             </Button>
+          ) : showFrozenEnemyDice ? (
+            <div className="text-center text-sm text-sky-200 py-4 font-bold uppercase tracking-widest">
+              ❄️ {boss.name} frozen — dice iced over
+            </div>
           ) : !myTurn ? (
             <div className="text-center text-sm text-slate-400 py-4">
               ⏳ {boss.name} is thinking...
@@ -861,8 +1246,11 @@ export default function StoryGame() {
           ) : !game.hasRolled ? (
             <Button
               onClick={handleRoll}
+              disabled={
+                frozenDiceReveal || playerRolling || opponentRolling || !!game.winner
+              }
               size="lg"
-              className="w-full h-14 text-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+              className="w-full h-14 text-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white disabled:opacity-40"
             >
               <Dices className="w-5 h-5 mr-2" /> Roll Dice
             </Button>
@@ -870,7 +1258,12 @@ export default function StoryGame() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={handleRollAgain}
-                disabled={!heldInfo.valid || heldPoints === 0 || rollAnim}
+                disabled={
+                  frozenDiceReveal ||
+                  !heldInfo.valid ||
+                  heldPoints === 0 ||
+                  playerRolling
+                }
                 size="lg"
                 className="h-14 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white disabled:opacity-40"
               >
@@ -878,7 +1271,7 @@ export default function StoryGame() {
               </Button>
               <Button
                 onClick={handleBank}
-                disabled={!canBank}
+                disabled={frozenDiceReveal || !canBank}
                 size="lg"
                 className="h-14 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white disabled:opacity-40"
               >
@@ -901,14 +1294,10 @@ export default function StoryGame() {
       <SharkBiteScreenFX
         active={!!game?.sharkBiteFx}
         onComplete={() => {
-          const wasPractice = practiceSharkBiteRef.current;
           practiceSharkBiteRef.current = false;
-          // Bite finished — normal dice again (do not lock bloody power visuals).
+          // Bite finished — always restore tray dice + skins.
           setBloodWaterLocked(false);
-          setGame((g) => {
-            const cleared = clearSharkBiteFx(g);
-            return wasPractice ? restoreSharkDice(cleared) : cleared;
-          });
+          setGame((g) => restoreSharkDice(clearSharkBiteFx(g)));
         }}
       />
 
@@ -950,9 +1339,16 @@ function makeInitialGame(boss, storyPlayerSkin, ownedSkins = [], ghostDisguiseId
     typeof headStart === "number" && headStart > 0 ? [0, headStart] : null;
   let state = createInitialState([PLAYER_NAME, bossDef.name], { playerSkins, startScores });
   state = applyStoryBossHeadStart(state, bossDef.id);
+  // Marlin Joe owns Shark Bite (boss index 1). Player keeps their own skin power.
   if (bossDef.id === "fisherman") {
     state.players = state.players.map((p, i) =>
-      i === 0 ? { ...p, chargePowerId: "shark_bite" } : p
+      i === 1 ? { ...p, chargePowerId: "shark_bite" } : p
+    );
+  }
+  // Frost arc — player always fires offensive Frozen Ice (not Score Freeze / paper RNG).
+  if (bossDef.id === "snowman" || bossDef.id === "ice_witch") {
+    state.players = state.players.map((p, i) =>
+      i === 0 ? { ...p, chargePowerId: "frosty_ice" } : p
     );
   }
   return state;

@@ -13,6 +13,8 @@ export default function FeltTrayFrame({
   intense = false,
   className = "",
   innerClassName = "",
+  /** Let ice drips / overlays hang past the die box without clipping. */
+  allowDieOverflow = false,
   children,
 }) {
   if (!felt) return null;
@@ -21,10 +23,11 @@ export default function FeltTrayFrame({
   const padding = framed ? "p-0" : compact ? "p-[5px]" : "p-2.5";
   const radiusOuter = compact ? "rounded-xl" : "rounded-[28px]";
   const radiusInner = framed ? radiusOuter : compact ? "rounded-lg" : "rounded-3xl";
+  const clip = allowDieOverflow ? "overflow-visible" : "overflow-hidden";
 
   return (
     <div
-      className={`relative overflow-hidden ${padding} ${radiusOuter} ${className}`}
+      className={`relative ${clip} ${padding} ${radiusOuter} ${className}`}
       style={framed ? undefined : getWoodRailStyle(compact)}
     >
       {!framed && (
@@ -34,7 +37,7 @@ export default function FeltTrayFrame({
         />
       )}
       <div
-        className={`relative z-[1] overflow-hidden ${radiusInner} ${
+        className={`relative z-[1] ${clip} ${radiusInner} ${
           children ? "" : "h-full min-h-[4.5rem]"
         } ${innerClassName}`}
         style={

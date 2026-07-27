@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   clearLocalVideo,
@@ -11,7 +12,21 @@ import {
   VIDEO_FALLBACK_PATHS,
   VIDEO_LABELS,
 } from "@/lib/localVideoStore";
+import VideoPreviewDialog from "@/components/video/VideoPreviewDialog";
 import { toast } from "sonner";
+import {
+  getFishermanAvatarLoopVideoStyle,
+  useFishermanAvatarLoopSettings,
+} from "@/lib/fishermanAvatarLoopSettings";
+import MarlinLoopPositionTool from "@/components/story/MarlinLoopPositionTool";
+import {
+  getStoryBossAvatarLoopVideoStyle,
+  getStoryBossIdForAvatarKey,
+  getStoryBossVideoStartOffsetForKey,
+} from "@/lib/storyBossVideos";
+import { loadSharkBiteSettings, getSharkBitePreviewVideoStyle } from "@/lib/sharkBiteSettings";
+import { VIDEO_KEYS } from "@/lib/localVideoStore";
+import { applyVideoStartOffset } from "@/lib/videoAudio";
 
 export default function VideoUploadCard({
   videoKey,
@@ -23,12 +38,28 @@ export default function VideoUploadCard({
   lockRemovesOnly = false,
 }) {
   const inputRef = useRef(null);
+  const inlinePreviewRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(() => getCachedLocalVideoObjectUrl(videoKey));
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState(null);
 
   const blockUpload = disabled && !lockRemovesOnly;
   const blockRemove = disabled || lockRemovesOnly;
+
+  const clearPendingSelection = () => {
+    if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+    setPendingFile(null);
+    setPendingPreviewUrl(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+    };
+  }, [pendingPreviewUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,22 +85,91 @@ export default function VideoUploadCard({
     };
   }, [videoKey]);
 
-  const handleUpload = async (event) => {
+  const fallback = fallbackOverride ?? VIDEO_FALLBACK_PATHS[videoKey] ?? null;
+  const previewSrc = previewUrl || fallback;
+  const dialogSrc = pendingPreviewUrl || previewSrc;
+  const isSharkBiteIntro = videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
+  const isSharkBiteChomp = videoKey === VIDEO_KEYS.BLUE_GEL_POWER;
+  const isSharkBiteSlot = isSharkBiteIntro || isSharkBiteChomp;
+  const startAtSeconds = isSharkBiteIntro
+    ? loadSharkBiteSettings().introStartAtSeconds
+    : isSharkBiteChomp
+      ? loadSharkBiteSettings().startAtSeconds
+      : getStoryBossVideoStartOffsetForKey(videoKey);
+  const label = labelOverride ?? VIDEO_LABELS[videoKey] ?? videoKey;
+  const description = descriptionOverride ?? VIDEO_DESCRIPTIONS[videoKey] ?? "";
+  const sharkPreviewStyle = isSharkBiteSlot
+    ? getSharkBitePreviewVideoStyle(loadSharkBiteSettings())
+    : undefined;
+  const fishermanTuning = useFishermanAvatarLoopSettings();
+  const avatarBossId = getStoryBossIdForAvatarKey(videoKey);
+  const isFishermanAvatar = avatarBossId === "fisherman";
+  const storyAvatarPreviewStyle = avatarBossId
+    ? isFishermanAvatar
+      ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
+      : getStoryBossAvatarLoopVideoStyle(avatarBossId)
+    : undefined;
+  const inlinePreviewStyle = sharkPreviewStyle ?? storyAvatarPreviewStyle ?? { objectFit: "cover" };
+
+  useEffect(() => {
+    const video = inlinePreviewRef.current;
+    if (!video || !previewSrc || pendingPreviewUrl || startAtSeconds <= 0) return undefined;
+
+    const applyOffset = () => applyVideoStartOffset(video, startAtSeconds);
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      applyOffset();
+      return undefined;
+    }
+    video.addEventListener("loadedmetadata", applyOffset, { once: true });
+    return () => video.removeEventListener("loadedmetadata", applyOffset);
+  }, [previewSrc, pendingPreviewUrl, startAtSeconds]);
+
+  const previewSourceLabel = pendingPreviewUrl
+    ? "Selected file — review before saving to this slot"
+    : loaded
+      ? "Your upload on this device"
+      : fallback
+        ? `Catalog fallback · public${fallback}`
+        : null;
+
+  const handleFileSelected = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || blockUpload) return;
+
+    clearPendingSelection();
+    const url = URL.createObjectURL(file);
+    setPendingFile(file);
+    setPendingPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  const handleConfirmPendingUpload = async () => {
+    if (!pendingFile || blockUpload) return;
     setUploading(true);
     try {
-      await saveLocalVideo(videoKey, file);
+      await saveLocalVideo(videoKey, pendingFile);
       const url = await getLocalVideoObjectUrl(videoKey);
       setLoaded(!!url);
       setPreviewUrl(url);
-      toast.success(`${labelOverride ?? VIDEO_LABELS[videoKey] ?? "Video"} saved to this device`);
+      clearPendingSelection();
+      setPreviewOpen(false);
+      toast.success(`${label} saved to this device`);
     } catch {
       toast.error("Could not save video — try a smaller MP4");
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleCancelPendingUpload = () => {
+    clearPendingSelection();
+    setPreviewOpen(false);
+  };
+
+  const handlePreviewOpenChange = (open) => {
+    setPreviewOpen(open);
+    if (!open && pendingPreviewUrl) clearPendingSelection();
   };
 
   const handleClear = async () => {
@@ -106,11 +206,6 @@ export default function VideoUploadCard({
     }
   };
 
-  const fallback = fallbackOverride ?? VIDEO_FALLBACK_PATHS[videoKey] ?? null;
-  const previewSrc = previewUrl || fallback;
-  const label = labelOverride ?? VIDEO_LABELS[videoKey] ?? videoKey;
-  const description = descriptionOverride ?? VIDEO_DESCRIPTIONS[videoKey] ?? "";
-
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4 space-y-3">
       <div>
@@ -124,7 +219,7 @@ export default function VideoUploadCard({
           type="file"
           accept="video/mp4,video/quicktime,.mp4,.mov"
           className="hidden"
-          onChange={handleUpload}
+          onChange={handleFileSelected}
         />
         <Button
           type="button"
@@ -134,6 +229,17 @@ export default function VideoUploadCard({
           onClick={() => inputRef.current?.click()}
         >
           {uploading ? "Saving…" : blockUpload ? "Locked" : loaded ? "Replace video" : "Upload video"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!dialogSrc}
+          className="border-violet-500/40 text-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          onClick={() => setPreviewOpen(true)}
+        >
+          <Play className="w-3.5 h-3.5 mr-1 fill-current" />
+          Preview
         </Button>
         {loaded && (
           <>
@@ -173,22 +279,81 @@ export default function VideoUploadCard({
         ) : (
           " · Upload required for this slot (or uses a boss-specific global fallback at playback)"
         )}
+        {dialogSrc ? (
+          <>
+            {" · "}
+            <span className="text-violet-300">Tap Preview to verify before or after upload</span>
+          </>
+        ) : null}
+        {startAtSeconds > 0 ? (
+          <>
+            {" · "}
+            <span className="text-amber-300">
+              Playback skips first {startAtSeconds}s (upload unchanged)
+            </span>
+          </>
+        ) : null}
       </p>
 
-      {previewSrc && (
-        <video
-          key={previewSrc}
-          src={previewSrc}
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full rounded-lg border border-white/10 max-h-40 object-cover"
-          onError={(e) => {
-            if (!previewUrl) e.currentTarget.style.display = "none";
-          }}
-        />
+      {isFishermanAvatar && previewSrc && !pendingPreviewUrl ? (
+        <MarlinLoopPositionTool compact />
+      ) : null}
+
+      {previewSrc && !pendingPreviewUrl && (
+        <div
+          className={`rounded-lg overflow-hidden border border-white/10 bg-black ${
+            avatarBossId ? "mx-auto w-full max-w-[14rem] h-48 sm:h-56" : "max-h-40"
+          }`}
+        >
+          <video
+            ref={inlinePreviewRef}
+            key={previewSrc}
+            src={previewSrc}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className={avatarBossId ? "w-full h-full bg-black" : "w-full h-40 bg-black"}
+            style={inlinePreviewStyle}
+            onError={(e) => {
+              if (!previewUrl) e.currentTarget.style.display = "none";
+            }}
+          />
+        </div>
       )}
+
+      <VideoPreviewDialog
+        open={previewOpen}
+        onOpenChange={handlePreviewOpenChange}
+        src={dialogSrc}
+        title={label}
+        sourceLabel={previewSourceLabel}
+        startAtSeconds={pendingPreviewUrl ? 0 : startAtSeconds}
+        videoStyle={inlinePreviewStyle}
+        contentClassName={avatarBossId ? "max-w-md" : undefined}
+      >
+        {pendingPreviewUrl ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-500/50 text-slate-200"
+              disabled={uploading}
+              onClick={handleCancelPendingUpload}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              disabled={uploading || blockUpload}
+              onClick={handleConfirmPendingUpload}
+            >
+              {uploading ? "Saving…" : "Save to this slot"}
+            </Button>
+          </>
+        ) : null}
+      </VideoPreviewDialog>
     </div>
   );
 }

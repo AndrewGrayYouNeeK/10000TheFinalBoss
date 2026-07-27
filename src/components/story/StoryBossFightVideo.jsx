@@ -1,4 +1,6 @@
 import StoryBossGameplayLoop from "./StoryBossGameplayLoop";
+import { MarlinLoopPanOverlay } from "./MarlinLoopPositionTool";
+import { getStoryBossAvatarLoopFit } from "@/lib/storyBossVideos";
 
 const FRAME_BY_BOSS = {
   neo: {
@@ -13,6 +15,10 @@ const FRAME_BY_BOSS = {
     borderColor: "#7dd3fc",
     boxShadow: "0 0 18px #bae6fd, 0 0 32px rgba(56,189,248,0.45)",
   },
+  fisherman: {
+    borderColor: "#38bdf8",
+    boxShadow: "0 0 18px #7dd3fc, 0 0 32px rgba(56,189,248,0.5)",
+  },
 };
 
 const DEFAULT_FRAME = {
@@ -21,7 +27,12 @@ const DEFAULT_FRAME = {
 };
 
 /** Matrix-sized looping boss video during story fights. */
-export default function StoryBossFightVideo({ bossId, enabled = true }) {
+export default function StoryBossFightVideo({
+  bossId,
+  enabled = true,
+  loopPanEnabled = false,
+  frozen = false,
+}) {
   if (!bossId) return null;
   const frame = FRAME_BY_BOSS[bossId] ?? DEFAULT_FRAME;
 
@@ -29,9 +40,36 @@ export default function StoryBossFightVideo({ bossId, enabled = true }) {
     <div className="px-3 pt-3 flex justify-center">
       <div
         className="relative w-full max-w-[12rem] sm:max-w-[14rem] h-48 sm:h-56 max-h-[34vh] rounded-2xl overflow-hidden border-2 bg-black/90"
-        style={frame}
+        style={
+          frozen
+            ? {
+                borderColor: "#7dd3fc",
+                boxShadow: "0 0 22px #bae6fd, 0 0 40px rgba(56,189,248,0.65)",
+              }
+            : frame
+        }
       >
-        <StoryBossGameplayLoop bossId={bossId} enabled={enabled} fit="contain" />
+        <StoryBossGameplayLoop
+          bossId={bossId}
+          enabled={enabled}
+          fit={getStoryBossAvatarLoopFit(bossId)}
+        />
+        {bossId === "fisherman" ? <MarlinLoopPanOverlay enabled={loopPanEnabled} /> : null}
+        {frozen ? (
+          <div
+            className="absolute inset-0 pointer-events-none z-10 flex items-end justify-center pb-2"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(125,211,252,0.35) 0%, rgba(14,116,144,0.45) 100%)",
+              boxShadow: "inset 0 0 40px rgba(186,230,253,0.55)",
+            }}
+            aria-hidden
+          >
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 drop-shadow">
+              Frozen
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

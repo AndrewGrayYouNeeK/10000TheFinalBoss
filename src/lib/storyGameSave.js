@@ -1,6 +1,8 @@
 const key = (bossId) => `yourneek_story_fight_${bossId}`;
 
-/** @returns {{ game: object, dialogue: string|null, bloodWaterLocked: boolean, farkleShieldUsed: boolean, rewardsClaimed: boolean }|null} */
+/** @typedef {{ game: object, dialogue: string|null, bloodWaterLocked: boolean, farkleShieldUsed: boolean, rewardsClaimed: boolean, fightStarted?: boolean }} StoryFightSnapshot */
+
+/** @returns {StoryFightSnapshot|null} */
 export function loadStoryFight(bossId) {
   if (!bossId) return null;
   try {
@@ -16,6 +18,7 @@ export function loadStoryFight(bossId) {
       bloodWaterLocked: !!data.bloodWaterLocked,
       farkleShieldUsed: !!data.farkleShieldUsed,
       rewardsClaimed: !!data.rewardsClaimed,
+      fightStarted: !!data.fightStarted,
     };
   } catch {
     return null;

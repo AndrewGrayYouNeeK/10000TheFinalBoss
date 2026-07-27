@@ -1,28 +1,35 @@
 import React, { useEffect, useRef, useState } from "react";
 import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
-import { getFelt } from "@/lib/shopCatalog";
+import { getBlueGelTrayFishProps } from "@/lib/fishDice";
+import { getFelt, isAquariumOverlaySkinId } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { resolveDiceSkinId } from "@/lib/ghostDisguise";
+import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
 
 function stableSeed(skinId) {
   return [...String(skinId)].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 }
 
-/** Shop / mystery box preview — same Die + felt tray as gameplay */
+/** Shop / mystery box preview — same Die + felt tray as gameplay.
+ *  resolveGhost=false shows the real Ghost spectral body on catalog cards. */
 export default function DicePreview({
   skinId,
   value = 5,
   size = 64,
   scoreFill = 0.5,
   compact = true,
-  resolveGhost = true,
+  resolveGhost = false,
 }) {
   const { equippedFeltId, ghostDisguiseId, ownedSkins } = useCosmetics();
   const felt = getFelt(equippedFeltId);
   const renderSkinId = resolveGhost
     ? resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins })
     : skinId;
+  const previewValue =
+    renderSkinId === "blue_gel" ? 1 : isAquariumOverlaySkinId(renderSkinId) ? 1 : value;
+  const blueGelFishProps =
+    renderSkinId === "blue_gel" ? getBlueGelTrayFishProps(0) : {};
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
@@ -63,11 +70,12 @@ export default function DicePreview({
         >
           <div className="relative z-10">
             <Die
-            value={value}
+            value={previewValue}
             skinId={renderSkinId}
             size={size}
             scoreFill={scoreFill}
             dieSeed={stableSeed(renderSkinId)}
+            {...blueGelFishProps}
           />
           </div>
         </FeltTrayFrame>

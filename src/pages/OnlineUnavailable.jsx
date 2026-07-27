@@ -59,6 +59,17 @@ export default function OnlineUnavailable() {
         </p>
 
         <div
+          className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 mb-4 text-left"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+            Planned: skin levels 1–100
+          </p>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Online matches will track each dice skin at levels 1–100. Higher levels mean stronger dice in PvP — synced via server profile (<code className="text-slate-400">skin_levels</code>).
+          </p>
+        </div>
+
+        <div
           className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 mb-6 text-left"
         >
           <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-2">

@@ -5,8 +5,9 @@ import { getFelt } from "@/lib/shopCatalog";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import {
   SHARK_BITE_CHOMP_EVENT,
-  SHARK_BITE_FALLBACK_VANISH_MS,
+  useSharkBiteSettings,
 } from "@/components/game/BlueGelPowerFX";
+import { getBlueGelTrayFishProps } from "@/lib/fishDice";
 
 /**
  * Visual tray for the 6 dice. Rendered on a felt surface whose color is controlled by `feltId`.
@@ -23,6 +24,7 @@ function DiceTray({
   heldStyleId,
   lowPower = false,
   powerMode = false,
+  iceFrozenOverlay = false,
   sharkBiteFx = false,
   /** Keep dice vanished after chomp until next round clears this flag. */
   sharkDiceHidden = false,
@@ -33,6 +35,7 @@ function DiceTray({
 }) {
   const felt = getFelt(feltId);
   const [diceEaten, setDiceEaten] = useState(false);
+  const biteSettings = useSharkBiteSettings();
   // Keep the regular gameplay skin visible — the fullscreen shark flies over it.
   const traySkinId = skinId;
 
@@ -42,12 +45,12 @@ function DiceTray({
     setDiceEaten(false);
     const onChomp = () => setDiceEaten(true);
     window.addEventListener(SHARK_BITE_CHOMP_EVENT, onChomp);
-    const fallback = setTimeout(() => setDiceEaten(true), SHARK_BITE_FALLBACK_VANISH_MS);
+    const fallback = setTimeout(() => setDiceEaten(true), biteSettings.fallbackVanishMs);
     return () => {
       window.removeEventListener(SHARK_BITE_CHOMP_EVENT, onChomp);
       clearTimeout(fallback);
     };
-  }, [sharkBiteFx]);
+  }, [sharkBiteFx, biteSettings.fallbackVanishMs]);
 
   // Stay vanished after FX while sharkDiceHidden; restore only when both flags clear.
   useEffect(() => {
@@ -65,8 +68,13 @@ function DiceTray({
 
   return (
     <div id="gameplay-dice-tray">
-      <FeltTrayFrame felt={felt} innerClassName="p-6" intense={feltIntense}>
-      <div className="relative grid grid-cols-3 gap-3 sm:gap-6 justify-items-center sm:grid-cols-6">
+      <FeltTrayFrame
+        felt={felt}
+        innerClassName="p-6"
+        intense={feltIntense}
+        allowDieOverflow={iceFrozenOverlay}
+      >
+      <div className="relative grid grid-cols-3 gap-3 sm:gap-6 justify-items-center sm:grid-cols-6 overflow-visible">
         {dice.map((d, idx) => {
               // Pull each die toward the tray center as the shark chomps. The dice
           // are eaten right-to-left (rightmost vanishes first) so it reads as
@@ -77,6 +85,7 @@ function DiceTray({
           return (
           <motion.div
             key={d.id}
+            className="relative overflow-visible"
             initial={{ opacity: 0, scale: 0.5 }}
             animate={
               diceEaten
@@ -104,13 +113,13 @@ function DiceTray({
               lowPower={lowPower}
               // Shark Bite charge (powerMode) ≠ Feeding Frenzy (fishFeastMode).
               powerMode={powerMode && !sharkBiteFx && !fishFeastMode}
+              iceFrozenOverlay={iceFrozenOverlay && !sharkBiteFx && !fishFeastMode}
               fishFeastMode={fishFeastMode && !sharkBiteFx}
               sharkBiteFx={false}
               bloodWaterLocked={bloodWaterLocked && !fishFeastMode}
               onBloodWaterSettled={onBloodWaterSettled}
               includeJellyfish={traySkinId === "blue_gel" && d.id === jellyDieId}
-              bigFishVariantIndex={[7, 1, 6, 3, 1, 4][idx]}
-              bigFishExtraScale={idx === 0 ? 2.1 : idx === 4 ? 2.0 : 1.15}
+              {...(traySkinId === "blue_gel" ? getBlueGelTrayFishProps(idx) : {})}
             />
           </motion.div>
           );

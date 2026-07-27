@@ -8,6 +8,8 @@ import { isNativeApp } from '@/lib/platform';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
+import Story from '@/pages/Story';
+import StoryGame from '@/pages/StoryGame';
 
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
 hydrateSpriteLabPersistence();
@@ -25,11 +27,10 @@ const About = lazy(() => import('@/pages/About'));
 const Contact = lazy(() => import('@/pages/Contact'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
 const OnlineUnavailable = lazy(() => import('@/pages/OnlineUnavailable'));
-const Story = lazy(() => import('@/pages/Story'));
-const StoryGame = lazy(() => import('@/pages/StoryGame'));
 const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
 const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
 const IcePowerLab = lazy(() => import('@/pages/IcePowerLab'));
+const SharkBiteLab = lazy(() => import('@/pages/SharkBiteLab'));
 
 function PageLoader() {
   return (
@@ -48,10 +49,29 @@ class RouteErrorBoundary extends Component {
 
   render() {
     if (this.state.error) {
+      const msg = this.state.error.message || "";
+      const chunkLoadFailed =
+        /failed to fetch dynamically imported module|loading chunk|importing a module script failed|networkerror|load failed/i.test(
+          msg
+        );
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white px-6 text-center gap-4">
-          <p className="text-rose-400 font-bold">Something went wrong loading this page.</p>
-          <p className="text-xs text-slate-400 max-w-sm">{this.state.error.message}</p>
+          <p className="text-rose-400 font-bold">
+            {chunkLoadFailed
+              ? "This page failed to load — the dev server may have stopped or the app needs a refresh."
+              : "Something went wrong loading this page."}
+          </p>
+          <p className="text-xs text-slate-400 max-w-sm">
+            {chunkLoadFailed
+              ? "Run npm run dev in your Terminal, then hard-refresh (Cmd+Shift+R)."
+              : msg}
+          </p>
+          {import.meta.env.DEV && !chunkLoadFailed && (
+            <p className="text-xs text-slate-500 max-w-sm">
+              Dev tip: open <code className="text-cyan-300">http://127.0.0.1:5173</code>, hard-refresh
+              (Cmd+Shift+R), and check your Terminal for red Vite compile errors.
+            </p>
+          )}
           <a href="/" className="text-cyan-400 text-sm font-bold underline">
             Back to Home
           </a>
@@ -93,6 +113,8 @@ function App() {
             <Route path="/fish-showcase" element={<FishShowcase />} />
             <Route path="/ice-lab" element={<IcePowerLab />} />
             <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
+            <Route path="/shark-bite-lab" element={<SharkBiteLab />} />
+            <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
           </RouteErrorBoundary>

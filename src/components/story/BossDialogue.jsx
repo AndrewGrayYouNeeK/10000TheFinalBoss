@@ -5,6 +5,11 @@ import { Swords, X } from "lucide-react";
 import BossAvatar from "./BossAvatar";
 import { useStoryBossVideo } from "@/hooks/useStoryBossVideo";
 import FullscreenCutsceneVideo from "@/components/video/FullscreenCutsceneVideo";
+import {
+  getStoryBossVideoMuteAtSeconds,
+  getStoryBossVideoStartOffset,
+  isStoryBossVideoSilent,
+} from "@/lib/storyBossVideos";
 
 // A pre-fight or post-fight dialogue overlay.
 // mode: "intro" | "win" | "lose"
@@ -75,6 +80,8 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
       {showIntroVideo && (
         <FullscreenCutsceneVideo
           src={storyVideoSrc}
+          startAtSeconds={getStoryBossVideoStartOffset(boss.id, "intro")}
+          muteAtSeconds={getStoryBossVideoMuteAtSeconds(boss.id, "intro")}
           onDone={handleIntroVideoDone}
           label="Skip intro"
         />
@@ -82,6 +89,7 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
       {showWinVideo && (
         <FullscreenCutsceneVideo
           src={winVideoSrc}
+          sfxMuted={isStoryBossVideoSilent(boss.id, "win")}
           onDone={() => setWinVideoDone(true)}
           label="Continue"
         />

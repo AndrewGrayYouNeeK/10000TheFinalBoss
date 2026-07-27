@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dices, PiggyBank, Film, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
 import {
   createInitialState,
   rollDice,
@@ -31,6 +32,7 @@ import CyberBackground from "@/components/game/CyberBackground";
 import GameplayBillboard from "@/components/game/GameplayBillboard";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { XP_REWARDS } from "@/lib/progression";
+import { getHotDicePowerConfirmOptions } from "@/lib/devConfig";
 import { useDiceSound } from "@/lib/useDiceSound";
 import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
@@ -50,6 +52,7 @@ import PowerModePracticeBar, {
   skinPracticeVariant,
   practicePreviewSkinId,
 } from "@/components/game/PowerModePracticeBar";
+import TurnOrderRollOff from "@/components/game/TurnOrderRollOff";
 import { isLowPowerDevice } from "@/lib/platform";
 import { Link } from "react-router-dom";
 
@@ -58,11 +61,19 @@ export default function Game() {
   const [searchParams] = useSearchParams();
   const previewSharkBite = searchParams.get("previewSharkBite") === "1";
   const [state, setState] = useState(null);
+  const [rollOffSetup, setRollOffSetup] = useState(null);
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null); // { word, variant }
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
   const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+
+  useEffect(() => {
+    if (state?.sharkFishFeast && hasSharkBiteChompVideoSync() && state?.sharkBiteFx) {
+      lockBloodWater();
+    }
+  }, [state?.sharkFishFeast, state?.sharkBiteFx, lockBloodWater]);
+
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
   const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
@@ -71,6 +82,10 @@ export default function Game() {
   const prevBustRef = React.useRef(0);
   const winnerAwardedRef = React.useRef(false);
   const previewBiteFiredRef = React.useRef(false);
+  const gameInitRef = React.useRef(false);
+  /** Sync guard — blocks double tap before rollAnim state commits. */
+  const rollLockRef = React.useRef(false);
+  const lastProcessedShakeRef = React.useRef(0);
 
   const buildSkins = React.useCallback(
     (playerCount, skinIds = null, disguiseIds = null) =>
@@ -89,7 +104,8 @@ export default function Game() {
   const skinPower = resolvedPower?.power ?? null;
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || gameInitRef.current) return;
+    gameInitRef.current = true;
     let stored = sessionStorage.getItem("dice10k_players");
     // Preview mode: jump straight onto the real gameplay screen with 2 players.
     if (!stored && previewSharkBite) {
@@ -104,11 +120,26 @@ export default function Game() {
     const skinIds = readSessionPlayerSkinIds();
     const disguiseIds = readSessionPlayerDisguiseIds();
     const playerSkins = buildSkins(names.length, skinIds, disguiseIds);
-    setState(createInitialState(names, { playerSkins }));
+    if (previewSharkBite || names.length < 2) {
+      setRollOffSetup(null);
+      setState(createInitialState(names, { playerSkins }));
+    } else {
+      setState(null);
+      setRollOffSetup({ names, playerSkins });
+    }
     prevBustRef.current = 0;
     winnerAwardedRef.current = false;
     previewBiteFiredRef.current = false;
   }, [navigate, buildSkins, isLoading, previewSharkBite]);
+
+  const beginGame = useCallback((firstPlayerIndex, setup) => {
+    if (!setup) return;
+    setState(createInitialState(setup.names, {
+      playerSkins: setup.playerSkins,
+      firstPlayerIndex,
+    }));
+    setRollOffSetup(null);
+  }, []);
 
   // Auto-play Shark Bite FX once on the real game screen (?previewSharkBite=1).
   useEffect(() => {
@@ -204,11 +235,11 @@ export default function Game() {
   // Hot dice XP — award once per hot-dice event (tracked in game state)
   const prevHotDiceRef = React.useRef(0);
 
-  // Sync hot-dice tracker when the active player changes
+  // Sync hot-dice tracker when the active player changes (not on every hot-dice tick).
   useEffect(() => {
     if (!state) return;
     prevHotDiceRef.current = state.hotDiceCount || 0;
-  }, [state?.currentIndex, state]);
+  }, [state?.currentIndex]);
   useEffect(() => {
     if (!state) return;
     const count = state.hotDiceCount || 0;
@@ -322,7 +353,8 @@ export default function Game() {
   }, [state, opponentSfxMuted, playDiceSound]);
 
   const doRoll = useCallback(() => {
-    if (!state || state.sharkBiteFx) return;
+    if (!state || state.sharkBiteFx || rollAnim || rollLockRef.current) return;
+    rollLockRef.current = true;
     setRollAnim(true);
     playRollSound();
     const rolled = rollDice(state);
@@ -330,32 +362,43 @@ export default function Game() {
     setTimeout(() => {
       setRollAnim(false);
       setState(s => evaluateRoll(s));
+      rollLockRef.current = false;
     }, 900);
-  }, [state, playRollSound]);
+  }, [state, rollAnim, playRollSound]);
 
   const onToggleDie = useCallback((dieId) => {
     setState((s) => toggleHold(s, dieId));
   }, []);
 
   const onRollAgain = useCallback(() => {
-    if (!state || rollAnim) return;
+    if (!state || rollAnim || rollLockRef.current) return;
     const info = getHeldInfo(state);
     if (!info.valid || heldSelectionPoints(info, state.perfectTenKPending) === 0) return;
-    const { state: next, instantWin } = confirmAndReroll(state);
+    const { state: next, instantWin } = confirmAndReroll(state, getHotDicePowerConfirmOptions());
     if (instantWin) setPopup({ word: "SIX OF A KIND — YOU WIN!", variant: "success" });
     if (next.winner) {
       setState(next);
       return;
     }
+    rollLockRef.current = true;
     setRollAnim(true);
     playRollSound();
     setState(next);
-    setTimeout(() => setRollAnim(false), 900);
+    setTimeout(() => {
+      setRollAnim(false);
+      rollLockRef.current = false;
+    }, 900);
   }, [state, rollAnim, playRollSound]);
 
   useEffect(() => {
+    rollLockRef.current = false;
+  }, [state?.currentIndex]);
+
+  useEffect(() => {
     if (shakeTriggered === 0) return;
-    if (!state || state.farkle || state.winner || rollAnim) return;
+    if (shakeTriggered === lastProcessedShakeRef.current) return;
+    if (!state || state.farkle || state.winner || rollAnim || rollLockRef.current) return;
+    lastProcessedShakeRef.current = shakeTriggered;
     if (!state.hasRolled) {
       doRoll();
     } else {
@@ -396,9 +439,27 @@ export default function Game() {
       const names = JSON.parse(stored);
       const skinIds = readSessionPlayerSkinIds();
       const disguiseIds = readSessionPlayerDisguiseIds();
-      setState(createInitialState(names, { playerSkins: buildSkins(names.length, skinIds, disguiseIds) }));
+      const playerSkins = buildSkins(names.length, skinIds, disguiseIds);
+      winnerAwardedRef.current = false;
+      prevBustRef.current = 0;
+      if (names.length < 2) {
+        setRollOffSetup(null);
+        setState(createInitialState(names, { playerSkins }));
+      } else {
+        setState(null);
+        setRollOffSetup({ names, playerSkins });
+      }
     }
   };
+
+  if (rollOffSetup) {
+    return (
+      <TurnOrderRollOff
+        playerNames={rollOffSetup.names}
+        onComplete={(firstPlayerIndex) => beginGame(firstPlayerIndex, rollOffSetup)}
+      />
+    );
+  }
 
   if (!state) return null;
 
@@ -551,6 +612,7 @@ export default function Game() {
           currentIndex={state.currentIndex}
           obscuredIndices={obscuredScores}
           xrayReveals={state.xrayReveals}
+          showPlayerAvatars
         />
       </div>
 
@@ -660,11 +722,13 @@ export default function Game() {
             heldStyleId={heldDiceStyleId}
             lowPower={lowPower}
             powerMode={trayPowerMode}
-            fishFeastMode={fishFeastOnTray}
+            fishFeastMode={fishFeastOnTray && !hasSharkBiteChompVideoSync()}
             sharkBiteFx={!!state.sharkBiteFx}
             sharkDiceHidden={!!state.sharkDiceHidden}
             bloodWaterLocked={trayBloodWater}
-            onBloodWaterSettled={fishFeastOnTray ? lockBloodWater : undefined}
+            onBloodWaterSettled={
+              fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
+            }
           />
           {info.held.length > 0 && (
             <div className="mt-2 text-center text-sm">
@@ -722,12 +786,13 @@ export default function Game() {
                 </span>
               </>
             ) : (
-              "Next player&apos;s turn…"
+              "Next player"
             )}
           </div>
         ) : !state.hasRolled ? (
           <Button
             onClick={doRoll}
+            disabled={rollAnim}
             size="lg"
             className="w-full h-14 text-lg text-white font-black uppercase tracking-widest border-2 relative overflow-hidden"
             style={{
@@ -783,14 +848,10 @@ export default function Game() {
       <SharkBiteScreenFX
         active={!!state.sharkBiteFx}
         onComplete={() => {
-          // Bite finished — restore normal dice (no lingering power feast / blood lock).
+          // Bite finished — always restore tray dice + skins.
           setBloodWaterLocked(false);
-          setState((s) => {
-            const cleared = clearSharkBiteFx(s);
-            const wasPractice = practiceSharkBiteRef.current || previewSharkBite;
-            practiceSharkBiteRef.current = false;
-            return wasPractice ? restoreSharkDice(cleared) : cleared;
-          });
+          practiceSharkBiteRef.current = false;
+          setState((s) => restoreSharkDice(clearSharkBiteFx(s)));
         }}
       />
 

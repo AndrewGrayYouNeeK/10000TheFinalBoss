@@ -1,4 +1,4 @@
-import { DICE_SKINS } from "@/lib/shopCatalog";
+import { AQUARIUM_OVERLAY_SKIN_IDS, DICE_SKINS } from "@/lib/shopCatalog";
 import { loadProfile, updateProfile } from "@/lib/localProfile";
 import { isMatrixTuningLocked } from "@/lib/matrixTuningLock";
 import { isDiamondCutTuningLocked } from "@/lib/diamondCutTuningLock";
@@ -9,8 +9,13 @@ import { isFluoriteTuningLocked } from "@/lib/fluoriteTuningLock";
 import { isAmberWaspTuningLocked } from "@/lib/amberWaspTuningLock";
 import { isAmethystTuningLocked } from "@/lib/amethystTuningLock";
 import { isPaperTuningLocked } from "@/lib/paperTuningLock";
+import {
+  isClassicWhiteTuningLocked,
+  recoverClassicWhiteLockOnce,
+} from "@/lib/classicWhiteTuningLock";
 import { isDragonScaleTuningLocked } from "@/lib/dragonScaleTuningLock";
 import { isSnowGlobeTuningLocked } from "@/lib/snowGlobeTuningLock";
+import { isBlueGelTuningLocked } from "@/lib/blueGelTuningLock";
 import { isTealCrackleTuningLocked } from "@/lib/tealCrackleTuningLock";
 import { isAquamarineLightTuningLocked } from "@/lib/aquamarineLightTuningLock";
 import { isAquamarineTuningLocked } from "@/lib/aquamarineTuningLock";
@@ -40,8 +45,10 @@ const TUNING_LOCK_CHECKERS = {
   amber_wasp: isAmberWaspTuningLocked,
   amethyst: isAmethystTuningLocked,
   paper: isPaperTuningLocked,
+  classic_white: isClassicWhiteTuningLocked,
   dragon_scale: isDragonScaleTuningLocked,
   snow_globe: isSnowGlobeTuningLocked,
+  blue_gel: isBlueGelTuningLocked,
   teal_crackle: isTealCrackleTuningLocked,
   aquamarine_light: isAquamarineLightTuningLocked,
   aquamarine: isAquamarineTuningLocked,
@@ -73,8 +80,10 @@ const TUNING_LOCK_FLAG_KEYS = {
   amber_wasp: "yourneek_amber_wasp_tuning_locked",
   amethyst: "yourneek_amethyst_tuning_locked",
   paper: "yourneek_paper_tuning_locked",
+  classic_white: "yourneek_classic_white_tuning_locked",
   dragon_scale: "yourneek_dragon_scale_tuning_locked",
   snow_globe: "yourneek_snow_globe_tuning_locked",
+  blue_gel: "yourneek_blue_gel_tuning_locked",
   teal_crackle: "yourneek_teal_crackle_tuning_locked",
   aquamarine_light: "yourneek_aquamarine_light_tuning_locked",
   aquamarine: "yourneek_aquamarine_tuning_locked",
@@ -207,6 +216,7 @@ function catalogSkinById(skinId) {
 /** Build a lock snapshot from catalog paths + crop (authoritative shipped defaults). */
 function buildCatalogLockSnapshot(skin) {
   if (!skin) return null;
+  const aquariumOverlay = AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id);
   return {
     regularCrop: skin.spriteCrop ?? { ...DEFAULT_SPRITE_CROP },
     powerCrop: skin.powerSpriteCrop ?? { ...DEFAULT_SPRITE_CROP },
@@ -214,10 +224,10 @@ function buildCatalogLockSnapshot(skin) {
     powerFaces: emptyFaceMap(skin.spriteFaceOffsets?.power),
     powerVideoZoom: skin.powerVideoZoom,
     powerVideoCrop: skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 },
-    spriteUrl: skin.spriteUrl,
-    powerSpriteUrl: skin.powerSpriteUrl,
-    powerVideoUrl: skin.powerVideoUrl,
-    videoUrl: skin.videoUrl,
+    spriteUrl: aquariumOverlay ? undefined : skin.spriteUrl,
+    powerSpriteUrl: aquariumOverlay ? undefined : skin.powerSpriteUrl,
+    powerVideoUrl: aquariumOverlay ? undefined : skin.powerVideoUrl,
+    videoUrl: aquariumOverlay ? undefined : skin.videoUrl,
     seededFrom: "catalog",
   };
 }
@@ -269,10 +279,18 @@ function mergeRecoveredLockSnapshot({ existing, draft, catalog }) {
     powerVideoCrop: cropSource.powerVideoCrop ?? base.powerVideoCrop,
     lockedVideos: cropSource.lockedVideos ?? existing?.lockedVideos,
     // Paths always from catalog so art assignment is frozen correctly
-    spriteUrl: base.spriteUrl ?? cropSource.spriteUrl,
-    powerSpriteUrl: base.powerSpriteUrl ?? cropSource.powerSpriteUrl,
-    powerVideoUrl: base.powerVideoUrl ?? cropSource.powerVideoUrl,
-    videoUrl: base.videoUrl ?? cropSource.videoUrl,
+    spriteUrl: AQUARIUM_OVERLAY_SKIN_IDS.has(catalog?.id)
+      ? undefined
+      : base.spriteUrl ?? cropSource.spriteUrl,
+    powerSpriteUrl: AQUARIUM_OVERLAY_SKIN_IDS.has(catalog?.id)
+      ? undefined
+      : base.powerSpriteUrl ?? cropSource.powerSpriteUrl,
+    powerVideoUrl: AQUARIUM_OVERLAY_SKIN_IDS.has(catalog?.id)
+      ? undefined
+      : base.powerVideoUrl ?? cropSource.powerVideoUrl,
+    videoUrl: AQUARIUM_OVERLAY_SKIN_IDS.has(catalog?.id)
+      ? undefined
+      : base.videoUrl ?? cropSource.videoUrl,
     seededFrom: existing
       ? snapshotHasSpritePaths(existing)
         ? existing.seededFrom || "existing"
@@ -466,7 +484,7 @@ export function hydrateSpriteLabPersistence() {
 }
 
 /** Featured skins — shop category headers link to these labs first */
-export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe"];
+export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe", "blue_gel"];
 
 export const DEFAULT_SPRITE_LAB_SKIN_ID = "matrix";
 
@@ -517,6 +535,9 @@ export function mergeSpriteLabFaceOffsets(catalogOffsets = {}, draftOffsets, { f
 
 export function loadSpriteLabDraft(skinId) {
   try {
+    if (skinId === "classic_white") {
+      recoverClassicWhiteLockOnce();
+    }
     // Locked skins: always prefer the saved lock snapshot. Never wipe it.
     if (isSpriteTuningLocked(skinId)) {
       return loadLockedTuningSnapshot(skinId);

@@ -1,6 +1,11 @@
 import React from "react";
 import { useLocalVideo } from "@/hooks/useLocalVideo";
 import { useStoryBossVideo } from "@/hooks/useStoryBossVideo";
+import { getStoryBossAvatarLoopVideoStyle } from "@/lib/storyBossVideos";
+import {
+  getFishermanAvatarLoopVideoStyle,
+  useFishermanAvatarLoopSettings,
+} from "@/lib/fishermanAvatarLoopSettings";
 
 // Renders a boss avatar — emoji, image URL, or optional looping video (falls back to image).
 // sizeClass controls the wrapper box, emojiClass controls the text size.
@@ -32,6 +37,13 @@ export default function BossAvatar({
     !!(videoKey || useBossAvatarVideo) &&
     !!videoSrc &&
     !videoFailed;
+  const fishermanTuning = useFishermanAvatarLoopSettings();
+  const avatarVideoStyle =
+    useBossAvatarVideo && boss?.id
+      ? boss.id === "fisherman"
+        ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
+        : getStoryBossAvatarLoopVideoStyle(boss.id)
+      : { objectFit: "cover", objectPosition: "center center" };
 
   React.useEffect(() => {
     if (!showVideo) return undefined;
@@ -63,8 +75,11 @@ export default function BossAvatar({
           loop
           muted
           playsInline
-          className="w-full h-full object-cover"
-          style={{ filter: "drop-shadow(0 0 8px rgba(0,255,200,0.6))" }}
+          className="w-full h-full"
+          style={{
+            filter: "drop-shadow(0 0 8px rgba(0,255,200,0.6))",
+            ...avatarVideoStyle,
+          }}
           onError={() => {
             onError();
             setVideoFailed(true);

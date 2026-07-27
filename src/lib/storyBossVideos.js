@@ -1,5 +1,6 @@
 import { getBossDefinition, STORY_LADDER_IDS } from "./storyBosses";
 import { isLowPowerDevice } from "./platform";
+import { getFishermanAvatarLoopVideoStyle } from "./fishermanAvatarLoopSettings";
 import {
   getLocalVideoBlob,
   getLocalVideoObjectUrl,
@@ -27,6 +28,77 @@ export function storyBossPrimaryKey(bossId, slot) {
   if (slot === "intro") return storyBossIntroKey(bossId);
   if (slot === "win") return storyBossWinKey(bossId);
   return storyBossAvatarKey(bossId);
+}
+
+/** Resolve boss id when videoKey is an avatar loop slot (e.g. story_boss_avatar_fisherman). */
+export function getStoryBossIdForAvatarKey(videoKey) {
+  if (!videoKey) return null;
+  for (const bossId of STORY_LADDER_IDS) {
+    if (videoKey === storyBossAvatarKey(bossId)) return bossId;
+  }
+  return null;
+}
+
+/** Avatar loop object-fit during story fights and upload previews. */
+export function getStoryBossAvatarLoopFit(bossId) {
+  if (bossId === "fisherman") return "cover";
+  return "contain";
+}
+
+/** Avatar loop crop anchor — pairs with getStoryBossAvatarLoopFit. */
+export function getStoryBossAvatarLoopObjectPosition() {
+  return "center center";
+}
+
+/** Full inline video style for story avatar loops (object-fit, crop, pan). */
+export function getStoryBossAvatarLoopVideoStyle(bossId) {
+  if (bossId === "fisherman") return getFishermanAvatarLoopVideoStyle();
+  return {
+    objectFit: getStoryBossAvatarLoopFit(bossId),
+    objectPosition: getStoryBossAvatarLoopObjectPosition(bossId),
+    maxWidth: "none",
+    maxHeight: "none",
+  };
+}
+
+/** Seconds trimmed from the start at playback — upload file is unchanged. */
+export function getStoryBossVideoStartOffset(bossId, slot) {
+  if (bossId === "neo" && slot === "intro") return 3;
+  return 0;
+}
+
+/**
+ * Source-file timestamp where cutscene audio mutes (0 = full track).
+ * Neo: after "your simulation ends here" — BGM in the upload continues past the line.
+ */
+export function getStoryBossVideoMuteAtSeconds(bossId, slot) {
+  if (bossId === "neo" && slot === "intro") return 12;
+  return 0;
+}
+
+/** Cutscenes with no embedded audio — plays fully silent from the first frame. */
+export function isStoryBossVideoSilent(bossId, slot) {
+  return bossId === "fisherman" && slot === "win";
+}
+
+export function getStoryBossVideoStartOffsetForKey(videoKey) {
+  if (!videoKey) return 0;
+  for (const bossId of STORY_LADDER_IDS) {
+    if (videoKey === storyBossIntroKey(bossId)) {
+      return getStoryBossVideoStartOffset(bossId, "intro");
+    }
+  }
+  return 0;
+}
+
+export function getStoryBossVideoMuteAtSecondsForKey(videoKey) {
+  if (!videoKey) return 0;
+  for (const bossId of STORY_LADDER_IDS) {
+    if (videoKey === storyBossIntroKey(bossId)) {
+      return getStoryBossVideoMuteAtSeconds(bossId, "intro");
+    }
+  }
+  return 0;
 }
 
 /**

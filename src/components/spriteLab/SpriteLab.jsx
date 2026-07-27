@@ -5,6 +5,7 @@ import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt, getSkin, skinHasPowerSprite } from "@/lib/shopCatalog";
+import { getBlueGelTrayFishProps } from "@/lib/fishDice";
 import {
   buildCatalogSnippet,
   clearSpriteLabDraft,
@@ -42,8 +43,9 @@ import {
 } from "@/lib/diamondCutPowerVideo";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Lock, Unlock } from "lucide-react";
+import { Lock, Play, Unlock } from "lucide-react";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
+import VideoPreviewDialog from "@/components/video/VideoPreviewDialog";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import {
   getStoryBossVideoDescription,
@@ -67,6 +69,11 @@ import {
   lockSnowGlobeTuning,
   unlockSnowGlobeTuning,
 } from "@/lib/snowGlobeTuningLock";
+import {
+  isBlueGelTuningLocked,
+  lockBlueGelTuning,
+  unlockBlueGelTuning,
+} from "@/lib/blueGelTuningLock";
 import {
   isIceTuningLocked,
   lockIceTuning,
@@ -102,6 +109,11 @@ import {
   lockPaperTuning,
   unlockPaperTuning,
 } from "@/lib/paperTuningLock";
+import {
+  isClassicWhiteTuningLocked,
+  lockClassicWhiteTuning,
+  unlockClassicWhiteTuning,
+} from "@/lib/classicWhiteTuningLock";
 import {
   isDragonScaleTuningLocked,
   lockDragonScaleTuning,
@@ -235,6 +247,14 @@ const TUNING_LOCK_SKINS = {
     accent: "sky",
     noSpriteTuning: true,
   },
+  blue_gel: {
+    isLocked: isBlueGelTuningLocked,
+    lock: lockBlueGelTuning,
+    unlock: unlockBlueGelTuning,
+    tuningFile: "blueGelSpriteTuning.js",
+    accent: "cyan",
+    noSpriteTuning: true,
+  },
   galaxy: {
     isLocked: isGalaxyTuningLocked,
     lock: lockGalaxyTuning,
@@ -268,6 +288,13 @@ const TUNING_LOCK_SKINS = {
     lock: lockPaperTuning,
     unlock: unlockPaperTuning,
     tuningFile: "paperSpriteTuning.js",
+    accent: "stone",
+  },
+  classic_white: {
+    isLocked: isClassicWhiteTuningLocked,
+    lock: lockClassicWhiteTuning,
+    unlock: unlockClassicWhiteTuning,
+    tuningFile: "classicWhiteSpriteTuning.js",
     accent: "stone",
   },
   dragon_scale: {
@@ -430,7 +457,7 @@ const POWER_VIDEO_SKIN_CONFIG = {
   },
 };
 
-const DIAMOND_CUT_BOSS_ID = "diamond_cut";
+const GQ_BOSS_ID = "gq";
 const NEO_BOSS_ID = "neo";
 const ICE_WITCH_BOSS_ID = "ice_witch";
 const DRAGON_KNIGHT_BOSS_ID = "dragon_knight";
@@ -560,13 +587,15 @@ export default function SpriteLab({ skinId }) {
   );
   const powerVideoInputRef = useRef(null);
   const [powerVideoUploading, setPowerVideoUploading] = useState(false);
+  const [powerVideoPreviewOpen, setPowerVideoPreviewOpen] = useState(false);
+  const [pendingPowerFile, setPendingPowerFile] = useState(null);
+  const [pendingPowerPreviewUrl, setPendingPowerPreviewUrl] = useState(null);
   const [powerVideoZoom, setPowerVideoZoom] = useState(
     () => saved?.powerVideoZoom ?? defaultPowerVideoZoom(skinId, catalogSkin)
   );
   const [powerVideoCrop, setPowerVideoCrop] = useState(
     () => saved?.powerVideoCrop ?? catalogSkin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 }
   );
-
   const usesPowerFaceNudges = hasPowerSprite || powerUsesVideo;
   const activeFaces = powerMode && usesPowerFaceNudges ? powerFaces : regularFaces;
   const setActiveFaces = powerMode && usesPowerFaceNudges ? setPowerFaces : setRegularFaces;
@@ -792,22 +821,53 @@ export default function SpriteLab({ skinId }) {
     };
   }, [skinId, powerVideoConfig]);
 
-  const handlePowerVideoUpload = async (event) => {
+  const clearPendingPowerSelection = () => {
+    if (pendingPowerPreviewUrl) URL.revokeObjectURL(pendingPowerPreviewUrl);
+    setPendingPowerFile(null);
+    setPendingPowerPreviewUrl(null);
+  };
+
+  useEffect(() => () => {
+    if (pendingPowerPreviewUrl) URL.revokeObjectURL(pendingPowerPreviewUrl);
+  }, [pendingPowerPreviewUrl]);
+
+  const handlePowerVideoUpload = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !powerVideoConfig) return;
+    clearPendingPowerSelection();
+    const url = URL.createObjectURL(file);
+    setPendingPowerFile(file);
+    setPendingPowerPreviewUrl(url);
+    setPowerVideoPreviewOpen(true);
+  };
+
+  const handleConfirmPendingPowerUpload = async () => {
+    if (!pendingPowerFile || !powerVideoConfig) return;
     setPowerVideoUploading(true);
     try {
-      await powerVideoConfig.save(file);
+      await powerVideoConfig.save(pendingPowerFile);
       const url = await powerVideoConfig.getUrl();
       setPowerVideoLoaded(!!url);
       setPowerVideoPreviewUrl(url);
+      clearPendingPowerSelection();
+      setPowerVideoPreviewOpen(false);
       toast.success("Power video saved — toggle Power mode to preview");
     } catch {
       toast.error("Could not save video — try a smaller MP4");
     } finally {
       setPowerVideoUploading(false);
     }
+  };
+
+  const handleCancelPendingPowerUpload = () => {
+    clearPendingPowerSelection();
+    setPowerVideoPreviewOpen(false);
+  };
+
+  const handlePowerVideoPreviewOpenChange = (open) => {
+    setPowerVideoPreviewOpen(open);
+    if (!open && pendingPowerPreviewUrl) clearPendingPowerSelection();
   };
 
   const handleClearPowerVideo = async () => {
@@ -826,6 +886,14 @@ export default function SpriteLab({ skinId }) {
     supportsPowerVideoUpload && powerVideoPreviewUrl
       ? powerVideoPreviewUrl
       : catalogSkin.powerVideoUrl;
+  const powerVideoDialogSrc = pendingPowerPreviewUrl || powerVideoPreviewSrc;
+  const powerVideoSourceLabel = pendingPowerPreviewUrl
+    ? "Selected file — review before saving to this slot"
+    : powerVideoLoaded
+      ? "Your upload on this device"
+      : catalogSkin.powerVideoUrl
+        ? `Catalog fallback · public${catalogSkin.powerVideoUrl}`
+        : null;
 
   const accentBorder =
     skinId === "matrix"
@@ -836,7 +904,9 @@ export default function SpriteLab({ skinId }) {
           ? "border-sky-500/30 bg-sky-950/20"
           : skinId === "snow_globe"
             ? "border-sky-500/30 bg-sky-950/20"
-            : "border-orange-500/30 bg-orange-950/20";
+            : skinId === "blue_gel"
+              ? "border-cyan-500/30 bg-cyan-950/20"
+              : "border-orange-500/30 bg-orange-950/20";
   const accentText =
     skinId === "matrix"
       ? "text-green-200"
@@ -846,7 +916,11 @@ export default function SpriteLab({ skinId }) {
           ? "text-sky-200"
           : skinId === "snow_globe"
             ? "text-sky-200"
-            : "text-orange-200";
+            : skinId === "blue_gel"
+              ? "text-cyan-200"
+              : "text-orange-200";
+
+  const labPreviewSkin = lockConfig?.noSpriteTuning ? null : tunedSkin;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-950 via-slate-950 to-black text-white pb-10">
@@ -858,7 +932,11 @@ export default function SpriteLab({ skinId }) {
           <BackButton to="/shop" label="Shop" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-black truncate">{catalogSkin.name} Sprite Lab</h1>
+              <h1 className="text-lg font-black truncate">
+                {skinId === "blue_gel"
+                  ? "Blue Gel — Marlin Joe's Dice"
+                  : `${catalogSkin.name} Sprite Lab`}
+              </h1>
               <label className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wide">Skin</span>
                 <select
@@ -928,7 +1006,9 @@ export default function SpriteLab({ skinId }) {
                   : "Locked — tuning and videos saved on this device"
                 : skinId === "snow_globe"
                   ? "Glass shell dice — live preview only"
-                  : skinId === "ice"
+                  : skinId === "blue_gel"
+                    ? "Marlin Joe's aquarium dice — live preview only"
+                    : skinId === "ice"
                     ? "Sprite crop + per-face nudge · upload Glacia story videos below"
                     : "Global crop + per-face nudge · autosaved in browser"}
             </p>
@@ -937,6 +1017,27 @@ export default function SpriteLab({ skinId }) {
       </div>
 
       <div className="max-w-3xl mx-auto p-4 space-y-4">
+        {skinId === "blue_gel" && (
+          <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-cyan-100">
+            <span>
+              Shark Bite videos (upload, chroma, timing) live on dedicated workbenches — not here.
+            </span>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <Link
+                to="/shark-bite-lab"
+                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white"
+              >
+                Shark Bite Lab
+              </Link>
+              <Link
+                to="/fish-showcase"
+                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
+              >
+                Fish Showcase
+              </Link>
+            </div>
+          </div>
+        )}
         {skinId === "ice" && (
           <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-sky-100">
             <span>
@@ -978,6 +1079,24 @@ export default function SpriteLab({ skinId }) {
               tune. Frosty story videos upload on{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
                 Video Assets → Story mode
+              </Link>
+              .
+            </p>
+          ) : skinId === "blue_gel" ? (
+            <p className="text-slate-300">
+              Blue Gel (Marlin Joe&apos;s dice) uses the Aquamarine glass shell with fish swimming
+              inside — no sprite sheet to tune. Pick faces below to preview fish & jellyfish. Shark
+              Bite videos tune on{" "}
+              <Link to="/shark-bite-lab" className="text-rose-300 underline">
+                Shark Bite Lab
+              </Link>
+              ,{" "}
+              <Link to="/fish-showcase" className="text-cyan-400 underline">
+                Fish Showcase
+              </Link>
+              , or{" "}
+              <Link to="/video-assets" className="text-cyan-400 underline">
+                Video Assets
               </Link>
               .
             </p>
@@ -1063,7 +1182,9 @@ export default function SpriteLab({ skinId }) {
               skinId={skinId}
               dieSeed={selectedFace}
               powerMode={hasPowerPreview && powerMode}
-              devSkin={tunedSkin}
+              devSkin={labPreviewSkin}
+              includeJellyfish={skinId === "blue_gel" && selectedFace >= 2}
+              {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(selectedFace - 1) : {})}
             />
             <p className="text-xs text-cyan-200 tabular-nums">
               Face {selectedFace} · x {activeNudge.x.toFixed(1)} · y {activeNudge.y.toFixed(1)}
@@ -1089,6 +1210,7 @@ export default function SpriteLab({ skinId }) {
               ))}
             </div>
 
+            {!lockConfig?.noSpriteTuning && (
             <FaceNudgePanel
               face={selectedFace}
               nudge={activeNudge}
@@ -1108,6 +1230,7 @@ export default function SpriteLab({ skinId }) {
                     : null
               }
             />
+            )}
           </div>
         </div>
 
@@ -1133,7 +1256,9 @@ export default function SpriteLab({ skinId }) {
                     skinId={skinId}
                     dieSeed={face}
                     powerMode={hasPowerPreview && powerMode}
-                    devSkin={tunedSkin}
+                    devSkin={labPreviewSkin}
+                    includeJellyfish={skinId === "blue_gel" && face >= 2}
+                    {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(face - 1) : {})}
                   />
                   <p className={cn(
                     "text-[10px] mt-1 tabular-nums",
@@ -1310,6 +1435,21 @@ export default function SpriteLab({ skinId }) {
                       >
                         {powerVideoUploading ? "Saving…" : powerVideoConfig.uploadLabel}
                       </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!powerVideoDialogSrc}
+                        className={
+                          skinId === "crystal_cut"
+                            ? "border-violet-500/40 text-violet-200 disabled:opacity-40"
+                            : "border-violet-500/40 text-violet-200 disabled:opacity-40"
+                        }
+                        onClick={() => setPowerVideoPreviewOpen(true)}
+                      >
+                        <Play className="w-3.5 h-3.5 mr-1 fill-current" />
+                        Preview
+                      </Button>
                       {powerVideoLoaded && (
                         <Button
                           type="button"
@@ -1353,7 +1493,7 @@ export default function SpriteLab({ skinId }) {
                     <code className="text-green-100">public{catalogSkin.powerVideoUrl}</code>
                   </p>
                 )}
-                {powerVideoPreviewSrc && (
+                {powerVideoPreviewSrc && !pendingPowerPreviewUrl && (
                   <video
                     key={powerVideoPreviewSrc}
                     src={powerVideoPreviewSrc}
@@ -1365,8 +1505,42 @@ export default function SpriteLab({ skinId }) {
                   />
                 )}
                 <p className="text-[10px] text-slate-500">
-                  Toggle <b>Power video</b> above to preview on the live die.
+                  Tap <b>Preview</b> to verify your upload or catalog fallback. Toggle{" "}
+                  <b>Power video</b> above to preview on the live die.
                 </p>
+                <VideoPreviewDialog
+                  open={powerVideoPreviewOpen}
+                  onOpenChange={handlePowerVideoPreviewOpenChange}
+                  src={powerVideoDialogSrc}
+                  title={`${catalogSkin.name} power video`}
+                  sourceLabel={powerVideoSourceLabel}
+                >
+                  {pendingPowerPreviewUrl ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-slate-500/50 text-slate-200"
+                        disabled={powerVideoUploading}
+                        onClick={handleCancelPendingPowerUpload}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        className={
+                          skinId === "crystal_cut"
+                            ? "bg-cyan-600 hover:bg-cyan-500 text-white"
+                            : "bg-green-600 hover:bg-green-500 text-white"
+                        }
+                        disabled={powerVideoUploading}
+                        onClick={handleConfirmPendingPowerUpload}
+                      >
+                        {powerVideoUploading ? "Saving…" : "Save to this slot"}
+                      </Button>
+                    </>
+                  ) : null}
+                </VideoPreviewDialog>
               </div>
             </div>
           )}
@@ -1376,32 +1550,32 @@ export default function SpriteLab({ skinId }) {
         {skinId === "crystal_cut" && (
           <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
-              Story mode — before &amp; after (Vitrea)
+              Story mode — before &amp; after (GQ)
             </p>
             <p className="text-[10px] text-slate-400">
-              Only plays in <b>Story mode</b> fights against Vitrea. <b>Before match</b> fullscreen
+              Only plays in <b>Story mode</b> fights against GQ. <b>Before match</b> fullscreen
               intro when the fight starts. <b>After victory</b> when you win.
             </p>
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
-              videoKey={storyBossIntroKey(DIAMOND_CUT_BOSS_ID)}
-              label={getStoryBossVideoLabel(DIAMOND_CUT_BOSS_ID, "intro")}
-              description={getStoryBossVideoDescription(DIAMOND_CUT_BOSS_ID, "intro")}
+              videoKey={storyBossIntroKey(GQ_BOSS_ID)}
+              label={getStoryBossVideoLabel(GQ_BOSS_ID, "intro")}
+              description={getStoryBossVideoDescription(GQ_BOSS_ID, "intro")}
             />
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
-              videoKey={storyBossWinKey(DIAMOND_CUT_BOSS_ID)}
-              label={getStoryBossVideoLabel(DIAMOND_CUT_BOSS_ID, "win")}
-              description={getStoryBossVideoDescription(DIAMOND_CUT_BOSS_ID, "win")}
+              videoKey={storyBossWinKey(GQ_BOSS_ID)}
+              label={getStoryBossVideoLabel(GQ_BOSS_ID, "win")}
+              description={getStoryBossVideoDescription(GQ_BOSS_ID, "win")}
             />
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
-              videoKey={storyBossAvatarKey(DIAMOND_CUT_BOSS_ID)}
-              label={getStoryBossVideoLabel(DIAMOND_CUT_BOSS_ID, "avatar")}
-              description={getStoryBossVideoDescription(DIAMOND_CUT_BOSS_ID, "avatar")}
+              videoKey={storyBossAvatarKey(GQ_BOSS_ID)}
+              label={getStoryBossVideoLabel(GQ_BOSS_ID, "avatar")}
+              description={getStoryBossVideoDescription(GQ_BOSS_ID, "avatar")}
             />
             <p className="text-[10px] text-slate-500 pt-1">
-              Same slots are under <b>Vitrea</b> in{" "}
+              Same slots are under <b>GQ</b> in{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
                 Video Assets → Story mode
               </Link>

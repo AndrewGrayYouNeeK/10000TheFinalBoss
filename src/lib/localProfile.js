@@ -1,6 +1,7 @@
 const STORAGE_KEY = "dice10k_profile";
 
 const RAGNAROK_LEGACY_SKINS = ["lava", "ragnarok_regular"];
+const REMOVED_STORY_BOSS_IDS = ["diamond_cut"];
 
 function migrateProfile(profile) {
   const next = { ...profile };
@@ -14,6 +15,14 @@ function migrateProfile(profile) {
   }
   if (RAGNAROK_LEGACY_SKINS.includes(next.ghost_disguise)) {
     next.ghost_disguise = "ragnarok";
+  }
+  const defeated = [...(next.bosses_defeated ?? [])];
+  const filteredDefeated = defeated.filter((id) => !REMOVED_STORY_BOSS_IDS.includes(id));
+  if (filteredDefeated.length !== defeated.length) {
+    next.bosses_defeated = filteredDefeated;
+  }
+  if (REMOVED_STORY_BOSS_IDS.includes(next.story_active_boss)) {
+    next.story_active_boss = null;
   }
   // Story default felt — grant Matrix Rain if missing.
   const felts = [...(next.owned_felts ?? ["classic_green"])];
@@ -48,6 +57,8 @@ const DEFAULT_PROFILE = {
   sprite_tuning: {},
   /** Video upload inventory (metadata only — blobs live in IndexedDB/OPFS). */
   video_uploads: {},
+  /** Online stub: per-skin power level 1–100 (see progression.getSkinPowerLevel). */
+  skin_levels: {},
 };
 
 export function loadProfile() {

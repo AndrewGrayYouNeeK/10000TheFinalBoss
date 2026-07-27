@@ -422,21 +422,6 @@ const ALL_BOSSES = [
     loseLine: "Pieces. All of you. Pieces.",
     coins: 4200, xp: 4600, skin: "labradorite",
   }),
-  fight({
-    id: "diamond_cut", name: "Vitrea", title: "The Diamond Sister",
-    avatar: "💎", color: "from-cyan-100 to-sky-300",
-    isBoss: true,
-    difficulty: { bankThreshold: 1700, greed: 0.6, holdGreedy: true },
-    gimmick: {
-      id: "head_start", name: "Faceted Edge",
-      description: "Vitrea starts with 3,000 points banked.",
-      startScore: 3000,
-    },
-    intro: "I am the cut before the diamond. Sharp. Polished. Final-adjacent.",
-    winLine: "My brother... I have failed you. He's coming for you next.",
-    loseLine: "Brilliant. As I am.",
-    coins: 4800, xp: 5400, skin: "crystal_cut", storyFeltId: "marble",
-  }),
 
   // ── FINAL BOSS ─────────────────────────────────────────────────────────
   fight({
@@ -467,7 +452,6 @@ export const STORY_LADDER_IDS = [
   "ghost",         // The Ghost
   "lavadragon",    // Ragnarok
   "neo",           // Matrix
-  "diamond_cut",   // Vitrea (diamond)
   "fisherman",     // Marlin Joe — second-to-last; unlocks Blue Gel + Shark Bite
   "gq",            // GQ — final boss
 ];

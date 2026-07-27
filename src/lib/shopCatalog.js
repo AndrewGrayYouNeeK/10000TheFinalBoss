@@ -8,6 +8,7 @@ import { MATRIX_SPRITE_TUNING } from "./matrixSpriteTuning";
 import { CRYSTAL_CUT_SPRITE_TUNING } from "./crystalCutSpriteTuning";
 import { GALAXY_SPRITE_TUNING } from "./galaxySpriteTuning";
 import { PAPER_SPRITE_TUNING } from "./paperSpriteTuning";
+import { CLASSIC_WHITE_SPRITE_TUNING } from "./classicWhiteSpriteTuning";
 import { DRAGON_SCALE_SPRITE_TUNING } from "./dragonScaleSpriteTuning";
 import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
 import { TEAL_CRACKLE_SPRITE_TUNING } from "./tealCrackleSpriteTuning";
@@ -44,6 +45,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "The original. Timeless.",
     realistic: true,
     spriteUrl: "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
+    ...CLASSIC_WHITE_SPRITE_TUNING,
   },
   {
     id: "ragnarok",
@@ -410,15 +412,17 @@ export const PRODUCTION_DICE_SKINS = [
   },
   {
     id: "blue_gel",
-    name: "Angelfish",
+    name: "Blue Gel",
     price: 400,
     gradient: "from-sky-300 via-blue-400 to-blue-600",
     border: "border-blue-500",
     pipColor: "bg-white",
     glow: "shadow-blue-400/60",
-    description: "Gel aquarium dice — Shark Bite power eats the opponent's next bank.",
+    description: "Marlin Joe's fish-tank dice — Shark Bite eats the opponent's next bank.",
     realistic: true,
-    spriteUrl: "/assets/999d8760b_generated_image.png",
+    powerDice: true,
+    // NEVER add spriteUrl / powerSpriteUrl / videoUrl here — face is built in Die.jsx
+    // (FishOverlay + borrowed Aquamarine shell). See AQUARIUM_OVERLAY_SKIN_IDS.
   },
   {
     id: "plasma",
@@ -924,9 +928,29 @@ function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
   return draftZoom;
 }
 
+/** Fish tank / snow globe — custom Die.jsx overlays, never a sprite sheet face. */
+export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["blue_gel", "snow_globe"]);
+
+function withoutAquariumSpriteSheets(skin) {
+  if (!AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
+  const next = { ...skin };
+  delete next.spriteUrl;
+  delete next.powerSpriteUrl;
+  delete next.powerSpriteCrop;
+  // Face is built in Die.jsx (fish/snow + borrowed Aquamarine shell) — never a video/sprite sheet die.
+  delete next.videoUrl;
+  delete next.powerVideoUrl;
+  return next;
+}
+
+export function isAquariumOverlaySkinId(skinId) {
+  return AQUARIUM_OVERLAY_SKIN_IDS.has(normalizeSkinId(skinId));
+}
+
 /** Active sprite sheet for a skin — regular by default, power sheet when charged. */
 export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
+  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return null;
   if (powerMode && skin.powerSpriteUrl) {
     return {
@@ -950,6 +974,7 @@ export function skinHasPowerSprite(skin) {
 /** Video URL for the current mode (power video when charged, else static videoUrl). */
 export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
+  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return skin.powerVideoUrl;
   if (!powerMode && skin.videoUrl) return skin.videoUrl;
   return null;
@@ -957,6 +982,8 @@ export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = t
 
 function applyLockedSpritePaths(skin, draft, locked) {
   if (!locked || !draft) return skin;
+  // Old lock snapshots may still carry sprite paths — aquarium skins never use them.
+  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
   const next = { ...skin };
   if (typeof draft.spriteUrl === "string" && draft.spriteUrl) next.spriteUrl = draft.spriteUrl;
   if (typeof draft.powerSpriteUrl === "string") next.powerSpriteUrl = draft.powerSpriteUrl || undefined;
@@ -969,7 +996,7 @@ export function getSkin(id) {
 
   const draft = loadSpriteLabDraft(base.id);
   const locked = isSpriteTuningLocked(base.id);
-  const skin = applyLockedSpritePaths(base, draft, locked);
+  const skin = withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked));
   if (!draft) return skin;
   const mergeRegular = (offsetsBase) =>
     mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked });
@@ -1074,6 +1101,17 @@ export function getSkin(id) {
   }
 
   if (skin.id === "moonstone") {
+    return {
+      ...skin,
+      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "classic_white") {
     return {
       ...skin,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
@@ -1306,7 +1344,7 @@ export function getSkin(id) {
     };
   }
 
-  return skin;
+  return withoutAquariumSpriteSheets(skin);
 }
 export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;

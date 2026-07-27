@@ -11,14 +11,33 @@ import {
 } from "@/lib/blueGelPowerAudio";
 import {
   getCachedBlueGelPowerVideoObjectUrl,
+  getCachedSharkBiteIntroVideoObjectUrl,
+  hasLocalChompVideoSync,
+  hasSharkBiteIntroVideo,
+  hasFullSharkBiteVideoSequenceSync,
   preloadBlueGelPowerVideo,
+  preloadSharkBiteIntroVideo,
+  resolveChompVideoForSharkBite,
   subscribeBlueGelPowerVideo,
+  subscribeSharkBiteIntroVideo,
 } from "@/lib/blueGelPowerVideo";
+import { VIDEO_KEYS, getCachedLocalVideoObjectUrl } from "@/lib/localVideoStore";
 import {
   loadBlueGelChromaSettings,
   subscribeBlueGelChromaSettings,
   hexToRgb,
 } from "@/lib/blueGelChromaSettings";
+import {
+  DEFAULT_SHARK_BITE_SETTINGS,
+  getSharkBitePreviewVideoStyle,
+  getSharkBiteSourceCropRect,
+  getSharkBiteVideoRotationDeg,
+  isSharkBiteRotationSwap,
+  loadSharkBiteSettings,
+  subscribeSharkBiteSettings,
+  sharkBiteClipProgress,
+} from "@/lib/sharkBiteSettings";
+import { applyVideoStartOffset, bindVideoMuteAt } from "@/lib/videoAudio";
 
 /** Live-updating chroma-key settings for the shark video. */
 export function useBlueGelChromaSettings() {
@@ -27,37 +46,43 @@ export function useBlueGelChromaSettings() {
   return settings;
 }
 
+/** Live Shark Bite timing / layout settings. */
+export function useSharkBiteSettings() {
+  const [settings, setSettings] = React.useState(() => loadSharkBiteSettings());
+  React.useEffect(() => subscribeSharkBiteSettings(setSettings), []);
+  return settings;
+}
+
+/** @deprecated Use useSharkBiteSettings — compat alias. */
+export function useBlueGelPlaybackSettings() {
+  const s = useSharkBiteSettings();
+  return {
+    startOffsetSec: s.startAtSeconds,
+    chompProgress: s.chompProgress,
+    fadeStart: s.fadeStart,
+    offsetX: s.offsetX,
+    offsetY: s.offsetY,
+    scale: s.videoScale,
+    muted: s.muted,
+  };
+}
+
 /** CustomEvent name — DiceTray listens so tray dice vanish on chomp. */
 export const SHARK_BITE_CHOMP_EVENT = "yourneek:shark-bite-chomp";
 
-/** Ms from SVG swim start until the shark chomps (sync tray dice vanish). */
-export const SHARK_BITE_CHOMP_MS = 1750;
-/** Full-screen SVG swim duration — long enough to fully exit off-screen. */
-export const SHARK_BITE_FX_MS = 3800;
-/**
- * Short beat so the gameplay screen is still visible when the shark
- * flies over it (does not wait for the in-die feast).
- */
-export const SHARK_BITE_PRE_SWIM_MS = 280;
-/** Brief beat after mode resolves before SVG swim begins. */
-export const SHARK_BITE_SVG_BEAT_MS = 80;
-/** Total SVG sharkBiteFx lifetime after screen starts: beat → swim → clear. */
-export const SHARK_BITE_TOTAL_MS = SHARK_BITE_SVG_BEAT_MS + SHARK_BITE_FX_MS;
-/** Safety timeout if chomp event never fires (video or SVG). */
-export const SHARK_BITE_FALLBACK_VANISH_MS = 10000;
-/**
- * Progress through the bite clip when tray dice should vanish.
- * Catalog clip (~7s): jaws peak open ~0.78–0.80 — vanish just as the bite hits.
- */
-export const SHARK_BITE_CHOMP_PROGRESS = 0.78;
-/** Only kill the plate at the very end — earlier fades look like mid-screen cutoff. */
-export const SHARK_BITE_FADE_START = 0.94;
+/** Default timing exports — prefer useSharkBiteSettings() for live values. */
+export const SHARK_BITE_CHOMP_MS = DEFAULT_SHARK_BITE_SETTINGS.chompMs;
+export const SHARK_BITE_FX_MS = DEFAULT_SHARK_BITE_SETTINGS.fxMs;
+export const SHARK_BITE_PRE_SWIM_MS = DEFAULT_SHARK_BITE_SETTINGS.preSwimMs;
+export const SHARK_BITE_SVG_BEAT_MS = DEFAULT_SHARK_BITE_SETTINGS.svgBeatMs;
+export const SHARK_BITE_TOTAL_MS =
+  DEFAULT_SHARK_BITE_SETTINGS.svgBeatMs + DEFAULT_SHARK_BITE_SETTINGS.fxMs;
+export const SHARK_BITE_FALLBACK_VANISH_MS = DEFAULT_SHARK_BITE_SETTINGS.fallbackVanishMs;
+export const SHARK_BITE_CHOMP_PROGRESS = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
+export const SHARK_BITE_FADE_START = DEFAULT_SHARK_BITE_SETTINGS.fadeStart;
+export const SHARK_BITE_STOP_AT_PROGRESS = DEFAULT_SHARK_BITE_SETTINGS.stopAtProgress;
 /** Soft fade band (px at process res) so the video rect never shows a hard edge/line. */
 const CHROMA_EDGE_FEATHER_PX = 36;
-/** Nudge full-viewport shark clip right (fraction of viewport width) for jaw/tray align. */
-const SHARK_BITE_VIDEO_OFFSET_X = 0.18;
-/** Late-clip slide so the shark finishes exiting off the right edge. */
-const SHARK_BITE_EXIT_PAN_START = 0.88;
 
 /** Calm blue-gel water before the shark feast. */
 const BLUE_GEL_WATER_IDLE =
@@ -125,7 +150,7 @@ export function useGameplayDiceTrayAnchor(active) {
 }
 
 /** Live dice-tray center — used to dip the jaw onto the dice at chomp. */
-function getSharkBiteLayout(trayAnchor) {
+function getSharkBiteLayout(trayAnchor, offsetX = DEFAULT_SHARK_BITE_SETTINGS.offsetX) {
   const vw = typeof window !== "undefined" ? window.innerWidth : 400;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const anchor = trayAnchor ?? {
@@ -138,7 +163,7 @@ function getSharkBiteLayout(trayAnchor) {
   // Big, dramatic shark — dominates the middle of the screen (nudged right for tray).
   const sharkW = Math.min(vw * 0.98, 860);
   const sharkH = sharkW * 0.5;
-  const screenCx = vw * 0.5 + vw * SHARK_BITE_VIDEO_OFFSET_X;
+  const screenCx = vw * 0.5 + vw * offsetX;
   const screenCy = vh * 0.47;
 
   // Center the whole shark on screen; dip at chomp so the jaw reaches the dice tray.
@@ -161,32 +186,60 @@ function getSharkBiteLayout(trayAnchor) {
   };
 }
 
-/** Resolve blue_gel_power: local upload blob, else catalog /assets/blue_gel_power.mp4. */
-export function useBlueGelPowerVideoUrl(enabled = true) {
-  const [url, setUrl] = React.useState(() =>
-    enabled ? getCachedBlueGelPowerVideoObjectUrl() : null
-  );
+/** Resolve a shark-bite clip: local upload blob; chomp falls back to catalog only when no upload. */
+function useSharkBiteVideoUrl(videoKey, enabled = true) {
+  const initialUrl = React.useMemo(() => {
+    if (!enabled) return null;
+    if (videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
+      return getCachedSharkBiteIntroVideoObjectUrl();
+    }
+    return getCachedLocalVideoObjectUrl(VIDEO_KEYS.BLUE_GEL_POWER);
+  }, [enabled, videoKey]);
+
+  const [url, setUrl] = React.useState(initialUrl);
+
   React.useEffect(() => {
     if (!enabled) {
       setUrl(null);
       return undefined;
     }
     let cancelled = false;
-    preloadBlueGelPowerVideo().then((next) => {
+    const preload =
+      videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO
+        ? preloadSharkBiteIntroVideo
+        : resolveChompVideoForSharkBite;
+    const subscribe =
+      videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO
+        ? subscribeSharkBiteIntroVideo
+        : subscribeBlueGelPowerVideo;
+    const cached =
+      videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO
+        ? getCachedSharkBiteIntroVideoObjectUrl
+        : () => getCachedLocalVideoObjectUrl(VIDEO_KEYS.BLUE_GEL_POWER);
+
+    preload().then((next) => {
       if (!cancelled) setUrl(next);
     });
-    const unsub = subscribeBlueGelPowerVideo((next) => {
-      if (!cancelled) {
-        // Prefer live upload; fall back to catalog path when cleared.
-        setUrl(next || getCachedBlueGelPowerVideoObjectUrl());
+    const unsub = subscribe((next) => {
+      if (cancelled) return;
+      if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER) {
+        setUrl(next || cached());
+        return;
       }
+      setUrl(next || cached());
     });
     return () => {
       cancelled = true;
       unsub();
     };
-  }, [enabled]);
+  }, [enabled, videoKey]);
+
   return url;
+}
+
+/** Resolve blue_gel_power: local upload blob, else catalog /assets/blue_gel_power.mp4. */
+export function useBlueGelPowerVideoUrl(enabled = true) {
+  return useSharkBiteVideoUrl(VIDEO_KEYS.BLUE_GEL_POWER, enabled);
 }
 
 function SharkSvg({ chomping, size = "100%" }) {
@@ -232,6 +285,25 @@ function SharkSvg({ chomping, size = "100%" }) {
   );
 }
 
+/** Draw a cropped source frame into a work canvas, applying manual/auto rotation. */
+function drawSharkBiteSourceFrame(wctx, video, crop, fw, fh, rotationDeg) {
+  const rot = ((Number(rotationDeg) % 360) + 360) % 360;
+  wctx.setTransform(1, 0, 0, 1, 0, 0);
+  wctx.clearRect(0, 0, fw, fh);
+  if (rot === 0) {
+    wctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, fw, fh);
+    return;
+  }
+  wctx.save();
+  wctx.translate(fw / 2, fh / 2);
+  wctx.rotate((rot * Math.PI) / 180);
+  const swap = isSharkBiteRotationSwap(rot);
+  const dw = swap ? fh : fw;
+  const dh = swap ? fw : fh;
+  wctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, -dw / 2, -dh / 2, dw, dh);
+  wctx.restore();
+}
+
 /**
  * Renders a video to a <canvas> with its background color keyed out, so only
  * the subject (the shark) is visible over whatever is behind it. Samples the
@@ -255,6 +327,13 @@ export function ChromaKeyVideo({
   fadeOutFrom = null,
   /** Fill the viewport; letterbox the clip so the video rect edge is off-screen / at page edge. */
   fullViewport = false,
+  /** Override shark-bite trim for this clip (e.g. intro swim-in). */
+  playbackStartAtSeconds = null,
+  playbackStopAtProgress = null,
+  /** When true, call onEnded immediately instead of sliding off-screen. */
+  skipExitPan = false,
+  /** Vertical nudge override (viewport fraction; + = down). Defaults to biteSettings.offsetY. */
+  layoutOffsetY = null,
 }) {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
@@ -262,9 +341,19 @@ export function ChromaKeyVideo({
   const fadeOpacityRef = React.useRef(fadeOpacity);
   const fadeOutFromRef = React.useRef(fadeOutFrom);
   const settings = useBlueGelChromaSettings();
+  const biteSettings = useSharkBiteSettings();
   const settingsRef = React.useRef(settings);
+  const biteRef = React.useRef(biteSettings);
+  const playbackStartRef = React.useRef(playbackStartAtSeconds);
+  const playbackStopRef = React.useRef(playbackStopAtProgress);
+  const skipExitPanRef = React.useRef(skipExitPan);
+  const layoutOffsetYRef = React.useRef(layoutOffsetY);
   fadeOpacityRef.current = fadeOpacity;
   fadeOutFromRef.current = fadeOutFrom;
+  playbackStartRef.current = playbackStartAtSeconds;
+  playbackStopRef.current = playbackStopAtProgress;
+  skipExitPanRef.current = skipExitPan;
+  layoutOffsetYRef.current = layoutOffsetY;
 
   // Live settings without restarting the render loop. Re-sample when the key
   // mode / color changes so the preview updates immediately.
@@ -274,6 +363,10 @@ export function ChromaKeyVideo({
   }, [settings]);
 
   React.useEffect(() => {
+    biteRef.current = biteSettings;
+  }, [biteSettings]);
+
+  React.useEffect(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return undefined;
@@ -281,6 +374,7 @@ export function ChromaKeyVideo({
     let cancelled = false;
     let rafId = null;
     let vfcId = null;
+    let earlyEndTriggered = false;
     keyColorRef.current = null;
     const lastBlit = { drawX: 0, drawY: 0, drawW: 0, drawH: 0, ready: false };
 
@@ -337,22 +431,28 @@ export function ChromaKeyVideo({
         return;
       }
 
-      // Process at clip resolution (capped).
-      const scale = Math.min(1, MAX_W / vw);
-      const fw = Math.round(vw * scale);
-      const fh = Math.round(vh * scale);
+      // Process at clip resolution (capped). Swap dimensions when rotated 90/270.
+      const rotationDeg = getSharkBiteVideoRotationDeg(biteRef.current, vw, vh);
+      const swapDims = isSharkBiteRotationSwap(rotationDeg);
+      const baseW = swapDims ? vh : vw;
+      const baseH = swapDims ? vw : vh;
+      const scale = Math.min(1, MAX_W / baseW);
+      const fw = Math.round(baseW * scale);
+      const fh = Math.round(baseH * scale);
       if (work.width !== fw || work.height !== fh) {
         work.width = fw;
         work.height = fh;
       }
 
-      wctx.drawImage(video, 0, 0, fw, fh);
+      const crop = getSharkBiteSourceCropRect(vw, vh, biteRef.current);
+      drawSharkBiteSourceFrame(wctx, video, crop, fw, fh, rotationDeg);
 
       const cfg = settingsRef.current;
       let endFade = 1;
       const fadeFrom = fadeOutFromRef.current;
       if (!loop && fadeFrom != null && video.duration > 0) {
-        const p = video.currentTime / video.duration;
+        const bs = biteRef.current;
+        const p = sharkBiteClipProgress(video, bs?.startAtSeconds ?? 0);
         if (p >= fadeFrom) {
           endFade = Math.max(0, 1 - (p - fadeFrom) / Math.max(0.001, 1 - fadeFrom));
         }
@@ -372,18 +472,23 @@ export function ChromaKeyVideo({
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         outW = Math.max(1, Math.round(window.innerWidth * dpr));
         outH = Math.max(1, Math.round(window.innerHeight * dpr));
-        // Cover-ish so the shark fills the tray; slight overscale avoids letterbox plate.
-        const fit = Math.min(outW / fw, outH / fh) * 1.08;
+        const bs = biteRef.current;
+        const fit = Math.min(outW / fw, outH / fh) * (Number(bs?.videoScale) || 1.08);
         drawW = fw * fit;
         drawH = fh * fit;
-        drawX = (outW - drawW) / 2 + outW * SHARK_BITE_VIDEO_OFFSET_X;
-        drawY = Math.max(0, outH - drawH - outH * 0.01);
+        drawX = (outW - drawW) / 2 + outW * (bs?.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX);
+        const bottomInset = bs?.verticalOffset ?? DEFAULT_SHARK_BITE_SETTINGS.verticalOffset;
+        const offsetY =
+          layoutOffsetYRef.current ?? bs?.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY;
+        drawY = Math.max(0, outH - drawH - outH * bottomInset + outH * offsetY);
         // Late exit pan — clip ends mid-shark; keep sliding right until fully off-screen.
         if (!loop && video.duration > 0) {
-          const p = video.currentTime / video.duration;
-          if (p >= SHARK_BITE_EXIT_PAN_START) {
-            const t = (p - SHARK_BITE_EXIT_PAN_START) / Math.max(0.001, 1 - SHARK_BITE_EXIT_PAN_START);
-            drawX += outW * (0.15 + 0.95 * t);
+          const p = sharkBiteClipProgress(video, bs?.startAtSeconds ?? 0);
+          const exitStart = bs?.exitPanStart ?? DEFAULT_SHARK_BITE_SETTINGS.exitPanStart;
+          const exitExtra = bs?.exitPanExtra ?? DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
+          if (p >= exitStart) {
+            const t = (p - exitStart) / Math.max(0.001, 1 - exitStart);
+            drawX += outW * exitExtra * t;
           }
         }
       }
@@ -470,6 +575,22 @@ export function ChromaKeyVideo({
 
       blit(work);
       onTimeUpdate?.(video);
+
+      if (!loop && video.duration > 0) {
+        const bs = biteRef.current;
+        const startAtSec =
+          playbackStartRef.current ?? bs?.startAtSeconds ?? DEFAULT_SHARK_BITE_SETTINGS.startAtSeconds;
+        const p = sharkBiteClipProgress(video, startAtSec);
+        const stopAt =
+          playbackStopRef.current ?? bs?.stopAtProgress ?? DEFAULT_SHARK_BITE_SETTINGS.stopAtProgress;
+        if (stopAt < 1 && p >= stopAt && !earlyEndTriggered) {
+          earlyEndTriggered = true;
+          video.pause();
+          handleEnded();
+          return;
+        }
+      }
+
       scheduleNext();
     };
 
@@ -484,6 +605,12 @@ export function ChromaKeyVideo({
 
     const handleTime = () => onTimeUpdate?.(video);
     const handleEnded = () => {
+      if (skipExitPanRef.current) {
+        canvas.style.opacity = "0";
+        octx.clearRect(0, 0, canvas.width, canvas.height);
+        onEnded?.();
+        return;
+      }
       // Hold the last frame and finish sliding off-screen so the shark
       // never "cuts off" mid-viewport when the clip ends early.
       if (!fullViewport || !lastBlit.ready) {
@@ -525,22 +652,42 @@ export function ChromaKeyVideo({
     video.addEventListener("ended", handleEnded);
     video.addEventListener("error", handleError);
 
-    video.muted = true;
-    video.play().catch(() => onError?.());
+    let muteCleanup = () => {};
+
+    video.muted = biteRef.current?.muted !== false;
+    const startAt = Math.max(
+      0,
+      Number(playbackStartRef.current ?? biteRef.current?.startAtSeconds) || 0
+    );
+    const muteAt = Math.max(0, Number(biteRef.current?.muteAtSeconds) || 0);
+    const begin = () => {
+      applyVideoStartOffset(video, startAt);
+      if (muteAt > 0) {
+        muteCleanup = bindVideoMuteAt(video, muteAt, () => {
+          video.muted = true;
+          video.volume = 0;
+        });
+      }
+      video.play().catch(() => onError?.());
+    };
+    if (video.readyState >= 1) begin();
+    else video.addEventListener("loadedmetadata", begin, { once: true });
     scheduleNext();
 
     return () => {
       cancelled = true;
+      muteCleanup();
       if (rafId) cancelAnimationFrame(rafId);
       if (vfcId && typeof video.cancelVideoFrameCallback === "function") {
         video.cancelVideoFrameCallback(vfcId);
       }
       if (fullViewport) window.removeEventListener("resize", onResize);
+      video.removeEventListener("loadedmetadata", begin);
       video.removeEventListener("timeupdate", handleTime);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, loop, fullViewport, onTimeUpdate, onEnded, onError]);
+  }, [src, loop, fullViewport, layoutOffsetY, onTimeUpdate, onEnded, onError]);
 
   return (
     <>
@@ -549,7 +696,7 @@ export function ChromaKeyVideo({
         key={src}
         src={src}
         loop={loop}
-        muted
+        muted={biteSettings.muted !== false}
         playsInline
         preload="auto"
         className="absolute w-px h-px opacity-0 pointer-events-none"
@@ -594,8 +741,27 @@ export function BlueGelPowerVideoScreen({
   zIndex = 45,
   /** When true, key out the video background so the shark swims over gameplay. */
   overGameplay = false,
+  /** IndexedDB slot — defaults to chomp clip. */
+  videoKey = VIDEO_KEYS.BLUE_GEL_POWER,
+  /** When false (intro swim-in), skip chomp sync and end fade. */
+  syncChomp = true,
+  /** Extra wrapper opacity (e.g. intro→chomp crossfade). */
+  layerOpacity = 1,
+  /** Nest inside a parent fixed layer instead of creating another fixed root. */
+  containInParent = false,
 }) {
-  const url = useBlueGelPowerVideoUrl();
+  const url = useSharkBiteVideoUrl(videoKey, active);
+  const biteSettings = useSharkBiteSettings();
+  const isIntro = videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
+  const layoutOffsetY = isIntro
+    ? biteSettings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY ?? 0
+    : biteSettings.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY ?? 0;
+  const startAt = isIntro
+    ? biteSettings.introStartAtSeconds ?? 0
+    : biteSettings.startAtSeconds ?? 0;
+  const stopAt = isIntro
+    ? biteSettings.introStopAtProgress ?? 1
+    : biteSettings.stopAtProgress ?? SHARK_BITE_STOP_AT_PROGRESS;
   const [failed, setFailed] = React.useState(false);
   const [fadeOpacity, setFadeOpacity] = React.useState(1);
   const chompSent = React.useRef(false);
@@ -606,7 +772,7 @@ export function BlueGelPowerVideoScreen({
     setFadeOpacity(1);
     chompSent.current = false;
     endedSent.current = false;
-  }, [url, active]);
+  }, [url, active, videoKey]);
 
   const finishOnce = React.useCallback(() => {
     if (loop || endedSent.current) return;
@@ -617,21 +783,37 @@ export function BlueGelPowerVideoScreen({
 
   const handleChompProgress = React.useCallback(
     (video) => {
-      if (loop) return;
+      if (loop || !syncChomp) return;
       if (!video?.duration || !Number.isFinite(video.duration) || video.duration <= 0) return;
-      const p = video.currentTime / video.duration;
-      if (p >= SHARK_BITE_CHOMP_PROGRESS && !chompSent.current) {
+      const p = sharkBiteClipProgress(video, startAt);
+      const chompAt = biteSettings.chompProgress ?? SHARK_BITE_CHOMP_PROGRESS;
+      const fadeAt = biteSettings.fadeStart ?? SHARK_BITE_FADE_START;
+      if (p >= chompAt && !chompSent.current) {
         chompSent.current = true;
         onChompProgress?.();
       }
-      if (p >= SHARK_BITE_FADE_START) {
-        const t = (p - SHARK_BITE_FADE_START) / Math.max(0.001, 1 - SHARK_BITE_FADE_START);
+      if (p >= fadeAt) {
+        const t = (p - fadeAt) / Math.max(0.001, 1 - fadeAt);
         setFadeOpacity(Math.max(0, 1 - t));
       } else {
         setFadeOpacity(1);
       }
     },
-    [loop, onChompProgress]
+    [loop, syncChomp, onChompProgress, biteSettings, startAt]
+  );
+
+  const handlePlainVideoTimeUpdate = React.useCallback(
+    (video) => {
+      handleChompProgress(video);
+      if (loop || endedSent.current) return;
+      if (!video?.duration || !Number.isFinite(video.duration) || video.duration <= 0) return;
+      const p = sharkBiteClipProgress(video, startAt);
+      if (stopAt < 1 && p >= stopAt) {
+        video.pause();
+        finishOnce();
+      }
+    },
+    [loop, handleChompProgress, stopAt, finishOnce, startAt]
   );
 
   const handleError = React.useCallback(() => {
@@ -642,25 +824,34 @@ export function BlueGelPowerVideoScreen({
   if (!active || !url || failed) return null;
 
   const biteOverlay = overGameplay && !loop;
+  const fadeAt = syncChomp ? biteSettings.fadeStart ?? SHARK_BITE_FADE_START : null;
+
+  const rootClass = containInParent
+    ? "absolute inset-0 overflow-hidden flex items-center justify-center pointer-events-none"
+    : "fixed inset-0 overflow-hidden flex items-center justify-center pointer-events-none";
 
   return (
     <AnimatePresence>
       <motion.div
         key={`blue-gel-power-video-${loop ? "loop" : "once"}`}
-        className="fixed inset-0 overflow-hidden flex items-center justify-center pointer-events-none"
-        style={{ zIndex, background: "transparent" }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        className={rootClass}
+        style={{ zIndex, background: "transparent", opacity: layerOpacity }}
+        initial={{ opacity: containInParent ? layerOpacity : 0 }}
+        animate={{ opacity: layerOpacity }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: containInParent ? 0 : 0.2 }}
       >
         {overGameplay ? (
           <ChromaKeyVideo
             src={url}
             loop={loop}
             fadeOpacity={fadeOpacity}
-            fadeOutFrom={loop ? null : SHARK_BITE_FADE_START}
+            fadeOutFrom={loop ? null : fadeAt}
             fullViewport={biteOverlay || overGameplay}
+            layoutOffsetY={layoutOffsetY}
+            playbackStartAtSeconds={startAt}
+            playbackStopAtProgress={stopAt}
+            skipExitPan={!syncChomp}
             onTimeUpdate={handleChompProgress}
             onEnded={() => {
               if (!loop) finishOnce();
@@ -671,22 +862,27 @@ export function BlueGelPowerVideoScreen({
         ) : (
           <>
             <div className="absolute inset-0 bg-black/55" />
-            <video
-              key={url}
-              src={url}
-              autoPlay
-              loop={loop}
-              muted
-              playsInline
-              preload="auto"
-              onTimeUpdate={(e) => handleChompProgress(e.currentTarget)}
-              onEnded={() => {
-                if (!loop) finishOnce();
-              }}
-              onError={handleError}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ opacity: fadeOpacity }}
-            />
+            <div className="absolute inset-0 overflow-hidden">
+              <video
+                key={url}
+                src={url}
+                autoPlay
+                loop={loop}
+                muted
+                playsInline
+                preload="auto"
+                onTimeUpdate={(e) => handlePlainVideoTimeUpdate(e.currentTarget)}
+                onEnded={() => {
+                  if (!loop) finishOnce();
+                }}
+                onError={handleError}
+                className="absolute inset-0 w-full h-full"
+                style={{
+                  opacity: fadeOpacity,
+                  ...getSharkBitePreviewVideoStyle(biteSettings),
+                }}
+              />
+            </div>
           </>
         )}
       </motion.div>
@@ -694,18 +890,24 @@ export function BlueGelPowerVideoScreen({
   );
 }
 
+/** Ms overlap when intro clip hands off to chomp clip. */
+const SHARK_BITE_CROSSFADE_MS = 380;
+
 /**
- * Full-screen shark bite: uploaded blue_gel_power video if present,
- * otherwise SVG shark swim across the screen.
+ * Full-screen shark bite: optional intro video → chomp video (crossfade),
+ * or a single chomp clip, or SVG when no video is available.
  */
 export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
-  const [mode, setMode] = React.useState(null); // null | "video" | "svg"
+  const [phase, setPhase] = React.useState(null); // null | "intro" | "crossfade" | "chomp" | "svg"
+  const [introLayer, setIntroLayer] = React.useState(false);
+  const [chompLayer, setChompLayer] = React.useState(false);
   const [swim, setSwim] = React.useState(false);
   const [chomping, setChomping] = React.useState(false);
   const chompEmitted = React.useRef(false);
   const onChompRef = React.useRef(onChomp);
   const onCompleteRef = React.useRef(onComplete);
   const trayAnchor = useGameplayDiceTrayAnchor(active);
+  const biteSettings = useSharkBiteSettings();
   onChompRef.current = onChomp;
   onCompleteRef.current = onComplete;
 
@@ -720,9 +922,65 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     onCompleteRef.current?.();
   }, []);
 
+  const beginChompLayer = React.useCallback(async () => {
+    const chompUrl = await resolveChompVideoForSharkBite();
+    if (!chompUrl) {
+      if (hasFullSharkBiteVideoSequenceSync() || hasLocalChompVideoSync()) {
+        const retry = await preloadBlueGelPowerVideo();
+        if (retry) {
+          setChompLayer(true);
+          setPhase("crossfade");
+          return;
+        }
+      }
+      if (hasFullSharkBiteVideoSequenceSync()) {
+        fireChomp();
+        setIntroLayer(false);
+        setChompLayer(false);
+        fireComplete();
+        return;
+      }
+      fireChomp();
+      setIntroLayer(false);
+      setChompLayer(false);
+      setPhase("svg");
+      return;
+    }
+    setChompLayer(true);
+    setPhase("crossfade");
+  }, [fireChomp, fireComplete]);
+
+  const finishIntroPhase = React.useCallback(() => {
+    beginChompLayer();
+  }, [beginChompLayer]);
+
+  React.useEffect(() => {
+    if (phase !== "crossfade") return undefined;
+    const t = setTimeout(() => {
+      setIntroLayer(false);
+      setPhase("chomp");
+    }, SHARK_BITE_CROSSFADE_MS);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  const resolveVideoPhase = React.useCallback(async () => {
+    const introCached = getCachedSharkBiteIntroVideoObjectUrl();
+    const hasIntro = introCached || (await hasSharkBiteIntroVideo());
+    if (hasIntro) {
+      if (!introCached) await preloadSharkBiteIntroVideo();
+      await resolveChompVideoForSharkBite();
+      return "intro";
+    }
+    const chompUrl = await resolveChompVideoForSharkBite();
+    if (chompUrl) return "chomp";
+    return "svg";
+  }, []);
+
   React.useEffect(() => {
     if (!active) {
-      setMode(null);
+      setPhase(null);
+      setIntroLayer(false);
+      setChompLayer(false);
       setSwim(false);
       setChomping(false);
       chompEmitted.current = false;
@@ -732,97 +990,168 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     chompEmitted.current = false;
     setSwim(false);
     setChomping(false);
-    setMode(null);
+    setIntroLayer(false);
+    setChompLayer(false);
+    setPhase(null);
 
     let cancelled = false;
     let fallback = null;
-    // Wait for in-die feast (bubbles → eat → red) before full-screen chomp.
+
+    const usesVideo =
+      getCachedSharkBiteIntroVideoObjectUrl() ||
+      hasLocalChompVideoSync() ||
+      !!getCachedBlueGelPowerVideoObjectUrl();
+    const delayMs = usesVideo ? 0 : biteSettings.preSwimMs;
+
     const startT = setTimeout(() => {
       if (cancelled) return;
-      const cached = getCachedBlueGelPowerVideoObjectUrl();
-      if (cached) {
-        setMode("video");
-        return;
-      }
-
-      preloadBlueGelPowerVideo().then((url) => {
+      resolveVideoPhase().then((next) => {
         if (cancelled) return;
-        setMode(url ? "video" : "svg");
+        if (next === "intro") {
+          setIntroLayer(true);
+          setPhase("intro");
+        } else if (next === "chomp") {
+          setChompLayer(true);
+          setPhase("chomp");
+        } else {
+          setPhase("svg");
+        }
       });
-      fallback = setTimeout(() => {
-        if (!cancelled) setMode((m) => m ?? "svg");
+
+      fallback = setTimeout(async () => {
+        if (cancelled) return;
+        if (getCachedSharkBiteIntroVideoObjectUrl()) {
+          setIntroLayer(true);
+          setPhase((current) => current ?? "intro");
+          return;
+        }
+        const chompUrl = await resolveChompVideoForSharkBite();
+        if (chompUrl) {
+          setChompLayer(true);
+          setPhase((current) => current ?? "chomp");
+          return;
+        }
+        setPhase((current) => current ?? "svg");
       }, 450);
-    }, SHARK_BITE_PRE_SWIM_MS);
+    }, delayMs);
 
     return () => {
       cancelled = true;
       clearTimeout(startT);
       if (fallback) clearTimeout(fallback);
     };
-  }, [active]);
+  }, [active, biteSettings.preSwimMs, resolveVideoPhase]);
 
-  // SVG timeline (PRE_SWIM already elapsed before mode becomes "svg")
+  // SVG timeline — only when no uploaded / catalog video is available.
   React.useEffect(() => {
-    if (!active || mode !== "svg") return undefined;
+    if (!active || phase !== "svg") return undefined;
     setSwim(false);
     setChomping(false);
-    const swimT = setTimeout(() => setSwim(true), SHARK_BITE_SVG_BEAT_MS);
-    const doneT = setTimeout(() => fireComplete(), SHARK_BITE_TOTAL_MS);
+    const svgBeat = biteSettings.svgBeatMs;
+    const svgTotal = biteSettings.svgBeatMs + biteSettings.fxMs;
+    const swimT = setTimeout(() => setSwim(true), svgBeat);
+    const doneT = setTimeout(() => fireComplete(), svgTotal);
     return () => {
       clearTimeout(swimT);
       clearTimeout(doneT);
     };
-  }, [active, mode, fireComplete]);
+  }, [active, phase, fireComplete, biteSettings.svgBeatMs, biteSettings.fxMs]);
 
   React.useEffect(() => {
-    if (!swim || mode !== "svg") {
+    if (!swim || phase !== "svg") {
       setChomping(false);
       return undefined;
     }
     setChomping(false);
+    const chompMs = biteSettings.chompMs;
     const chompT = setTimeout(() => {
       setChomping(true);
       fireChomp();
-    }, SHARK_BITE_CHOMP_MS);
-    const doneChomp = setTimeout(() => setChomping(false), SHARK_BITE_CHOMP_MS + 900);
+    }, chompMs);
+    const doneChomp = setTimeout(() => setChomping(false), chompMs + 900);
     return () => {
       clearTimeout(chompT);
       clearTimeout(doneChomp);
     };
-  }, [swim, mode, fireChomp]);
+  }, [swim, phase, fireChomp, biteSettings.chompMs]);
 
   // Video safety timeout (never-ending / missing onEnded)
   React.useEffect(() => {
-    if (!active || mode !== "video") return undefined;
+    if (!active || (phase !== "intro" && phase !== "crossfade" && phase !== "chomp")) {
+      return undefined;
+    }
     const safety = setTimeout(() => {
-      fireChomp();
-      fireComplete();
-    }, SHARK_BITE_FALLBACK_VANISH_MS);
+      if (phase === "intro") finishIntroPhase();
+      else {
+        fireChomp();
+        fireComplete();
+      }
+    }, biteSettings.fallbackVanishMs);
     return () => clearTimeout(safety);
-  }, [active, mode, fireChomp, fireComplete]);
+  }, [active, phase, fireChomp, fireComplete, finishIntroPhase, biteSettings.fallbackVanishMs]);
 
-  if (!active || !mode) return null;
+  if (!active || !phase) return null;
 
-  if (mode === "video") {
+  if (phase === "intro" || phase === "crossfade" || phase === "chomp") {
+    const introOpacity = phase === "crossfade" ? 0 : 1;
+    const chompOpacity = phase === "crossfade" || phase === "chomp" ? 1 : 0;
+    const crossfadeSec = SHARK_BITE_CROSSFADE_MS / 1000;
+
     return (
-      <BlueGelPowerVideoScreen
-        active
-        loop={false}
-        overGameplay
-        zIndex={55}
-        onChompProgress={fireChomp}
-        onEnded={() => {
-          fireChomp();
-          // Exit pan finishes after onEnded — give it a beat before clearing FX.
-          setTimeout(() => fireComplete(), 580);
-        }}
-        onError={() => setMode("svg")}
-      />
+      <div className="fixed inset-0 z-[55] pointer-events-none">
+        {introLayer ? (
+          <motion.div
+            className="absolute inset-0"
+            animate={{ opacity: introOpacity }}
+            transition={{ duration: phase === "crossfade" ? crossfadeSec : 0.15, ease: "easeInOut" }}
+          >
+            <BlueGelPowerVideoScreen
+              active
+              containInParent
+              loop={false}
+              overGameplay
+              syncChomp={false}
+              videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO}
+              zIndex={1}
+              onEnded={finishIntroPhase}
+              onError={finishIntroPhase}
+            />
+          </motion.div>
+        ) : null}
+        {chompLayer ? (
+          <motion.div
+            className="absolute inset-0"
+            initial={{ opacity: phase === "crossfade" ? 0 : 1 }}
+            animate={{ opacity: chompOpacity }}
+            transition={{ duration: phase === "crossfade" ? crossfadeSec : 0.15, ease: "easeInOut" }}
+          >
+            <BlueGelPowerVideoScreen
+              active
+              containInParent
+              loop={false}
+              overGameplay
+              syncChomp
+              videoKey={VIDEO_KEYS.BLUE_GEL_POWER}
+              zIndex={2}
+              onChompProgress={fireChomp}
+              onEnded={() => {
+                fireChomp();
+                setTimeout(() => fireComplete(), 580);
+              }}
+              onError={() => {
+                fireChomp();
+                fireComplete();
+              }}
+            />
+          </motion.div>
+        ) : null}
+      </div>
     );
   }
 
-  const layout = getSharkBiteLayout(trayAnchor);
+  const layout = getSharkBiteLayout(trayAnchor, biteSettings.offsetX);
   const { anchor, sharkW, sharkH, baseLeft, chompTop, chompDip, offLeft, offRight } = layout;
+  const fxSec = biteSettings.fxMs / 1000;
 
   return (
     <AnimatePresence>
@@ -853,7 +1182,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
               scale: chomping ? [1, 1.12, 1.04] : 1,
             }}
             transition={{
-              duration: SHARK_BITE_FX_MS / 1000,
+              duration: fxSec,
               times: [0, 0.32, 0.55, 1],
               ease: "easeInOut",
             }}

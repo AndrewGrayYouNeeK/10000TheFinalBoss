@@ -27,7 +27,7 @@ import {
 
 const SKIN_STORY_BOSS = {
   matrix: "neo",
-  crystal_cut: "diamond_cut",
+  crystal_cut: "gq",
   ice: "ice_witch",
   dragon_scale: "dragon_knight",
   blue_gel: null, // power video only — no story boss slots
@@ -43,6 +43,9 @@ const LEGACY_VIDEO_KEY_MIGRATIONS = [
   [VIDEO_KEYS.GAMEPLAY_BILLBOARD, MATRIX_GAMEPLAY_BILLBOARD_KEY],
   [LEGACY_GAMEPLAY_BEFORE_MATRIX, storyBossIntroKey("neo")],
   [LEGACY_GAMEPLAY_AFTER_MATRIX, storyBossWinKey("neo")],
+  [storyBossIntroKey("diamond_cut"), storyBossIntroKey("gq")],
+  [storyBossWinKey("diamond_cut"), storyBossWinKey("gq")],
+  [storyBossAvatarKey("diamond_cut"), storyBossAvatarKey("gq")],
 ];
 
 function lockedVideoStorageKey(skinId, videoKey) {
@@ -60,7 +63,9 @@ export function getSpriteLabVideoKeys(skinId) {
     keys.push(VIDEO_KEYS.MATRIX_POWER);
   }
   if (skinId === "crystal_cut") keys.push(VIDEO_KEYS.DIAMOND_CUT_POWER);
-  if (skinId === "blue_gel") keys.push(VIDEO_KEYS.BLUE_GEL_POWER);
+  if (skinId === "blue_gel") {
+    keys.push(VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO, VIDEO_KEYS.BLUE_GEL_POWER);
+  }
   const bossId = SKIN_STORY_BOSS[skinId];
   if (bossId) {
     keys.push(
@@ -77,7 +82,9 @@ export function getSkinIdsForVideoKey(videoKey) {
   const skinIds = new Set();
   if (videoKey === VIDEO_KEYS.MATRIX_POWER) skinIds.add("matrix");
   if (videoKey === VIDEO_KEYS.DIAMOND_CUT_POWER) skinIds.add("crystal_cut");
-  if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER) skinIds.add("blue_gel");
+  if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER || videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
+    skinIds.add("blue_gel");
+  }
   if (videoKey === MATRIX_GAMEPLAY_BILLBOARD_KEY || videoKey === VIDEO_KEYS.GAMEPLAY_BILLBOARD) {
     skinIds.add("matrix");
   }
@@ -142,6 +149,9 @@ function recoverySourceKeysForVideoKey(videoKey) {
 
   if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER) {
     sources.add(lockedVideoStorageKey("blue_gel", VIDEO_KEYS.BLUE_GEL_POWER));
+  }
+  if (videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
+    sources.add(lockedVideoStorageKey("blue_gel", VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO));
   }
 
   for (const skinId of getSkinIdsForVideoKey(videoKey)) {

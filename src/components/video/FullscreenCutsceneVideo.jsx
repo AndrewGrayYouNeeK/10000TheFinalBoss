@@ -2,19 +2,31 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { playVideoWithAudio, syncVideoAudio } from "@/lib/videoAudio";
+import {
+  applyVideoStartOffset,
+  bindVideoMuteAt,
+  playVideoWithAudio,
+  syncVideoAudio,
+} from "@/lib/videoAudio";
 
 export default function FullscreenCutsceneVideo({
   src,
   onDone,
   label = "Skip",
   sfxMuted = false,
+  startAtSeconds = 0,
+  muteAtSeconds = 0,
 }) {
   const videoRef = React.useRef(null);
   const onDoneRef = React.useRef(onDone);
   const [needsTapToPlay, setNeedsTapToPlay] = React.useState(false);
+  const [audioCutoff, setAudioCutoff] = React.useState(false);
 
   onDoneRef.current = onDone;
+
+  React.useEffect(() => {
+    setAudioCutoff(false);
+  }, [src, muteAtSeconds]);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -61,6 +73,7 @@ export default function FullscreenCutsceneVideo({
       }
       if (cancelled) return;
 
+      applyVideoStartOffset(video, startAtSeconds);
       const withSound = await playVideoWithAudio(video, { sfxMuted, preferSound: true });
       if (!withSound && video.paused) {
         setNeedsTapToPlay(true);
@@ -76,17 +89,31 @@ export default function FullscreenCutsceneVideo({
         /* ignore */
       }
     };
-  }, [src]);
+  }, [src, startAtSeconds]);
 
   React.useEffect(() => {
-    syncVideoAudio(videoRef.current, { sfxMuted });
-  }, [sfxMuted, src]);
+    const video = videoRef.current;
+    if (!video || !src || muteAtSeconds <= 0) return undefined;
+    return bindVideoMuteAt(video, muteAtSeconds, () => setAudioCutoff(true));
+  }, [src, muteAtSeconds]);
+
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (audioCutoff) {
+      video.muted = true;
+      video.volume = 0;
+      return;
+    }
+    syncVideoAudio(video, { sfxMuted });
+  }, [sfxMuted, src, audioCutoff]);
 
   const startFromTap = async (event) => {
     event?.stopPropagation?.();
     const video = videoRef.current;
     if (!video) return;
 
+    applyVideoStartOffset(video, startAtSeconds);
     const withSound = await playVideoWithAudio(video, { sfxMuted, preferSound: true });
     if (withSound || !video.paused) {
       setNeedsTapToPlay(false);

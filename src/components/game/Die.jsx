@@ -10,29 +10,33 @@ import {
   preloadDiamondCutPowerVideo,
   subscribeDiamondCutPowerVideo,
 } from "@/lib/diamondCutPowerVideo";
-import { getSkin, getSkinSpriteLayer, getActiveVideoUrl } from "@/lib/shopCatalog";
+import {
+  AQUARIUM_OVERLAY_SKIN_IDS,
+  getSkin,
+  getSkinSpriteLayer,
+  getActiveVideoUrl,
+} from "@/lib/shopCatalog";
 import { layoutGrid } from "@/lib/diceAssets";
 import { useXrayMorphLayout } from "@/hooks/useXrayMorphLayout";
 import Pip from "./Pip";
 import FishOverlay from "./FishOverlay";
 import { BlueGelSharkAttack, BlueGelSharkBiteCharge, BloodPowerFx, BloodyWaterTint, skinUsesBloodPowerFx } from "./BlueGelPowerFX";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
-import IcePowerOverlay, {
-  getIcePowerShapeMaskStyle,
-  useIcePowerSettings,
-} from "./IcePowerOverlay";
+import IcePowerOverlay from "./IcePowerOverlay";
 import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
 import HeldDiceOverlay from "./HeldDiceOverlay";
 import { DEFAULT_HELD_DICE_STYLE } from "@/lib/heldDiceStyles";
 import {
   getAquamarineShellNudges,
-  getSpriteBleed,
+  getAquamarineShellStyle,
   getSpriteSheetStyle,
   getPowerVideoCellStyle,
   getSkinFaceOffset,
   resolveFaceSpriteNudges,
 } from "@/lib/dieSpriteOffsets";
+import { getDieSquircleClipStyle } from "@/lib/dieSquircleClip";
+import { assetUrl } from "@/lib/assetUrl";
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -47,20 +51,45 @@ const LOCAL_POWER_VIDEO_SKINS = {
   },
 };
 
-function useRollVariants() {
-  const ref = React.useRef(null);
-  if (!ref.current) {
-    const dir = Math.random() > 0.5 ? 1 : -1;
-    const spins = (3 + Math.floor(Math.random() * 3)) * 360 * dir;
-    const bounceH = 18 + Math.random() * 28;
-    ref.current = {
-      rotate: [0, spins * 0.3, spins * 0.6, spins * 0.85, spins * 0.95, spins],
-      y: [0, -bounceH, -bounceH * 0.4, -bounceH * 0.6, -bounceH * 0.15, 0],
-      x: [0, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 4, 0, 0],
-      scale: [1, 1.15, 1.05, 1.1, 0.97, 1]
-    };
+/** Survives Die remounts (roll animation keys) so skins don't flash pip fallback. */
+const SPRITE_LOAD_CACHE = new Set();
+
+function preloadSpriteUrl(url, onResult) {
+  const resolved = assetUrl(url);
+  if (SPRITE_LOAD_CACHE.has(resolved)) {
+    onResult(true);
+    return () => {};
   }
-  return ref.current;
+  let cancelled = false;
+  const img = new Image();
+  img.onload = () => {
+    SPRITE_LOAD_CACHE.add(resolved);
+    if (!cancelled) onResult(true);
+  };
+  img.onerror = () => {
+    if (!cancelled) onResult(false);
+  };
+  img.decoding = "async";
+  img.src = resolved;
+  if (img.complete && img.naturalWidth > 0) {
+    SPRITE_LOAD_CACHE.add(resolved);
+    onResult(true);
+  }
+  return () => {
+    cancelled = true;
+  };
+}
+
+function buildRollMotion() {
+  const dir = Math.random() > 0.5 ? 1 : -1;
+  const spins = (3 + Math.floor(Math.random() * 3)) * 360 * dir;
+  const bounceH = 18 + Math.random() * 28;
+  return {
+    rotate: [0, spins * 0.3, spins * 0.65, spins * 0.88, spins * 0.97, spins],
+    y: [0, -bounceH, -bounceH * 0.35, -bounceH * 0.55, -bounceH * 0.12, 0],
+    x: [0, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 5, 0, 0],
+    scale: [1, 1.18, 1.06, 1.12, 0.96, 1],
+  };
 }
 
 function Die({
@@ -76,12 +105,14 @@ function Die({
   skinId = "classic_white",
   bigFishVariantIndex = 0,
   bigFishExtraScale = 1,
+  bigFishStaticPose = false,
   includeJellyfish = false,
   scoreFill = 0.5,
   heldStyleId = DEFAULT_HELD_DICE_STYLE,
   dieSeed,
   lowPower = false,
   powerMode = false,
+  iceFrozenOverlay = false,
   sharkBiteFx = false,
   /** Feeding Frenzy — opponent targeted these fish dice (not Blue Gel's own Shark Bite charge). */
   fishFeastMode = false,
@@ -92,12 +123,12 @@ function Die({
   const stableSeedRef = React.useRef(Math.floor(Math.random() * 10000));
   const effectDieSeed = dieSeed ?? stableSeedRef.current;
   const effectiveHeldStyleId = heldStyleId;
-  const reduceEffects = lowPower || rolling;
   const handleClick = React.useCallback(() => {
     if (onClick) onClick();
     else if (onToggleDie && dieId != null) onToggleDie(dieId);
   }, [onClick, onToggleDie, dieId]);
   const skin = devSkin ?? getSkin(skinId);
+  const effectiveSkinId = devSkin?.id ?? skinId;
   const powerVideoSkin = LOCAL_POWER_VIDEO_SKINS[skin.id];
   const [failedVideoUrls, setFailedVideoUrls] = React.useState(() => new Set());
   const [localPowerVideoUrl, setLocalPowerVideoUrl] = React.useState(
@@ -132,38 +163,51 @@ function Die({
   const activeVideoUrl =
     videoCandidates.find((url) => url && !failedVideoUrls.has(url)) ?? null;
   const videoOk = !!activeVideoUrl;
-  const videoSkinActive =
-    !!activeVideoUrl || (powerMode && !!skin.powerVideoUrl && videoOk);
-  const spriteLayer = getSkinSpriteLayer(skin, { powerMode, allowPowerVideo: videoOk });
+  const reduceEffects = lowPower || rolling;
+  // Reserve sprite only while the video layer is actually on screen (not during roll/lowPower).
+  const videoPlaying = Boolean(activeVideoUrl && !reduceEffects);
+  const videoSkinActive = videoPlaying;
+  const chargedSpriteLayer = getSkinSpriteLayer(skin, {
+    powerMode,
+    allowPowerVideo: videoOk && videoPlaying,
+  });
+  const regularSpriteLayer = getSkinSpriteLayer(skin, {
+    powerMode: false,
+    allowPowerVideo: false,
+  });
+  const displaySpriteLayer = videoPlaying
+    ? null
+    : (chargedSpriteLayer || regularSpriteLayer);
+  const [spriteOk, setSpriteOk] = React.useState(true);
+  React.useEffect(() => {
+    const url = displaySpriteLayer?.spriteUrl;
+    if (!url) return undefined;
+    if (SPRITE_LOAD_CACHE.has(assetUrl(url))) {
+      setSpriteOk(true);
+      return undefined;
+    }
+    setSpriteOk(true);
+    return preloadSpriteUrl(url, (ok) => setSpriteOk(ok));
+  }, [displaySpriteLayer?.spriteUrl]);
   const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
   const showBloodPowerFx =
     !reduceEffects && usesBloodPowerFx && (powerMode || bloodWaterLocked);
   const isXray = skin.id === "pf_xray";
   const { displayLayout: xrayLayout } = useXrayMorphLayout(value, rolling, isXray);
   const layout = isXray ? xrayLayout : layoutGrid(value);
-  const rollVariants = useRollVariants();
 
-  const rollKey = React.useRef(0);
   const wasRolling = React.useRef(false);
   const [settling, setSettling] = React.useState(false);
-  if (rolling && !wasRolling.current) {
-    rollKey.current += 1;
-    const dir = Math.random() > 0.5 ? 1 : -1;
-    const spins = (3 + Math.floor(Math.random() * 3)) * 360 * dir;
-    const bounceH = 18 + Math.random() * 28;
-    rollVariants.rotate = [0, spins * 0.3, spins * 0.65, spins * 0.88, spins * 0.97, spins];
-    rollVariants.y = [0, -bounceH, -bounceH * 0.35, -bounceH * 0.55, -bounceH * 0.12, 0];
-    rollVariants.x = [0, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 5, 0, 0];
-    rollVariants.scale = [1, 1.18, 1.06, 1.12, 0.96, 1];
-  }
+  // Stable key — remounting on every roll was causing a second spin.
+  const [rollMotion, setRollMotion] = React.useState(null);
   React.useEffect(() => {
-    let startTimer, endTimer;
+    let startTimer;
+    let endTimer;
     if (rolling && !wasRolling.current) {
-      // Start the wild snow ~0.55s into the 0.85s roll, so it begins before the die stops.
+      setRollMotion(buildRollMotion());
       startTimer = setTimeout(() => setSettling(true), 550);
       wasRolling.current = true;
     } else if (!rolling && wasRolling.current) {
-      // Keep it going briefly after the die lands, then calm down.
       endTimer = setTimeout(() => setSettling(false), 700);
       wasRolling.current = false;
     }
@@ -173,46 +217,38 @@ function Die({
     };
   }, [rolling]);
 
-  const [spriteOk, setSpriteOk] = React.useState(true);
-  React.useEffect(() => {
-    const url = spriteLayer?.spriteUrl;
-    if (!url) {
-      setSpriteOk(false);
-      return undefined;
-    }
-    let cancelled = false;
-    const img = new Image();
-    img.onload = () => {
-      if (!cancelled) setSpriteOk(true);
-    };
-    img.onerror = () => {
-      if (!cancelled) setSpriteOk(false);
-    };
-    img.src = url;
-    return () => {
-      cancelled = true;
-    };
-  }, [spriteLayer?.spriteUrl]);
-
   // Standard dice corner radius
   const radius = Math.round(size * 0.06);
 
-  // Frosty / Frozen Ice Score Freeze — organic shape + ice overlay while charged.
-  const icePowerSettings = useIcePowerSettings();
-  const icePowerActive = skin.id === "ice" && powerMode && !reduceEffects;
-  const iceShapeMaskOn = icePowerActive && icePowerSettings.shapeEnabled !== false;
-  // Ice power only — squircle mask-image hid sprite/pip layers in several browsers.
-  const dieMaskStyle = iceShapeMaskOn
-    ? getIcePowerShapeMaskStyle(value, size, icePowerSettings)
-    : null;
+  // Frosty / Frozen Ice — overlay on enemy dice when story-frozen (not on self charge glow).
+  const icePowerActive =
+    (iceFrozenOverlay || (skin.id === "ice" && powerMode)) && !reduceEffects;
+  const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
+  const aquamarineShellSkin = isAquariumOverlaySkin ? getSkin("aquamarine") : null;
+  const aquamarineShellUrl = aquamarineShellSkin?.spriteUrl ?? null;
+  const [aquaShellOk, setAquaShellOk] = React.useState(true);
+  React.useEffect(() => {
+    if (!aquamarineShellUrl) {
+      setAquaShellOk(false);
+      return undefined;
+    }
+    setAquaShellOk(true);
+    return preloadSpriteUrl(aquamarineShellUrl, (ok) => setAquaShellOk(ok));
+  }, [aquamarineShellUrl]);
+  const showAquamarineShell = Boolean(aquamarineShellUrl && aquaShellOk);
+  // Convex squircle on the inner visual stack — never on the button (that hid sprites).
+  const dieShapeStyle = getDieSquircleClipStyle(size);
 
-  const showSpriteLayer = spriteLayer && !activeVideoUrl && spriteOk;
+  const showSpriteLayer =
+    displaySpriteLayer &&
+    !videoPlaying &&
+    !isAquariumOverlaySkin &&
+    spriteOk;
   const showPipFallback =
-    skin.id !== "blue_gel" &&
-    skin.id !== "snow_globe" &&
-    !activeVideoUrl &&
+    !isAquariumOverlaySkin &&
+    !videoPlaying &&
     !videoSkinActive &&
-    (!spriteLayer || !spriteOk);
+    (!displaySpriteLayer || !spriteOk);
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -233,6 +269,7 @@ function Die({
 
   const isClearBody =
     skin.id === "classic_white" ||
+    isAquariumOverlaySkin ||
     videoSkinActive ||
     skin.videoUrl ||
     isExperimentalClearBody(skin) ||
@@ -326,27 +363,40 @@ function Die({
     );
   };
 
+  const isRollingAnim = rolling && !held && !used && rollMotion;
   return (
     <motion.div
-      key={rolling ? rollKey.current : "idle"}
+      key={dieId != null ? `die-${dieId}` : "die"}
       className="relative flex-shrink-0 overflow-visible"
       style={{ width: size, height: size }}
       initial={false}
       animate={
-      rolling && !held && !used ?
-      { rotate: rollVariants.rotate, y: rollVariants.y, x: rollVariants.x, scale: rollVariants.scale } :
-      held && !used ?
-      { rotate: 0, y: -10, x: 0, scale: 1.08 } :
-      { rotate: 0, y: 0, x: 0, scale: 1 }
+        isRollingAnim
+          ? {
+              rotate: rollMotion.rotate,
+              y: rollMotion.y,
+              x: rollMotion.x,
+              scale: rollMotion.scale,
+            }
+          : held && !used
+            ? { rotate: 0, y: -10, x: 0, scale: 1.08 }
+            : { rotate: 0, y: 0, x: 0, scale: 1 }
       }
       transition={
-      rolling && !held && !used ?
-      {
-        duration: 0.85,
-        ease: [0.25, 0.46, 0.45, 0.94],
-        times: [0, 0.2, 0.45, 0.65, 0.85, 1]
-      } :
-      { type: "spring", stiffness: 300, damping: 18 }
+        isRollingAnim
+          ? {
+              duration: 0.85,
+              ease: [0.25, 0.46, 0.45, 0.94],
+              times: [0, 0.2, 0.45, 0.65, 0.85, 1],
+            }
+          : {
+              y: { type: "spring", stiffness: 300, damping: 18 },
+              x: { type: "spring", stiffness: 300, damping: 18 },
+              scale: { type: "spring", stiffness: 300, damping: 18 },
+              // Snap — do not animate from multi-turn roll rotate back to 0
+              // (that unwind looked like a second spin).
+              rotate: { duration: 0 },
+            }
       }
       whileTap={!used && !(rolling && !held) ? { scale: 0.92 } : {}}
       whileHover={!used && !(rolling && !held) ? { y: -5, rotate: 3 } : {}}>
@@ -357,13 +407,6 @@ function Die({
         </div>
       )}
 
-      {/* Ice power frame — outside the masked die so dripping borders can extend */}
-      {icePowerActive && (
-        <div className="absolute inset-0 z-[12] pointer-events-none overflow-visible">
-          <IcePowerOverlay value={value} size={size} radius={radius} layer="frame" />
-        </div>
-      )}
-
       <PortfolioDieProvider scoreFill={scoreFill} enabled={isPortfolioFx}>
       <button
         type="button"
@@ -371,18 +414,15 @@ function Die({
         disabled={used || (rolling && !held)}
         className={`relative w-full h-full ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
-          borderRadius: radius,
-          boxShadow: buildShadow(),
-          overflow: "hidden",
+          boxShadow: icePowerActive ? "none" : buildShadow(),
+          // Ice drips must paint outside the squircle — don't clip the button.
+          overflow: icePowerActive ? "visible" : "hidden",
           background: "transparent",
         }}>
-        {/* Visual stack — mask-image only for ice power shape; otherwise border-radius clips. */}
+        {/* Visual stack — squircle clip-path on skin layers only (not ice overlay). */}
         <div
-          className="absolute inset-0"
-          style={{
-            borderRadius: radius,
-            ...(dieMaskStyle || {}),
-          }}
+          className="absolute inset-0 overflow-hidden"
+          style={dieShapeStyle}
         >
         {!isClearBody && !skin.experimental && (
           <div
@@ -438,11 +478,10 @@ function Die({
               objectFit,
             };
           }
-          const bleed = skin.id === "matrix" ? 0 : getSpriteBleed(size);
           return (
             <div
               className="absolute overflow-hidden pointer-events-none"
-              style={{ borderRadius: radius, top: -bleed, left: -bleed, right: -bleed, bottom: -bleed }}
+              style={{ inset: 0 }}
             >
               <video
                 key={activeVideoUrl}
@@ -480,7 +519,6 @@ function Die({
                   <div
                     className="absolute inset-0 pointer-events-none"
                     style={{
-                      borderRadius: radius,
                       boxShadow:
                         "inset 0 0 0 2px rgba(210,220,255,0.45), inset 0 -6px 14px rgba(100,60,255,0.4), inset 0 4px 10px rgba(220,230,255,0.45)",
                     }}
@@ -492,42 +530,31 @@ function Die({
         })()}
 
         {/* Snow Globe — borrows the Aquamarine glass shell with snowflakes drifting inside */}
-        {skin.id === "snow_globe" && (() => {
-          const aqua = getSkin("aquamarine");
-          const cellW = size * 1.7;
-          const cellH = size * 1.32;
-          const cols = aqua.spriteGrid?.cols ?? 3;
-          const rows = aqua.spriteGrid?.rows ?? 2;
-          const col = (value - 1) % cols;
-          const row = Math.floor((value - 1) / cols);
+        {effectiveSkinId === "snow_globe" && (() => {
+          const aqua = aquamarineShellSkin ?? getSkin("aquamarine");
           const { xNudge, yNudge } = getAquamarineShellNudges(value, size);
+          const shellStyle = getAquamarineShellStyle(aqua, value, size, { xNudge, yNudge });
           return (
             <>
               {/* Snowflakes drift behind — density tied to face value; goes wild for a moment AFTER the roll */}
               <SnowGlobeOverlay size={size} radius={radius} count={value} shaking={settling} />
-              {/* Aquamarine sprite as a translucent glass shell */}
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  top: `${-size * 0.14 + yNudge}px`,
-                  bottom: `${-size * 0.8 + yNudge}px`,
-                  left: `${-size * 0.35 + xNudge}px`,
-                  right: `${-size * 0.35 + xNudge}px`,
-                  backgroundImage: `url(${aqua.spriteUrl})`,
-                  backgroundSize: `${cellW * cols}px ${cellH * rows}px`,
-                  backgroundPosition: `${-(col * cellW)}px ${-(row * cellH)}px`,
-                  backgroundRepeat: "no-repeat",
-                  opacity: 0.55,
-                  mixBlendMode: "multiply",
-                }}
-              />
+              {showAquamarineShell ? (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    backgroundImage: `url(${assetUrl(aqua.spriteUrl)})`,
+                    opacity: 0.55,
+                    mixBlendMode: "multiply",
+                    ...shellStyle,
+                  }}
+                />
+              ) : null}
               {/* Glass rim */}
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  borderRadius: radius,
                   boxShadow:
-                    "inset 0 0 0 2px rgba(255,255,255,0.5), inset 0 -6px 12px rgba(0,0,0,0.2), inset 0 4px 8px rgba(255,255,255,0.45)",
+                    "inset 0 0 0 2px rgba(255,255,255,0.5), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.45)",
                 }}
               />
             </>
@@ -535,18 +562,22 @@ function Die({
         })()}
 
         {/* Blue Gel — borrows the Aquamarine glass shell with a fish swimming inside */}
-        {skin.id === "blue_gel" && (() => {
-          const aqua = getSkin("aquamarine");
-          const cellW = size * 1.7;
-          const cellH = size * 1.32;
-          const cols = aqua.spriteGrid?.cols ?? 3;
-          const rows = aqua.spriteGrid?.rows ?? 2;
-          const col = (value - 1) % cols;
-          const row = Math.floor((value - 1) / cols);
+        {effectiveSkinId === "blue_gel" && (() => {
+          const aqua = aquamarineShellSkin ?? getSkin("aquamarine");
           const { xNudge, yNudge } = getAquamarineShellNudges(value, size);
+          const shellStyle = getAquamarineShellStyle(aqua, value, size, { xNudge, yNudge });
           return (
             <>
-              {/* Feeding Frenzy (targeted fish) vs Shark Bite charge (own power mode). */}
+              {/* Bright aquarium water — clear body, no catalog sprite sheet */}
+              <div
+                className="absolute inset-0 pointer-events-none z-0"
+                style={{
+                  background:
+                    "linear-gradient(160deg, rgba(125,211,252,0.55) 0%, rgba(56,189,248,0.65) 35%, rgba(37,99,235,0.75) 70%, rgba(30,64,175,0.85) 100%)",
+                }}
+              />
+              {/* Fish swim between water and glass shell */}
+              <div className="absolute inset-0 z-[1] pointer-events-none">
               {fishFeastMode && !reduceEffects ? (
                 <BlueGelSharkAttack
                   key="feeding-frenzy"
@@ -562,6 +593,7 @@ function Die({
                     count={value}
                     bigFishVariantIndex={bigFishVariantIndex}
                     bigFishExtraScale={bigFishExtraScale}
+                    bigFishStaticPose={bigFishStaticPose}
                     includeJellyfish={includeJellyfish}
                   />
                 </BlueGelSharkAttack>
@@ -573,6 +605,7 @@ function Die({
                     count={value}
                     bigFishVariantIndex={bigFishVariantIndex}
                     bigFishExtraScale={bigFishExtraScale}
+                    bigFishStaticPose={bigFishStaticPose}
                     includeJellyfish={includeJellyfish}
                   />
                 </BlueGelSharkBiteCharge>
@@ -584,6 +617,7 @@ function Die({
                     count={value}
                     bigFishVariantIndex={bigFishVariantIndex}
                     bigFishExtraScale={bigFishExtraScale}
+                    bigFishStaticPose={bigFishStaticPose}
                     includeJellyfish={includeJellyfish}
                   />
                   {bloodWaterLocked && !reduceEffects ? (
@@ -591,29 +625,24 @@ function Die({
                   ) : null}
                 </>
               )}
-              {/* Aquamarine sprite as a translucent glass shell — on top of the fish */}
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  top: `${-size * 0.14 + yNudge}px`,
-                  bottom: `${-size * 0.8 + yNudge}px`,
-                  left: `${-size * 0.35 + xNudge}px`,
-                  right: `${-size * 0.35 + xNudge}px`,
-                  backgroundImage: `url(${aqua.spriteUrl})`,
-                  backgroundSize: `${cellW * cols}px ${cellH * rows}px`,
-                  backgroundPosition: `${-(col * cellW)}px ${-(row * cellH)}px`,
-                  backgroundRepeat: "no-repeat",
-                  opacity: 0.7,
-                  mixBlendMode: "multiply",
-                }}
-              />
+              </div>
+              {showAquamarineShell ? (
+                <div
+                  className="absolute pointer-events-none z-[2]"
+                  style={{
+                    backgroundImage: `url(${assetUrl(aqua.spriteUrl)})`,
+                    opacity: 0.7,
+                    mixBlendMode: "multiply",
+                    ...shellStyle,
+                  }}
+                />
+              ) : null}
               {/* Glass rim — thickness */}
               <div
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
-                  borderRadius: radius,
                   boxShadow:
-                    "inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 -6px 12px rgba(0,0,0,0.2), inset 0 4px 8px rgba(255,255,255,0.35)",
+                    "inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.35)",
                 }}
               />
             </>
@@ -646,29 +675,29 @@ function Die({
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
         {showSpriteLayer ?
         (() => {
-          const spriteSkin = { ...skin, spriteUrl: spriteLayer.spriteUrl, spriteCrop: spriteLayer.spriteCrop };
+          const spriteSkin = {
+            ...skin,
+            spriteUrl: displaySpriteLayer.spriteUrl,
+            spriteCrop: displaySpriteLayer.spriteCrop,
+          };
           const faceOffset = getSkinFaceOffset(skin, powerMode, value);
-          const nudgeSkinId = spriteLayer.offsetSkinId ?? skin.id;
+          const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
           const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
           return (
             <div
               className="absolute pointer-events-none z-[1]"
               style={{
-                borderRadius: radius,
-                backgroundImage: `url(${spriteLayer.spriteUrl})`,
+                backgroundImage: `url(${assetUrl(displaySpriteLayer.spriteUrl)})`,
+                backgroundColor: "transparent",
                 ...sheetStyle,
-              }} />
+              }}
+            />
           );
         })() :
 
         (skin.experimental || showPipFallback) &&
           renderPipGrid()}
-
-        {/* Frosty / Ice — frozen cubes on top of regular skin (shape applied via die mask + frame) */}
-        {icePowerActive && (
-          <IcePowerOverlay value={value} size={size} radius={radius} layer="frozen" />
-        )}
 
         {/* Matrix — animated code rain in power mode only (hidden when power video plays) */}
         {skin.id === "matrix" && powerMode && !reduceEffects && !activeVideoUrl && (
@@ -676,13 +705,11 @@ function Die({
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                borderRadius: radius,
                 boxShadow: `inset 0 0 ${Math.round(size * 0.22)}px rgba(34,197,94,0.55), 0 0 ${Math.round(size * 0.18)}px rgba(34,197,94,0.65)`,
               }}
             />
             <div
               className="absolute inset-0 pointer-events-none overflow-hidden mix-blend-screen opacity-95"
-              style={{ borderRadius: radius }}
             >
               {Array.from({ length: 12 }).map((_, i) => (
                 <motion.div
@@ -714,7 +741,6 @@ function Die({
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              borderRadius: radius,
               background:
                 "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.35) 90%, rgba(0,0,0,0.55) 100%)",
             }}
@@ -727,7 +753,6 @@ function Die({
             <div
             className="absolute inset-0 pointer-events-none opacity-80 mix-blend-overlay"
             style={{
-              borderRadius: radius,
               background:
               "conic-gradient(from 45deg at 50% 50%, rgba(255,255,255,0.9) 0deg, rgba(186,230,253,0.2) 60deg, rgba(255,255,255,0.8) 120deg, rgba(125,211,252,0.3) 180deg, rgba(255,255,255,0.9) 240deg, rgba(186,230,253,0.2) 300deg, rgba(255,255,255,0.9) 360deg)"
             }} />
@@ -737,7 +762,6 @@ function Die({
             animate={{ opacity: [0.3, 0.9, 0.3] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
             style={{
-              borderRadius: radius,
               background:
               "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.95) 0%, transparent 40%), radial-gradient(circle at 75% 70%, rgba(186,230,253,0.7) 0%, transparent 35%)"
             }} />
@@ -746,6 +770,11 @@ function Die({
         }
 
         </div>
+
+        {/* Ice overlay OUTSIDE squircle clip — drips / edge frost can overhang the die. */}
+        {icePowerActive && (
+          <IcePowerOverlay value={value} size={size} radius={radius} allowOverflow />
+        )}
       </button>
       </PortfolioDieProvider>
     </motion.div>);
@@ -756,6 +785,7 @@ function diePropsAreEqual(prev, next) {
   if (prev.devSkin !== next.devSkin) return false;
   if (prev.powerMode !== next.powerMode) return false;
   if (prev.fishFeastMode !== next.fishFeastMode) return false;
+  if (prev.iceFrozenOverlay !== next.iceFrozenOverlay) return false;
   return (
     prev.value === next.value &&
     prev.held === next.held &&
@@ -766,6 +796,7 @@ function diePropsAreEqual(prev, next) {
     prev.scoreFill === next.scoreFill &&
     prev.bigFishVariantIndex === next.bigFishVariantIndex &&
     prev.bigFishExtraScale === next.bigFishExtraScale &&
+    prev.bigFishStaticPose === next.bigFishStaticPose &&
     prev.includeJellyfish === next.includeJellyfish &&
     prev.heldStyleId === next.heldStyleId &&
     prev.dieId === next.dieId &&

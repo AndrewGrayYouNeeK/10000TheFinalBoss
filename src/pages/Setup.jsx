@@ -12,6 +12,7 @@ import { useCosmetics } from "@/hooks/useCosmetics";
 import {
   buildDefaultSetupDisguiseIds,
   buildDefaultSetupSkinIds,
+  getSetupDisguiseOptions,
   SESSION_PLAYER_DISGUISES_KEY,
   SESSION_PLAYER_SKINS_KEY,
 } from "@/lib/ghostDisguise";
@@ -123,6 +124,11 @@ export default function Setup() {
 
   const rosterReady =
     !isLoading && playerSkins?.length === players.length && playerDisguises?.length === players.length;
+  const disguiseOptions = getSetupDisguiseOptions(ownedSkins);
+  const ghostReady = (playerSkins || []).every(
+    (skinId, i) =>
+      skinId !== "ghost" || !!disguiseLocked[i] || disguiseOptions.length === 0,
+  );
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-10 relative">
@@ -252,8 +258,9 @@ export default function Setup() {
         <div className="px-4 max-w-md w-full mx-auto mt-6">
           <Button
             onClick={startGame}
+            disabled={!rosterReady || !ghostReady}
             size="lg"
-            className="w-full h-14 text-lg text-white font-black uppercase tracking-widest border-2"
+            className="w-full h-14 text-lg text-white font-black uppercase tracking-widest border-2 disabled:opacity-40 disabled:grayscale"
             style={{
               background: "linear-gradient(135deg, rgba(255,0,170,0.25), rgba(0,255,200,0.25))",
               borderColor: "#00ffc8",
@@ -264,6 +271,11 @@ export default function Setup() {
           >
             <Play className="w-5 h-5 mr-2" /> Start Game
           </Button>
+          {!ghostReady && rosterReady ? (
+            <p className="text-center text-xs text-amber-300/90 mt-2 font-term tracking-wide">
+              Ghost runners must pick a dice look before starting.
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

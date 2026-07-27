@@ -80,10 +80,13 @@ export const VIDEO_KEYS = {
   MATRIX_POWER: "matrix_power",
   DIAMOND_CUT_POWER: "diamond_cut_power",
   BLUE_GEL_POWER: "blue_gel_power",
+  /** Approach / swim-in before the chomp clip (upload only — no catalog fallback). */
+  BLUE_GEL_SHARK_BITE_INTRO: "blue_gel_shark_bite_intro",
   STORY_MODE: "story_mode",
   STORY_BOSS_WIN: "story_boss_win",
   GAMEPLAY_LOOP: "gameplay_loop",
   GAMEPLAY_BILLBOARD: "gameplay_billboard",
+  CHARACTERS_LOOP: "characters_loop",
 };
 
 export const VIDEO_FALLBACK_PATHS = {
@@ -94,16 +97,19 @@ export const VIDEO_FALLBACK_PATHS = {
   [VIDEO_KEYS.STORY_BOSS_WIN]: "/assets/story_boss_win.mp4",
   [VIDEO_KEYS.GAMEPLAY_LOOP]: "/assets/gameplay_header_loop.mp4",
   [VIDEO_KEYS.GAMEPLAY_BILLBOARD]: "/assets/gameplay_billboard.mp4",
+  [VIDEO_KEYS.CHARACTERS_LOOP]: "/assets/characters_loop.mp4",
 };
 
 export const VIDEO_LABELS = {
   [VIDEO_KEYS.MATRIX_POWER]: "Matrix power dice",
   [VIDEO_KEYS.DIAMOND_CUT_POWER]: "Diamond Cut power dice",
-  [VIDEO_KEYS.BLUE_GEL_POWER]: "Blue Gel / Shark power mode video",
+  [VIDEO_KEYS.BLUE_GEL_POWER]: "Chomps whole screen",
+  [VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]: "Swim forward",
   [VIDEO_KEYS.STORY_MODE]: "Story hub banner",
   [VIDEO_KEYS.STORY_BOSS_WIN]: "Boss defeated",
   [VIDEO_KEYS.GAMEPLAY_LOOP]: "Gameplay header loop",
   [VIDEO_KEYS.GAMEPLAY_BILLBOARD]: "In-match billboard (10,000 sign)",
+  [VIDEO_KEYS.CHARACTERS_LOOP]: "Player portraits (local game)",
 };
 
 export const VIDEO_DESCRIPTIONS = {
@@ -112,7 +118,9 @@ export const VIDEO_DESCRIPTIONS = {
   [VIDEO_KEYS.DIAMOND_CUT_POWER]:
     "3×2 face-grid MP4 shown on Diamond Cut dice when power is charged. Upload here or drop in public/assets/diamond_cut_power.mp4.",
   [VIDEO_KEYS.BLUE_GEL_POWER]:
-    "Fullscreen shark / Blue Gel power video over gameplay when Shark Bite is charged or resolves. Black background is keyed out. Preview: /game?previewSharkBite=1 or /fish-showcase. Catalog fallback: public/assets/blue_gel_power.mp4.",
+    "Slot 2 — shark chomps the whole screen over the dice tray. Plays after Swim forward (if uploaded) or alone. Black background is keyed out. Upload: /shark-bite-lab, /fish-showcase, or /video-assets. Catalog fallback only when this slot is empty: public/assets/blue_gel_power.mp4.",
+  [VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]:
+    "Slot 1 — shark swims forward toward the tray. Plays once, then crossfades into Chomps whole screen. Upload only (no catalog file). Same chroma settings as slot 2.",
   [VIDEO_KEYS.STORY_MODE]:
     "Looping banner on the Story hub ladder page only — not used as a boss-fight intro.",
   [VIDEO_KEYS.STORY_BOSS_WIN]:
@@ -121,6 +129,8 @@ export const VIDEO_DESCRIPTIONS = {
     "Optional looping clip (Neo avatar fallback). Not shown above the 10,000 sign in local games.",
   [VIDEO_KEYS.GAMEPLAY_BILLBOARD]:
     "Looping video in the YouNeeK 10,000 neon sign area during local multiplayer matches.",
+  [VIDEO_KEYS.CHARACTERS_LOOP]:
+    "Looping character strip for local multiplayer player portraits (ScorePanel). Upload here or drop public/assets/characters_loop.mp4 — one horizontal row, one character per player slot (2–4).",
 };
 
 const cache = new Map();

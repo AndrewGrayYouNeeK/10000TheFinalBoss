@@ -6,6 +6,7 @@ import RulesSheet from "@/components/game/RulesSheet";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
 import DiamondShowcase from "@/components/home/DiamondShowcase";
+import DevServerTip from "@/components/home/DevServerTip";
 import { isNativeApp } from "@/lib/platform";
 import { assetUrl } from "@/lib/assetUrl";
 
@@ -120,6 +121,8 @@ export default function Home() {
       </div>
       )}
 
+      <DevServerTip />
+
       {/* Top bar */}
       <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
         <Link
@@ -186,8 +189,8 @@ export default function Home() {
 
         {native && <div className="flex-1 min-h-2" aria-hidden />}
 
-        {/* Buttons */}
-        <div className={`space-y-3 ${native ? "shrink-0" : ""}`}>
+        {/* Buttons — above DiceRain canvas (z-20) so taps always register */}
+        <div className={`relative z-30 space-y-3 ${native ? "shrink-0" : ""}`}>
           {/* Primary CTA */}
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
             <Link

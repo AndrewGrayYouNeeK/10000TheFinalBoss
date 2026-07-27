@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/button";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
+import SharkBiteControls from "@/components/game/SharkBiteControls";
 import BlueGelChromaControls from "@/components/game/BlueGelChromaControls";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import { BOSSES } from "@/lib/storyBosses";
@@ -108,11 +109,23 @@ export default function VideoAssets() {
             <div>
               <h2 className="text-sm font-black text-rose-200">Blue Gel — Shark Bite workbench</h2>
               <p className="text-[11px] text-slate-400 mt-1 max-w-md">
-                Upload or use the catalog clip, tune background removal live, then preview the full
-                bite over real gameplay. Settings save on this device.
+                Upload both clips below — they play as one power move (swim forward, then chomp).
+                Tune background removal live; settings save on this device.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Link
+                to="/shark-bite-lab"
+                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-700 hover:bg-rose-600 text-white"
+              >
+                Shark Bite Lab
+              </Link>
+              <Link
+                to="/sprite-lab/blue_gel"
+                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
+              >
+                Blue Gel dice lab
+              </Link>
               <Link
                 to="/game?previewSharkBite=1"
                 className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white"
@@ -127,7 +140,9 @@ export default function VideoAssets() {
               </Link>
             </div>
           </div>
+          <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO} />
           <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_POWER} />
+          <SharkBiteControls showWorkbenchLinks={false} />
           <BlueGelChromaControls showWorkbenchLinks={false} />
         </section>
 
@@ -159,6 +174,7 @@ export default function VideoAssets() {
 
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_MODE} />
         <VideoUploadCard videoKey={VIDEO_KEYS.STORY_BOSS_WIN} />
+        <VideoUploadCard videoKey={VIDEO_KEYS.CHARACTERS_LOOP} />
 
         <p className="text-xs text-slate-400 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2">
           Shark Bite quick links:{" "}
@@ -166,10 +182,18 @@ export default function VideoAssets() {
             /game?previewSharkBite=1
           </Link>{" "}
           (Marlin practice — POWER DICE / SHARK VID / ▶ BITE FX) ·{" "}
+          <Link to="/shark-bite-lab" className="text-rose-300 underline font-bold">
+            /shark-bite-lab
+          </Link>{" "}
+          (timing + chroma tuner) ·{" "}
+          <Link to="/sprite-lab/blue_gel" className="text-cyan-300 underline font-bold">
+            /sprite-lab/blue_gel
+          </Link>{" "}
+          (dice preview only) ·{" "}
           <Link to="/fish-showcase" className="text-rose-300 underline font-bold">
             /fish-showcase
           </Link>{" "}
-          (feast → chomp tray preview + chroma tuner).
+          (feast → chomp tray preview + upload).
         </p>
 
         <p className="text-xs text-slate-400 rounded-lg border border-sky-500/25 bg-sky-950/20 px-3 py-2">
@@ -253,7 +277,7 @@ export default function VideoAssets() {
           </Link>
           . Neo story videos (intro, win, avatar loop) are there too and under <b>Neo</b> above.
           Other power dice uploads are on each dice&apos;s Sprite Lab (Diamond Cut, etc.). Story
-          before/after videos for Glacia, Vitrea, Sir Scalewyrm, and Neo are on matching dice labs.
+          before/after videos for Glacia, GQ, Sir Scalewyrm, and Neo are on matching dice labs.
           Frosty and all other bosses upload above. Blue Gel / shark power video and{" "}
           <Link to="/fish-showcase" className="text-cyan-400 underline">
             Preview shark attack

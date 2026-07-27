@@ -3,9 +3,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LevelBadge from "@/components/online/LevelBadge";
+import PlayerAvatarVideo from "@/components/game/PlayerAvatarVideo";
 import { normalizeXrayFindings } from "@/lib/xrayScan";
 
-export default function ScorePanel({ players, currentIndex, target = 10000, obscuredIndices = null, xrayReveals = {} }) {
+export default function ScorePanel({
+  players,
+  currentIndex,
+  target = 10000,
+  obscuredIndices = null,
+  xrayReveals = {},
+  showPlayerAvatars = false,
+}) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {players.map((p, i) => {
@@ -47,6 +55,15 @@ export default function ScorePanel({ players, currentIndex, target = 10000, obsc
             )}
 
             <div className="flex items-center gap-2 mb-1 relative">
+              {showPlayerAvatars && (
+                <PlayerAvatarVideo
+                  playerIndex={i}
+                  playerCount={players.length}
+                  label={p.name}
+                  active={active}
+                  sizeClass="w-9 h-9"
+                />
+              )}
               {active && (
                 <Zap
                   className="w-4 h-4 animate-pulse"

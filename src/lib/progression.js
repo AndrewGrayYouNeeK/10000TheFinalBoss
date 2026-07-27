@@ -130,6 +130,28 @@ export function getSkinEffectivePrice(skin, xp = 0) {
   return skin.price * TIER_SHORTCUT_MULTIPLIER;
 }
 
+/**
+ * ONLINE SKIN LEVELS (future — not wired to local gameplay)
+ * ───────────────────────────────────────────────────────────
+ * Each owned skin gets an independent level 1–100 in online PvP.
+ * Higher level = stronger dice (e.g. faster charge threshold, roll bonuses).
+ * Needs: server-synced `skin_levels`, match payload, server-side validation.
+ * Local stub: `localProfile.skin_levels` + getSkinPowerLevel() below.
+ */
+export const MAX_SKIN_POWER_LEVEL = 100;
+export const DEFAULT_SKIN_POWER_LEVEL = 1;
+
+/** Per-skin power level 1–100 (online stub; defaults to 1). */
+export function getSkinPowerLevel(skinId, skinLevels = {}) {
+  const raw = skinLevels?.[skinId];
+  const level = Number(raw);
+  if (!Number.isFinite(level)) return DEFAULT_SKIN_POWER_LEVEL;
+  return Math.min(
+    MAX_SKIN_POWER_LEVEL,
+    Math.max(DEFAULT_SKIN_POWER_LEVEL, Math.floor(level))
+  );
+}
+
 // XP rewards
 export const XP_REWARDS = {
   finishGame: 25,

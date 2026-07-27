@@ -23,6 +23,18 @@ npm run ios:sync     # build web + sync to Capacitor iOS
 npm run ios:open     # open Xcode workspace
 ```
 
+## Dev Server (Important)
+
+**Do not start `npm run dev` as part of routine agent work.** Agent terminal sessions are ephemeral — when the agent finishes, the dev server is killed and the user sees `ERR_CONNECTION_REFUSED` at `http://localhost:5173`.
+
+The user should run the dev server once in their **own Terminal** (outside Cursor agent sessions):
+
+```bash
+npm run dev
+```
+
+Leave that terminal open while developing. Use `npm run build` and `npm run lint` to verify changes. Only start the dev server if the user explicitly asks, and warn them it will stop when the agent session ends.
+
 ## Architecture
 
 ```

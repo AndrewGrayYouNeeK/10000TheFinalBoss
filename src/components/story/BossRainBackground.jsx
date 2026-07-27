@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { attachDeviceTilt } from "@/lib/deviceTilt";
 import { isLowPowerDevice } from "@/lib/platform";
 
 // Per-boss theme map: glyph set + colors. Anything not in this map falls back to dice faces.
@@ -84,7 +85,6 @@ const THEMES = {
   decimus:      { glyphs: ["👑","◆","✦","✧","◊"], color: "rgba(255,220,80,0.95)", glow: "rgba(255,180,40,0.65)", bg: "#180c04" },
   obsidian_blade:{glyphs: ["🗡","◈","◇","◊","✦"], color: "rgba(200,200,220,0.9)", glow: "rgba(160,160,200,0.5)", bg: "#08080c" },
   shattered:    { glyphs: ["◊","◇","◈","✦","·"], color: "rgba(200,180,160,0.9)", glow: "rgba(180,150,120,0.5)", bg: "#0c0a08" },
-  diamond_cut:  { glyphs: ["💎","◆","◇","✦","✧"], color: "rgba(180,240,255,0.95)", glow: "rgba(120,220,255,0.65)", bg: "#040c18" },
 
   // Final boss — slow, natural $100 bill rain
   gq:           {
@@ -817,6 +817,8 @@ export default function BossRainBackground({
       const phy = cfg.physics ?? null;
       const COUNT = isLowPowerDevice() ? cfg.count.low : cfg.count.normal;
       const [hMin, hMax] = cfg.height;
+      const tiltEnabled = bossId === "gq";
+      const deviceTilt = tiltEnabled ? attachDeviceTilt({ baseGravity: 0.12, tiltStrength: 0.32 }) : null;
 
       const spawn = (initial = false) => {
         const billH = randomBetween(hMin, hMax);
@@ -936,6 +938,13 @@ export default function BossRainBackground({
       const resize = () => {
         const { w, h } = billOverlay ? measureOverlayCanvas() : measureInsetCanvas();
         if (canvas.width === w && canvas.height === h && particles.length > 0) return;
+
+        const prevW = canvas.width || w;
+        const prevH = canvas.height || h;
+        const scaleX = prevW > 0 ? w / prevW : 1;
+        const scaleY = prevH > 0 ? h / prevH : 1;
+        const hadParticles = particles.length > 0;
+
         canvas.width = w;
         canvas.height = h;
         ctx.fillStyle = theme.bg;
@@ -947,6 +956,15 @@ export default function BossRainBackground({
           canvasFront.height = h;
           ctxFront.clearRect(0, 0, w, h);
         }
+
+        if (hadParticles) {
+          particles.forEach((p) => {
+            p.x *= scaleX;
+            p.y *= scaleY;
+          });
+          return;
+        }
+
         particles = Array.from({ length: COUNT }, (_, idx) => {
           const p = spawn(true);
           if (billOverlay && p.front) {
@@ -996,11 +1014,19 @@ export default function BossRainBackground({
         }
         if (ctxFront) ctxFront.clearRect(0, 0, canvas.width, canvas.height);
 
+        const tiltGravity = deviceTilt?.getGravity() ?? null;
+
         particles.forEach((p, i) => {
           if (p.collisionGrace > 0) p.collisionGrace -= 1;
           p.wobble += p.wobbleSpeed * step;
 
           applyBillNaturalMotion(p, step, phy);
+
+          if (tiltGravity) {
+            const tiltScale = p.fastSpinner ? 0.85 : 1.15;
+            p.vx += tiltGravity.gx * step * 0.22 * tiltScale;
+            p.vy += tiltGravity.gy * step * 0.22 * tiltScale;
+          }
 
           p.bvx *= phy ? 0.94 : 0.9;
           p.bvy *= phy ? 0.94 : 0.9;
@@ -1073,6 +1099,7 @@ export default function BossRainBackground({
         cancelAnimationFrame(frame);
         window.removeEventListener("resize", resize);
         ro?.disconnect();
+        deviceTilt?.destroy();
       };
     }
 

@@ -31,7 +31,7 @@ export function getDisplaySkinId(player, options) {
   return getPretendSkin(player, options);
 }
 
-/** Shop/home previews — render the disguise when previewing or equipping Ghost. */
+/** Equipped/home previews — render Ghost as its chosen disguise (not the spectral body). */
 export function resolveDiceSkinId(skinId, { ghostDisguiseId = null, ownedSkins = [] } = {}) {
   if (skinId !== GHOST_SKIN_ID) return normalizeSkinId(skinId);
   return normalizeSkinId(ghostDisguiseId || pickTrueSkinForGhost(ownedSkins));

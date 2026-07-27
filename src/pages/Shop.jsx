@@ -155,7 +155,7 @@ export default function Shop() {
               </div>
               <div className="flex justify-center gap-3 py-2 flex-wrap">
                 {["pf_radar_sweep", "pf_score_meter", "pf_tornado", "ghost", "cyber_neon"].map((id) => (
-                  <DicePreview key={id} skinId={id} value={5} />
+                  <DicePreview key={id} skinId={id} value={5} resolveGhost={false} />
                 ))}
               </div>
             </div>
@@ -224,10 +224,14 @@ export default function Shop() {
                                       ? "border-sky-500/40 text-sky-200"
                                       : id === "snow_globe"
                                         ? "border-sky-500/40 text-sky-200"
-                                        : "border-orange-500/40 text-orange-200"
+                                        : id === "blue_gel"
+                                          ? "border-cyan-500/40 text-cyan-200"
+                                          : "border-orange-500/40 text-orange-200"
                               )}
                             >
-                              <Link to={`/sprite-lab/${id}`}>{getSkin(id)?.name || id} lab</Link>
+                              <Link to={`/sprite-lab/${id}`}>
+                                {id === "blue_gel" ? "Blue Gel · Marlin Joe" : `${getSkin(id)?.name || id} lab`}
+                              </Link>
                             </Button>
                           ))}
                         </div>
@@ -249,7 +253,7 @@ export default function Shop() {
                           canAfford={coins >= effectivePrice}
                           onBuy={() => handleBuy("skin", skin)}
                           onEquip={() => handleEquip("skin", skin)}
-                          preview={<DicePreview skinId={skin.id} />}
+                          preview={<DicePreview skinId={skin.id} resolveGhost={false} />}
                           duplicateTag={dupes[skin.id]}
                           tierLocked={tierLocked}
                           achievementOnly={achievementOnly}
@@ -281,7 +285,7 @@ export default function Shop() {
                     canAfford={false}
                     onBuy={() => handleBuy("skin", skin)}
                     onEquip={() => handleEquip("skin", skin)}
-                    preview={<DicePreview skinId={skin.id} />}
+                    preview={<DicePreview skinId={skin.id} resolveGhost={false} />}
                     achievementOnly={!ownedSkins.includes(skin.id)}
                     hideLockedAction={ownedSkins.includes(skin.id)}
                     effectivePrice={0}

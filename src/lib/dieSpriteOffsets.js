@@ -181,16 +181,29 @@ export function getSpriteSheetStyle(skin, value, size, { xNudge, yNudge }) {
   const cellH = size * 1.32 * zoom;
   const colStep = cellW + (stretch * 2) / cols;
   const rowStep = cellH + (stretch * 2) / rows;
+  const sheetW = cellW * cols + stretch * 2;
+  const sheetH = cellH * rows + stretch * 2;
+
+  // inset:0 + shifted backgroundPosition — keeps art inside squircle clip-path
+  // (negative top/left/right/bottom on the sprite div gets clipped away).
+  const padTop = size * 0.14 - yNudge + stretch;
+  const padLeft = size * 0.35 - xNudge + stretch;
 
   return {
-    top: `${-size * 0.14 + yNudge - stretch}px`,
-    bottom: `${-size * 0.8 + yNudge - stretch}px`,
-    left: `${-size * 0.35 + xNudge - stretch}px`,
-    right: `${-size * 0.35 + xNudge - stretch}px`,
-    backgroundSize: `${cellW * cols + stretch * 2}px ${cellH * rows + stretch * 2}px`,
-    backgroundPosition: `${-(col * colStep) + spriteCropBgX}px ${-(row * rowStep) - spriteCropBgY}px`,
+    inset: 0,
+    backgroundSize: `${sheetW}px ${sheetH}px`,
+    backgroundPosition: `${-(col * colStep) + spriteCropBgX + padLeft}px ${-(row * rowStep) - spriteCropBgY + padTop}px`,
     backgroundRepeat: "no-repeat",
   };
+}
+
+/**
+ * Aquamarine glass shell for Blue Gel / Snow Globe — same crop as tuned Aquamarine sprites.
+ * Uses inset:0 + shifted backgroundPosition so face 1 pip stays inside the squircle clip
+ * (negative bleed-box offsets get clipped and exposed dark sheet padding on face 1).
+ */
+export function getAquamarineShellStyle(skin, value, size, nudges = {}) {
+  return getSpriteSheetStyle(skin, value, size, nudges);
 }
 
 /** Tesla/plasma video face offsets — already in die-width units (do not scale by size). */

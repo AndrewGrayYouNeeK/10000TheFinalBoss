@@ -108,7 +108,7 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
       className="absolute"
       style={{
         top: `${top}%`,
-        left: staticPose ? "18%" : 0,
+        left: staticPose ? (v.angelfish ? "28%" : "18%") : 0,
         width: fishSize,
         height: fishSize * 0.6,
       }}
@@ -210,6 +210,7 @@ export default function FishOverlay({
   count = 1,
   bigFishVariantIndex = 0,
   bigFishExtraScale = 1,
+  bigFishStaticPose = false,
   includeJellyfish = false,
 }) {
   // Distribute creatures vertically. At most one jellyfish on the whole tray
@@ -223,6 +224,7 @@ export default function FishOverlay({
       ? ANGELFISH_INDICES[bigFishVariantIndex % ANGELFISH_INDICES.length]
       : bigFishVariantIndex % FISH_VARIANTS.length;
     const bigVariant = FISH_VARIANTS[effectiveBigIndex];
+    const face1Angelfish = n === 1 && bigVariant?.angelfish;
     const smallPool = FISH_VARIANTS
       .filter((_, i) => i !== effectiveBigIndex)
       .sort(() => Math.random() - 0.5);
@@ -236,7 +238,7 @@ export default function FishOverlay({
     }
 
     for (let i = 0; i < n; i++) {
-      const top = n === 1 ? 40 : 12 + (i * 68) / (n - 1);
+      const top = n === 1 ? (face1Angelfish ? 34 : 40) : 12 + (i * 68) / (n - 1);
       const baseScale = n >= 5 ? 0.75 : n >= 3 ? 0.85 : 1;
       const isBig = i === bigIdx;
       const isJelly = i === jellySlot && !isBig;
@@ -259,11 +261,12 @@ export default function FishOverlay({
           dir: i % 2 === 0 ? 1 : -1,
           scale: isBig ? baseScale * 1.6 * bigFishExtraScale : baseScale,
           variant: isBig ? bigVariant : smallPool[smallCursor++ % smallPool.length],
+          staticPose: isBig && (bigFishStaticPose || face1Angelfish),
         });
       }
     }
     return arr;
-  }, [count, bigFishVariantIndex, bigFishExtraScale, includeJellyfish]);
+  }, [count, bigFishVariantIndex, bigFishExtraScale, bigFishStaticPose, includeJellyfish]);
 
   return (
     <div
