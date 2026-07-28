@@ -1,6 +1,12 @@
 import React from "react";
 import { motion } from "framer-motion";
 
+/** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
+function safeAnimDuration(seconds, min = 0.001) {
+  const n = Number(seconds);
+  return Number.isFinite(n) ? Math.max(min, n) : min;
+}
+
 /**
  * A single drifting snowflake.
  */
@@ -24,10 +30,12 @@ function Snowflake({ size, leftPct, delay, duration, drift, scale, shaking, star
               opacity: [1, 1, 1, 1, 1, 1],
             }
           : {
-              y: [0, size * 1.2],
+              // WAAPI requires every animated property's keyframe array to be the
+              // same length as `times` — keep all of these at 5 entries.
+              y: [0, size * 0.18, size * 0.6, size * 1.02, size * 1.2],
               x: [0, drift, -drift, drift * 0.5, 0],
               opacity: [0, 1, 1, 1, 0],
-              rotate: [0, 360],
+              rotate: [0, 90, 180, 270, 360],
             }
       }
       transition={
@@ -38,7 +46,7 @@ function Snowflake({ size, leftPct, delay, duration, drift, scale, shaking, star
               times: [0, 0.2, 0.4, 0.6, 0.8, 1],
             }
           : {
-              duration,
+              duration: safeAnimDuration(duration),
               repeat: Infinity,
               delay,
               ease: "linear",
@@ -52,7 +60,6 @@ function Snowflake({ size, leftPct, delay, duration, drift, scale, shaking, star
           <line x1="1" y1="8" x2="15" y2="8" />
           <line x1="3" y1="3" x2="13" y2="13" />
           <line x1="13" y1="3" x2="3" y2="13" />
-          {/* small arms */}
           <line x1="8" y1="3" x2="6" y2="4.5" />
           <line x1="8" y1="3" x2="10" y2="4.5" />
           <line x1="8" y1="13" x2="6" y2="11.5" />
@@ -86,7 +93,6 @@ export default function SnowGlobeOverlay({ size, radius, count = 1, shaking = fa
       className="absolute inset-0 pointer-events-none overflow-hidden"
       style={{ borderRadius: radius }}
     >
-      {/* Soft snowy backdrop at the bottom (snow pile) */}
       <div
         className="absolute inset-x-0 bottom-0 pointer-events-none"
         style={{
@@ -96,7 +102,6 @@ export default function SnowGlobeOverlay({ size, radius, count = 1, shaking = fa
         }}
       />
 
-      {/* Light highlights from above */}
       <div
         className="absolute inset-0 opacity-50"
         style={{
@@ -105,7 +110,6 @@ export default function SnowGlobeOverlay({ size, radius, count = 1, shaking = fa
         }}
       />
 
-      {/* Drifting snowflakes */}
       {flakes.map((f, i) => (
         <Snowflake key={`${shaking ? "s" : "d"}-${i}`} size={size} shaking={shaking} {...f} />
       ))}

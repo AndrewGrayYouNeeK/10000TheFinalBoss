@@ -118,9 +118,9 @@ export const VIDEO_DESCRIPTIONS = {
   [VIDEO_KEYS.DIAMOND_CUT_POWER]:
     "3×2 face-grid MP4 shown on Diamond Cut dice when power is charged. Upload here or drop in public/assets/diamond_cut_power.mp4.",
   [VIDEO_KEYS.BLUE_GEL_POWER]:
-    "Slot 2 — shark chomps the whole screen over the dice tray. Plays after Swim forward (if uploaded) or alone. Black background is keyed out. Upload: /shark-bite-lab, /fish-showcase, or /video-assets. Catalog fallback only when this slot is empty: public/assets/blue_gel_power.mp4.",
+    "Slot 2 — your custom chomp clip. When uploaded, the original catalog bite (public/assets/blue_gel_power.mp4) always plays first, then this upload — dice vanish on the upload. With no upload, catalog plays alone. Black background is keyed out.",
   [VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]:
-    "Slot 1 — shark swims forward toward the tray. Plays once, then crossfades into Chomps whole screen. Upload only (no catalog file). Same chroma settings as slot 2.",
+    "Slot 1 — optional swim-in after the original catalog bite. When uploaded alone, catalog chomps first then this clip. Upload only (no catalog file). Same chroma settings as slot 2.",
   [VIDEO_KEYS.STORY_MODE]:
     "Looping banner on the Story hub ladder page only — not used as a boss-fight intro.",
   [VIDEO_KEYS.STORY_BOSS_WIN]:

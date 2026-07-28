@@ -1,7 +1,8 @@
 const STORAGE_KEY = "dice10k_profile";
 
 const RAGNAROK_LEGACY_SKINS = ["lava", "ragnarok_regular"];
-const REMOVED_STORY_BOSS_IDS = ["diamond_cut"];
+const REMOVED_SKIN_IDS = ["tesla"];
+const REMOVED_STORY_BOSS_IDS = ["diamond_cut", "tesla_phreak"];
 
 function migrateProfile(profile) {
   const next = { ...profile };
@@ -10,8 +11,18 @@ function migrateProfile(profile) {
     owned = [...new Set([...owned.filter((id) => !RAGNAROK_LEGACY_SKINS.includes(id)), "ragnarok"])];
     next.owned_skins = owned;
   }
+  if (owned.some((id) => REMOVED_SKIN_IDS.includes(id))) {
+    owned = owned.filter((id) => !REMOVED_SKIN_IDS.includes(id));
+    next.owned_skins = owned;
+  }
   if (RAGNAROK_LEGACY_SKINS.includes(next.equipped_skin)) {
     next.equipped_skin = "ragnarok";
+  }
+  if (REMOVED_SKIN_IDS.includes(next.equipped_skin)) {
+    next.equipped_skin = "classic_white";
+  }
+  if (REMOVED_SKIN_IDS.includes(next.ghost_disguise)) {
+    next.ghost_disguise = null;
   }
   if (RAGNAROK_LEGACY_SKINS.includes(next.ghost_disguise)) {
     next.ghost_disguise = "ragnarok";
@@ -59,6 +70,15 @@ const DEFAULT_PROFILE = {
   video_uploads: {},
   /** Online stub: per-skin power level 1–100 (see progression.getSkinPowerLevel). */
   skin_levels: {},
+  /** What opponents see during your turn in online PvP (sync to server when live). */
+  online_visibility: {
+    hideDice: true,
+    hideTurnScore: true,
+    hidePowerPanel: true,
+    hidePowerChargeBadge: true,
+    hideXrayReveals: true,
+    subtlePowerVfx: true,
+  },
 };
 
 export function loadProfile() {

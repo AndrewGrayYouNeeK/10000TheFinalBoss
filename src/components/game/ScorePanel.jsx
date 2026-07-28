@@ -13,6 +13,8 @@ export default function ScorePanel({
   obscuredIndices = null,
   xrayReveals = {},
   showPlayerAvatars = false,
+  /** Player indices whose ⚡ charge badge should not render (pass-and-play shield). */
+  hidePowerChargeForIndices = null,
 }) {
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -89,7 +91,7 @@ export default function ScorePanel({
                     🧊 Score Frozen
                   </span>
                 )}
-                {p.powerCharge && (
+                {p.powerCharge && !hidePowerChargeForIndices?.has?.(i) && (
                   <span
                     className="text-[9px] font-black uppercase tracking-wider"
                     style={{ color: "#ffb347", textShadow: "0 0 6px rgba(255,107,0,0.8)" }}

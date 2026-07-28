@@ -64,7 +64,6 @@ const THEMES = {
   // Tier 6 — high-tech
   hacker:       { glyphs: ["0","1","{","}","<",">","/","\\","|","#"], color: "rgba(120,220,255,0.9)", glow: "rgba(60,180,255,0.6)", bg: "#04081a" },
   the_grid:     { glyphs: ["▓","▒","░","■","□","◧","◨"], color: "rgba(255,80,220,0.9)", glow: "rgba(255,40,200,0.55)", bg: "#100418" },
-  tesla_phreak: { glyphs: ["⚡","↯","↟","✦"], color: "rgba(220,180,255,0.95)", glow: "rgba(180,100,255,0.7)", bg: "#08041a" },
   neo:          {
     glyphs: [
       "A","N","D","R","E","W"," ","G","R","A","Y",

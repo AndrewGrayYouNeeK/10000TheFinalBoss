@@ -248,24 +248,17 @@ export function applySkinPower(state, powerId) {
         return { state, message: "Need an opponent to scan.", variant: "warning" };
       }
 
-      const { reveals, scanned, hasAny } = scanAllOpponents(state);
-
-      if (!hasAny) {
-        return {
-          state,
-          message: "🔬 X-Ray — no hidden information detected.",
-          variant: "warning",
-        };
-      }
+      const { reveals, scanned } = scanAllOpponents(state);
 
       return {
         state: {
           ...state,
           xrayReveals: reveals,
+          xrayScannerIndex: state.currentIndex,
           message: `🔬 X-Ray — ${formatXraySummary(scanned)}`,
           messageVariant: "success",
         },
-        message: "Hidden info revealed!",
+        message: "Scan complete!",
         variant: "success",
       };
     }

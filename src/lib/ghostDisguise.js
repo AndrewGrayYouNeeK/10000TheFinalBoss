@@ -1,4 +1,5 @@
 import { getSkin, normalizeSkinId } from "@/lib/shopCatalog";
+import { getPower } from "@/lib/powers";
 import { getSkinPower } from "@/lib/skinPowers";
 
 export const GHOST_SKIN_ID = "ghost";
@@ -175,16 +176,42 @@ export function primaryOpponentIndex(state, playerIndex = state?.currentIndex ??
 
 /**
  * Resolve the secret power a player will fire.
- * Ghost copies the opponent's pretend skin — never its own fixed power.
+ * All players (including Ghost) use the dice skin shown on the table (getDisplaySkinId).
+ * Bare Ghost (no disguise) mimics the opponent's pretend skin.
+ * Story overrides may set player.chargePowerId (e.g. Frosty arc, Marlin boss).
  */
-export function resolvePlayerPower(state, playerIndex = state?.currentIndex ?? 0) {
+export function resolvePlayerPower(state, playerIndex = state?.currentIndex ?? 0, options = {}) {
   const player = state?.players?.[playerIndex];
   if (!player) {
     return { power: null, mimicSkinId: null, isMimic: false, sourcePlayerName: null };
   }
 
+  if (player.chargePowerId) {
+    const override = getPower(player.chargePowerId);
+    if (override) {
+      const skinId = getDisplaySkinId(player, options);
+      return {
+        power: override,
+        mimicSkinId: skinId,
+        isMimic: false,
+        sourcePlayerName: null,
+      };
+    }
+  }
+
   if (!isGhostPlayer(player)) {
-    const skinId = player.skinId || "classic_white";
+    const skinId = getDisplaySkinId(player, options);
+    return {
+      power: getSkinPower(skinId),
+      mimicSkinId: skinId,
+      isMimic: false,
+      sourcePlayerName: null,
+    };
+  }
+
+  const disguiseSkinId = resolveGhostDisguise(player, options);
+  if (disguiseSkinId) {
+    const skinId = normalizeSkinId(disguiseSkinId);
     return {
       power: getSkinPower(skinId),
       mimicSkinId: skinId,
@@ -195,7 +222,7 @@ export function resolvePlayerPower(state, playerIndex = state?.currentIndex ?? 0
 
   const oppIdx = primaryOpponentIndex(state, playerIndex);
   const opponent = state.players[oppIdx];
-  const mimicSkinId = getPretendSkin(opponent);
+  const mimicSkinId = getPretendSkin(opponent, options);
 
   return {
     power: getSkinPower(mimicSkinId),

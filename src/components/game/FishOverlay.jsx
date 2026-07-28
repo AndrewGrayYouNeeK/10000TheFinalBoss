@@ -24,6 +24,14 @@ export const FISH_VARIANTS = [
   { id: "angelfish_blue", name: "Blue Angelfish", tail: "#1e40af", body: "#3b82f6", highlight: "#93c5fd", fin: "#1d4ed8", mouth: "#1e3a8a", stripe: "#1e3a8a", angelfish: true },
 ];
 
+/** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
+function safeAnimDuration(seconds, min = 0.001) {
+  const n = Number(seconds);
+  return Number.isFinite(n) ? Math.max(min, n) : min;
+}
+
+const FROZEN_TRANSITION = { duration: 0 };
+
 export const JELLYFISH_VARIANTS = [
   { id: "jelly_violet", name: "Violet Jelly", bell: "#c4b5fd", glow: "#ede9fe", tentacle: "#a78bfa", eye: "#312e81" },
   { id: "jelly_pink", name: "Pink Jelly", bell: "#f9a8d4", glow: "#fce7f3", tentacle: "#ec4899", eye: "#831843" },
@@ -34,31 +42,40 @@ export const JELLYFISH_VARIANTS = [
 /**
  * Real cartoon jellyfish — drifts upright with waving tentacles.
  */
-export function Jellyfish({ size, top, duration, delay, dir = 1, scale = 1, variant }) {
+export function Jellyfish({ size, top, duration, delay, dir = 1, scale = 1, variant, frozen = false }) {
   const jellySize = size * 0.32 * scale;
   const v = variant || JELLYFISH_VARIANTS[0];
   const tentacles = [14, 22, 30, 38, 46];
+  const restX = dir === 1 ? size * 0.32 : size * 0.32;
   return (
     <motion.div
       className="absolute"
       style={{
         top: `${top}%`,
-        left: 0,
+        left: frozen ? `${restX}px` : 0,
         width: jellySize,
         height: jellySize * 1.15,
       }}
-      animate={{
-        x: dir === 1
-          ? [size * 0.08, size * 0.55, size * 0.08]
-          : [size * 0.55, size * 0.08, size * 0.55],
-        y: [0, -size * 0.08, size * 0.05, 0],
-      }}
-      transition={{
-        duration,
-        repeat: Infinity,
-        ease: "easeInOut",
-        delay,
-      }}
+      animate={
+        frozen
+          ? { x: 0, y: 0 }
+          : {
+              x: dir === 1
+                ? [size * 0.08, size * 0.55, size * 0.08]
+                : [size * 0.55, size * 0.08, size * 0.55],
+              y: [0, -size * 0.08, size * 0.05, 0],
+            }
+      }
+      transition={
+        frozen
+          ? FROZEN_TRANSITION
+          : {
+              duration: safeAnimDuration(duration),
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay,
+            }
+      }
     >
       <svg
         viewBox="0 0 64 72"
@@ -78,14 +95,24 @@ export function Jellyfish({ size, top, duration, delay, dir = 1, scale = 1, vari
             fill="none"
             strokeLinecap="round"
             opacity="0.9"
-            animate={{
-              d: [
-                `M ${x} 34 Q ${x + (i % 2 ? 5 : -5)} 48 ${x} 64`,
-                `M ${x} 34 Q ${x + (i % 2 ? -6 : 6)} 50 ${x} 66`,
-                `M ${x} 34 Q ${x + (i % 2 ? 5 : -5)} 48 ${x} 64`,
-              ],
-            }}
-            transition={{ duration: 1.2 + i * 0.1, repeat: Infinity, ease: "easeInOut" }}
+            animate={
+              frozen
+                ? {
+                    d: `M ${x} 34 Q ${x + (i % 2 ? 5 : -5)} 48 ${x} 64`,
+                  }
+                : {
+                    d: [
+                      `M ${x} 34 Q ${x + (i % 2 ? 5 : -5)} 48 ${x} 64`,
+                      `M ${x} 34 Q ${x + (i % 2 ? -6 : 6)} 50 ${x} 66`,
+                      `M ${x} 34 Q ${x + (i % 2 ? 5 : -5)} 48 ${x} 64`,
+                    ],
+                  }
+            }
+            transition={
+              frozen
+                ? FROZEN_TRANSITION
+                : { duration: safeAnimDuration(1.2 + i * 0.1), repeat: Infinity, ease: "easeInOut" }
+            }
           />
         ))}
         <circle cx="26" cy="20" r="2.1" fill="white" />
@@ -100,34 +127,43 @@ export function Jellyfish({ size, top, duration, delay, dir = 1, scale = 1, vari
 /**
  * A single swimming cartoon fish.
  */
-export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, staticPose = false }) {
+export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, staticPose = false, frozen = false, compactSwim = false }) {
   const fishSize = size * 0.28 * scale;
   const v = variant || FISH_VARIANTS[0];
+  const isStatic = staticPose || frozen;
+  const swimX =
+    compactSwim
+      ? dir === 1
+        ? [size * 0.12, size * 0.42, size * 0.42, size * 0.12, size * 0.12]
+        : [size * 0.42, size * 0.12, size * 0.12, size * 0.42, size * 0.42]
+      : dir === 1
+        ? [size * 0.05, size * 0.65, size * 0.65, size * 0.05, size * 0.05]
+        : [size * 0.65, size * 0.05, size * 0.05, size * 0.65, size * 0.65];
   return (
     <motion.div
       className="absolute"
       style={{
         top: `${top}%`,
-        left: staticPose ? (v.angelfish ? "28%" : "18%") : 0,
+        left: isStatic ? (v.angelfish ? "28%" : "18%") : 0,
         width: fishSize,
         height: fishSize * 0.6,
       }}
       animate={
-        staticPose
-          ? undefined
+        isStatic
+          ? { x: 0, y: 0, scaleX: dir === 1 ? 1 : -1 }
           : {
-              x: dir === 1
-                ? [size * 0.05, size * 0.65, size * 0.65, size * 0.05, size * 0.05]
-                : [size * 0.65, size * 0.05, size * 0.05, size * 0.65, size * 0.65],
+              x: swimX,
               scaleX: dir === 1 ? [1, 1, -1, -1, 1] : [-1, -1, 1, 1, -1],
-              y: [0, -size * 0.06, 0, size * 0.06, 0],
+              y: compactSwim
+                ? [0, -size * 0.03, 0, size * 0.03, 0]
+                : [0, -size * 0.06, 0, size * 0.06, 0],
             }
       }
       transition={
-        staticPose
-          ? undefined
+        isStatic
+          ? FROZEN_TRANSITION
           : {
-              duration,
+              duration: safeAnimDuration(duration),
               repeat: Infinity,
               ease: "easeInOut",
               delay,
@@ -151,8 +187,8 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
             <motion.path
               d="M 12 20 L 0 8 L 5 20 L 0 32 Z"
               fill={v.tail}
-              animate={{ rotate: [-6, 6, -6] }}
-              transition={{ duration: 0.45, repeat: Infinity, ease: "easeInOut" }}
+              animate={frozen ? { rotate: 0 } : { rotate: [-6, 6, -6] }}
+              transition={frozen ? FROZEN_TRANSITION : { duration: 0.45, repeat: Infinity, ease: "easeInOut" }}
               style={{ originX: "20%", originY: "50%" }}
             />
             {/* Diamond/kite body — straight edges */}
@@ -171,8 +207,8 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
             <motion.path
               d="M 8 20 L 0 8 L 4 20 L 0 32 Z"
               fill={v.tail}
-              animate={{ rotate: [-8, 8, -8] }}
-              transition={{ duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
+              animate={frozen ? { rotate: 0 } : { rotate: [-8, 8, -8] }}
+              transition={frozen ? FROZEN_TRANSITION : { duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
               style={{ originX: "20%", originY: "50%" }}
             />
             <ellipse cx="32" cy="20" rx="22" ry="11" fill={v.body} />
@@ -212,6 +248,8 @@ export default function FishOverlay({
   bigFishExtraScale = 1,
   bigFishStaticPose = false,
   includeJellyfish = false,
+  /** Score Freeze / ice power — pause all aquarium motion. */
+  frozen = false,
 }) {
   // Distribute creatures vertically. At most one jellyfish on the whole tray
   // (caller sets includeJellyfish on a single die).
@@ -261,7 +299,8 @@ export default function FishOverlay({
           dir: i % 2 === 0 ? 1 : -1,
           scale: isBig ? baseScale * 1.6 * bigFishExtraScale : baseScale,
           variant: isBig ? bigVariant : smallPool[smallCursor++ % smallPool.length],
-          staticPose: isBig && (bigFishStaticPose || face1Angelfish),
+          staticPose: isBig && bigFishStaticPose,
+          compactSwim: isBig && face1Angelfish && !bigFishStaticPose,
         });
       }
     }
@@ -282,8 +321,8 @@ export default function FishOverlay({
         }}
       />
 
-      {/* Bubbles drifting up — more on higher-value dice */}
-      {(() => {
+      {/* Bubbles drifting up — more on higher-value dice (hidden when frozen). */}
+      {!frozen && (() => {
         const bubbleCount = count >= 5 ? 22 : count === 4 ? 14 : 8;
         return Array.from({ length: bubbleCount }, (_, i) => {
           const sz = size * (0.02 + (i % 4) * 0.013);
@@ -313,9 +352,15 @@ export default function FishOverlay({
       {/* Fish + real jellyfish */}
       {creatures.map((c, i) =>
         c.kind === "jellyfish" ? (
-          <Jellyfish key={`jelly-${i}`} size={size} {...c} />
+          <Jellyfish key={`jelly-${i}`} size={size} {...c} frozen={frozen} />
         ) : (
-          <Fish key={`fish-${i}`} size={size} {...c} />
+          <Fish
+            key={`fish-${i}`}
+            size={size}
+            {...c}
+            frozen={frozen}
+            staticPose={frozen || c.staticPose}
+          />
         )
       )}
     </div>

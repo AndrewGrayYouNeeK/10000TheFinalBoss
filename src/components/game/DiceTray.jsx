@@ -24,6 +24,8 @@ function DiceTray({
   heldStyleId,
   lowPower = false,
   powerMode = false,
+  /** Softer in-die power glow for pass-and-play privacy. */
+  powerModeSubtle = false,
   iceFrozenOverlay = false,
   sharkBiteFx = false,
   /** Keep dice vanished after chomp until next round clears this flag. */
@@ -65,6 +67,10 @@ function DiceTray({
   );
 
   const jellyDieId = dice.find((d) => !d.used && (d.value ?? 0) >= 2)?.id ?? null;
+  const xrayMorphDieId =
+    traySkinId === "pf_xray" && powerMode
+      ? (dice.find((d) => !d.used)?.id ?? dice[0]?.id ?? null)
+      : null;
 
   return (
     <div id="gameplay-dice-tray">
@@ -99,7 +105,8 @@ function DiceTray({
             }
           >
             <Die
-              value={d.value}
+              value={d.valueHidden ? 1 : d.value}
+              valueHidden={!!d.valueHidden}
               held={d.held}
               used={d.used}
               rolling={rolling && !d.used && !d.held}
@@ -113,6 +120,8 @@ function DiceTray({
               lowPower={lowPower}
               // Shark Bite charge (powerMode) ≠ Feeding Frenzy (fishFeastMode).
               powerMode={powerMode && !sharkBiteFx && !fishFeastMode}
+              powerModeSubtle={powerModeSubtle}
+              allowXrayMorph={d.id === xrayMorphDieId}
               iceFrozenOverlay={iceFrozenOverlay && !sharkBiteFx && !fishFeastMode}
               fishFeastMode={fishFeastMode && !sharkBiteFx}
               sharkBiteFx={false}

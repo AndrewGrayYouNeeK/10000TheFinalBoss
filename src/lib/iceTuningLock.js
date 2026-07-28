@@ -1,13 +1,13 @@
 const LOCK_KEY = "yourneek_ice_tuning_locked";
 
-/** Frozen Ice sprite tuning is locked by default. When locked, getSkin() applies the saved lock snapshot (crop + sprite paths), not catalog-only defaults. */
+/** Frozen Ice starts unlocked in Sprite Lab until you tap Lock. */
 export function isIceTuningLocked() {
   try {
     const v = localStorage.getItem(LOCK_KEY);
-    if (v === null) return true;
+    if (v === null) return false;
     return v === "1";
   } catch {
-    return true;
+    return false;
   }
 }
 

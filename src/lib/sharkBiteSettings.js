@@ -44,11 +44,13 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   /** Clip progress where playback stops (1 = play to end). Trims tail content. */
   stopAtProgress: 1,
   /**
-   * Manual rotation for canvas chroma playback (degrees). Phone uploads often
-   * store portrait pixels — the browser <video> tag respects metadata but canvas
-   * drawImage does not, so use 90 / -90 here when the shark appears sideways.
+   * Manual rotation for chomp clip canvas/CSS playback (degrees). Catalog
+   * blue_gel_power.mp4 is stored landscape with the shark sideways — 90° CW
+   * by default. Phone uploads may need 0 / -90 / 180 instead.
    */
-  videoRotationDeg: 0,
+  videoRotationDeg: 90,
+  /** Intro swim-in clip rotation (degrees) — separate from chomp. */
+  introVideoRotationDeg: 0,
   /** When true and stored frames are portrait (h > w), auto-apply 90° rotation. */
   autoRotatePortrait: true,
   /** Extra viewport-width slide during exit pan (at progress 1). */
@@ -143,11 +145,22 @@ function applySourceCropMigration(parsed) {
   };
 }
 
+/** One-time: catalog chomp fallback was sideways at 0° — bump saved 0/null to 90°. */
+function applyChompRotationMigration(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._chompRotationCatalogFix) return parsed;
+  const next = { ...parsed, _chompRotationCatalogFix: true };
+  if (next.videoRotationDeg == null || next.videoRotationDeg === 0) {
+    next.videoRotationDeg = DEFAULT_SHARK_BITE_SETTINGS.videoRotationDeg;
+  }
+  return next;
+}
+
 function parseStoredSettings(raw) {
   const parsed = JSON.parse(raw);
   return {
     ...DEFAULT_SHARK_BITE_SETTINGS,
-    ...applyTimingMigration(applySourceCropMigration(parsed)),
+    ...applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed))),
   };
 }
 
@@ -213,14 +226,19 @@ export function getSharkBiteSourceCropRect(vw, vh, settings = loadSharkBiteSetti
   };
 }
 
+/** @typedef {'chomp' | 'intro'} SharkBiteRotationSlot */
+
 /** Resolve rotation in degrees for canvas/CSS (canvas ignores video metadata). */
 export function getSharkBiteVideoRotationDeg(
   settings = loadSharkBiteSettings(),
   videoWidth = 0,
-  videoHeight = 0
+  videoHeight = 0,
+  slot = "chomp"
 ) {
-  const manual = Number(settings?.videoRotationDeg);
+  const manualKey = slot === "intro" ? "introVideoRotationDeg" : "videoRotationDeg";
+  const manual = Number(settings?.[manualKey]);
   if (Number.isFinite(manual) && manual !== 0) return manual;
+  if (slot === "intro") return 0;
   if (
     settings?.autoRotatePortrait !== false &&
     videoWidth > 0 &&
@@ -228,7 +246,7 @@ export function getSharkBiteVideoRotationDeg(
   ) {
     return 90;
   }
-  return 0;
+  return Number.isFinite(manual) ? manual : DEFAULT_SHARK_BITE_SETTINGS.videoRotationDeg;
 }
 
 /** True when rotation swaps stored width/height (90° or 270°). */
@@ -240,18 +258,71 @@ export function isSharkBiteRotationSwap(rotationDeg) {
 /** CSS crop for upload / preview players (matches in-game source crop). */
 export function getSharkBitePreviewVideoStyle(
   settings = loadSharkBiteSettings(),
-  rotationDeg = settings?.videoRotationDeg ?? 0
+  slot = "chomp",
+  videoWidth = 0,
+  videoHeight = 0
 ) {
   const zoom = Math.max(1, Number(settings?.sourceZoom) || 1);
   const panX = Math.max(-1, Math.min(1, Number(settings?.sourcePanX) || 0));
   const panY = Math.max(-1, Math.min(1, Number(settings?.sourcePanY) || 0));
-  const rot = Number(rotationDeg) || 0;
+  const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot);
   const transforms = [`scale(${zoom})`];
   if (rot) transforms.unshift(`rotate(${rot}deg)`);
   return {
     objectFit: "cover",
     transform: transforms.join(" "),
     transformOrigin: `${50 + panX * 50}% ${50 + panY * 50}%`,
+  };
+}
+
+const PREVIEW_PORTRAIT_ASPECT = 9 / 16;
+
+/**
+ * Scale factor so a 90°/270°-rotated clip fills a 9:16 preview box without cropping.
+ * Matches portrait container aspect to post-rotation visual dimensions.
+ */
+function getRotatedUploadPreviewFitScale(videoWidth, videoHeight, rotationDeg) {
+  if (!videoWidth || !videoHeight || !isSharkBiteRotationSwap(rotationDeg)) return 1;
+  const visualAspect = videoHeight / videoWidth;
+  const containerAspect = PREVIEW_PORTRAIT_ASPECT;
+  if (visualAspect >= containerAspect) {
+    return Math.min(1, containerAspect / visualAspect);
+  }
+  return Math.min(1, visualAspect / containerAspect);
+}
+
+/**
+ * Upload-card / dialog preview layout — larger boxes, contain, no side crop on 90°/270° clips.
+ * Chomp (rotated) uses a tall 9:16 box; intro uses a wide 16:9 box. Both min ~224–256px tall.
+ * In-game fullscreen playback keeps using getSharkBitePreviewVideoStyle (cover).
+ */
+export function getSharkBiteUploadPreviewLayout(
+  settings = loadSharkBiteSettings(),
+  slot = "chomp",
+  videoWidth = 0,
+  videoHeight = 0
+) {
+  const zoom = Math.max(1, Number(settings?.sourceZoom) || 1);
+  const panX = Math.max(-1, Math.min(1, Number(settings?.sourcePanX) || 0));
+  const panY = Math.max(-1, Math.min(1, Number(settings?.sourcePanY) || 0));
+  const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot);
+  const swap = isSharkBiteRotationSwap(rot);
+  const fitScale = getRotatedUploadPreviewFitScale(videoWidth, videoHeight, rot);
+  const transforms = [`scale(${zoom * fitScale})`];
+  if (rot) transforms.unshift(`rotate(${rot}deg)`);
+
+  return {
+    rotationDeg: rot,
+    swapDimensions: swap,
+    containerClassName: swap
+      ? "aspect-[9/16] w-full min-h-72 max-h-[28rem] sm:max-h-[32rem] mx-auto overflow-hidden flex items-center justify-center"
+      : "aspect-video w-full min-h-60 max-h-80 sm:min-h-72 sm:max-h-96 overflow-hidden flex items-center justify-center",
+    videoClassName: "block h-full w-auto max-w-full max-h-full object-contain",
+    videoStyle: {
+      objectFit: "contain",
+      transform: transforms.join(" "),
+      transformOrigin: `${50 + panX * 50}% ${50 + panY * 50}%`,
+    },
   };
 }
 

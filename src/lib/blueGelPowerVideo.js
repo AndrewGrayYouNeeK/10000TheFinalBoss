@@ -76,13 +76,97 @@ export function hasSharkBiteIntroVideoSync() {
   return !!getCachedSharkBiteIntroVideoObjectUrl();
 }
 
-/** Both beats uploaded — intro then chomp only, never SVG or catalog stacking. */
+/** Both beats uploaded — intro swim-in plus chomp on this device. */
 export function hasFullSharkBiteVideoSequenceSync() {
   return hasSharkBiteIntroVideoSync() && hasLocalChompVideoSync();
 }
 
+/** Shipped catalog chomp — always the original shark bite clip. */
+export function getCatalogChompVideoUrl() {
+  return VIDEO_FALLBACK_PATHS[KEY] ?? null;
+}
+
+/** User upload in intro and/or chomp slot (excludes catalog-only playback). */
+export function hasUploadedSharkBiteBeatSync() {
+  return hasSharkBiteIntroVideoSync() || hasLocalChompVideoSync();
+}
+
 /**
- * Chomp URL for Shark Bite playback — local upload wins.
+ * Build the ordered shark-bite beat list.
+ *
+ * Rules:
+ * - Any upload → catalog chomp plays first (full), then optional intro, then optional chomp upload.
+ * - Dice vanish on the chomp-sync beat: uploaded chomp if present, else catalog.
+ * - No uploads → catalog chomp alone, or SVG when no catalog file.
+ *
+ * @returns {Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean }>}
+ */
+function buildQueue(hasIntro, hasChompUpload) {
+  const catalog = getCatalogChompVideoUrl();
+  const hasUpload = hasIntro || hasChompUpload;
+
+  if (!catalog && !hasUpload) {
+    return [{ id: "svg", source: "svg", syncChomp: false }];
+  }
+
+  if (!hasUpload) {
+    return [
+      {
+        id: "catalog",
+        videoKey: KEY,
+        source: "catalog",
+        syncChomp: true,
+      },
+    ];
+  }
+
+  const queue = [];
+  if (catalog) {
+    queue.push({
+      id: "catalog",
+      videoKey: KEY,
+      source: "catalog",
+      syncChomp: !hasChompUpload,
+    });
+  }
+  if (hasIntro) {
+    queue.push({
+      id: "intro",
+      videoKey: INTRO_KEY,
+      source: "local",
+      syncChomp: !catalog && !hasChompUpload,
+    });
+  }
+  if (hasChompUpload) {
+    queue.push({
+      id: "chomp",
+      videoKey: KEY,
+      source: "local",
+      syncChomp: true,
+    });
+  }
+  return queue.length ? queue : [{ id: "svg", source: "svg", syncChomp: false }];
+}
+
+/**
+ * Ordered fullscreen beats for SharkBiteScreenFX — strictly sequential, no overlap.
+ *
+ * @returns {Promise<Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean }>>}
+ */
+export async function buildSharkBitePhaseQueue() {
+  const hasIntro =
+    hasSharkBiteIntroVideoSync() || (await hasSharkBiteIntroVideo());
+  const hasChompUpload = hasLocalChompVideoSync() || (await hasLocalVideo(KEY));
+  return buildQueue(hasIntro, hasChompUpload);
+}
+
+/** Sync queue builder — uses warm cache only (may miss cold IndexedDB). */
+export function buildSharkBitePhaseQueueSync() {
+  return buildQueue(hasSharkBiteIntroVideoSync(), hasLocalChompVideoSync());
+}
+
+/**
+ * Chomp URL for single-clip callers — local upload wins.
  * Catalog fallback is used only when this device has no chomp upload.
  */
 export async function resolveChompVideoForSharkBite() {

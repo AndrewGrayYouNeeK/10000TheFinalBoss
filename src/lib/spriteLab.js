@@ -1,5 +1,7 @@
 import { AQUARIUM_OVERLAY_SKIN_IDS, DICE_SKINS } from "@/lib/shopCatalog";
 import { loadProfile, updateProfile } from "@/lib/localProfile";
+import { loadBlueGelSettings, saveBlueGelSettings } from "@/lib/blueGelSettings";
+import { loadSnowGlobeSettings, saveSnowGlobeSettings } from "@/lib/snowGlobeSettings";
 import { isMatrixTuningLocked } from "@/lib/matrixTuningLock";
 import { isDiamondCutTuningLocked } from "@/lib/diamondCutTuningLock";
 import { isIceTuningLocked } from "@/lib/iceTuningLock";
@@ -9,10 +11,7 @@ import { isFluoriteTuningLocked } from "@/lib/fluoriteTuningLock";
 import { isAmberWaspTuningLocked } from "@/lib/amberWaspTuningLock";
 import { isAmethystTuningLocked } from "@/lib/amethystTuningLock";
 import { isPaperTuningLocked } from "@/lib/paperTuningLock";
-import {
-  isClassicWhiteTuningLocked,
-  recoverClassicWhiteLockOnce,
-} from "@/lib/classicWhiteTuningLock";
+import { isClassicWhiteTuningLocked } from "@/lib/classicWhiteTuningLock";
 import { isDragonScaleTuningLocked } from "@/lib/dragonScaleTuningLock";
 import { isSnowGlobeTuningLocked } from "@/lib/snowGlobeTuningLock";
 import { isBlueGelTuningLocked } from "@/lib/blueGelTuningLock";
@@ -103,6 +102,13 @@ const TUNING_LOCK_FLAG_KEYS = {
   toxic_plasma_v2: "yourneek_toxic_plasma_v2_tuning_locked",
   ruby: "yourneek_ruby_tuning_locked",
 };
+
+/** Skins that stay unlocked in Sprite Lab until you explicitly tap Lock. */
+export const SPRITE_LAB_DEFAULT_UNLOCKED_IDS = new Set(["classic_white", "ice"]);
+
+function defaultLockedForSkin(skinId) {
+  return !SPRITE_LAB_DEFAULT_UNLOCKED_IDS.has(skinId);
+}
 
 export function isSpriteTuningLocked(skinId) {
   return TUNING_LOCK_CHECKERS[skinId]?.() ?? false;
@@ -217,6 +223,7 @@ function catalogSkinById(skinId) {
 function buildCatalogLockSnapshot(skin) {
   if (!skin) return null;
   const aquariumOverlay = AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id);
+  const shellSettings = aquariumOverlay ? loadAquariumShellSettingsForSnapshot(skin.id) : undefined;
   return {
     regularCrop: skin.spriteCrop ?? { ...DEFAULT_SPRITE_CROP },
     powerCrop: skin.powerSpriteCrop ?? { ...DEFAULT_SPRITE_CROP },
@@ -224,6 +231,7 @@ function buildCatalogLockSnapshot(skin) {
     powerFaces: emptyFaceMap(skin.spriteFaceOffsets?.power),
     powerVideoZoom: skin.powerVideoZoom,
     powerVideoCrop: skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 },
+    ...(shellSettings ? { shellSettings } : {}),
     spriteUrl: aquariumOverlay ? undefined : skin.spriteUrl,
     powerSpriteUrl: aquariumOverlay ? undefined : skin.powerSpriteUrl,
     powerVideoUrl: aquariumOverlay ? undefined : skin.powerVideoUrl,
@@ -242,19 +250,91 @@ function snapshotHasSpritePaths(snapshot) {
   );
 }
 
-/** Prefer complete lock data — never let a path-less localStorage stub clobber a richer profile backup. */
+function hasUserFaceTuning(faces) {
+  if (!faces || typeof faces !== "object") return false;
+  return Object.values(faces).some((f) => {
+    const x = Number(f?.x);
+    const y = Number(f?.y);
+    return Number.isFinite(x) && x !== 0 || Number.isFinite(y) && y !== 0;
+  });
+}
+
+function snapshotTuningScore(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return 0;
+  let score = 0;
+  if (snapshotHasSpritePaths(snapshot)) score += 20;
+  if (hasUserFaceTuning(snapshot.regularFaces)) score += 50;
+  if (hasUserFaceTuning(snapshot.powerFaces)) score += 25;
+  if (snapshot.shellSettings) score += 20;
+  if (snapshot.regularCrop) score += 5;
+  if (snapshot.powerCrop) score += 3;
+  if (typeof snapshot.savedAt === "number") score += Math.min(snapshot.savedAt / 1e15, 10);
+  return score;
+}
+
+/** Prefer snapshots with real user tuning — not just catalog sprite paths. */
 function preferRicherSnapshot(a, b) {
   if (!a || typeof a !== "object") return b && typeof b === "object" ? b : null;
   if (!b || typeof b !== "object") return a;
-  const score = (s) =>
-    (snapshotHasSpritePaths(s) ? 100 : 0) +
-    (s.regularCrop ? 10 : 0) +
-    (s.powerCrop ? 5 : 0) +
-    (typeof s.savedAt === "number" ? Math.min(s.savedAt / 1e13, 1) : 0);
-  const sa = score(a);
-  const sb = score(b);
+  const sa = snapshotTuningScore(a);
+  const sb = snapshotTuningScore(b);
   if (sa !== sb) return sa > sb ? a : b;
   return (a.savedAt ?? 0) >= (b.savedAt ?? 0) ? a : b;
+}
+
+export function restoreAquariumShellSettingsFromSnapshot(skinId, snapshot) {
+  if (!snapshot?.shellSettings) return;
+  if (skinId === "snow_globe") saveSnowGlobeSettings(snapshot.shellSettings);
+  if (skinId === "blue_gel") saveBlueGelSettings(snapshot.shellSettings);
+}
+
+function loadAquariumShellSettingsForSnapshot(skinId) {
+  if (skinId === "snow_globe") return loadSnowGlobeSettings();
+  if (skinId === "blue_gel") return loadBlueGelSettings();
+  return undefined;
+}
+
+/** Build the skin object Sprite Lab preview should use — mirrors getSkin(), without double-applying saves. */
+export function buildLabPreviewSkin(
+  skinId,
+  labState,
+  { locked = isSpriteTuningLocked(skinId) } = {}
+) {
+  const catalog = catalogSkinById(skinId) ?? DICE_SKINS[0];
+  const mergeFaces = (catalogRegular, labFaces) => {
+    if (!labFaces) return emptyFaceMap(catalogRegular);
+    if (locked) return emptyFaceMap(labFaces);
+    return emptyFaceMap({ ...(catalogRegular ?? {}), ...labFaces });
+  };
+  return {
+    ...catalog,
+    spriteCrop: labState.regularCrop ?? catalog.spriteCrop ?? DEFAULT_SPRITE_CROP,
+    powerSpriteCrop: labState.powerCrop ?? catalog.powerSpriteCrop,
+    powerVideoZoom: labState.powerVideoZoom ?? catalog.powerVideoZoom ?? 1,
+    powerVideoCrop: labState.powerVideoCrop ?? catalog.powerVideoCrop ?? { offsetX: 0, offsetY: 0 },
+    spriteFaceOffsets: {
+      ...(catalog.spriteFaceOffsets ?? {}),
+      regular: mergeFaces(catalog.spriteFaceOffsets?.regular, labState.regularFaces),
+      power: mergeFaces(catalog.spriteFaceOffsets?.power, labState.powerFaces),
+    },
+  };
+}
+
+/** Read persisted lab sliders — used when (re)opening Sprite Lab. */
+export function readSpriteLabPersistedState(skinId) {
+  const catalog = catalogSkinById(skinId) ?? DICE_SKINS[0];
+  const saved = loadSpriteLabDraft(skinId);
+  if (saved?.shellSettings) {
+    restoreAquariumShellSettingsFromSnapshot(skinId, saved);
+  }
+  return {
+    regularCrop: saved?.regularCrop ?? catalog.spriteCrop ?? DEFAULT_SPRITE_CROP,
+    powerCrop: saved?.powerCrop ?? catalog.powerSpriteCrop ?? DEFAULT_SPRITE_CROP,
+    regularFaces: emptyFaceMap(saved?.regularFaces ?? catalog.spriteFaceOffsets?.regular),
+    powerFaces: emptyFaceMap(saved?.powerFaces ?? catalog.spriteFaceOffsets?.power),
+    powerVideoZoom: saved?.powerVideoZoom ?? catalog.powerVideoZoom ?? 1,
+    powerVideoCrop: saved?.powerVideoCrop ?? catalog.powerVideoCrop ?? { offsetX: 0, offsetY: 0 },
+  };
 }
 
 /** Prefer recovered draft/crop; always freeze current catalog sprite paths. */
@@ -278,6 +358,11 @@ function mergeRecoveredLockSnapshot({ existing, draft, catalog }) {
     powerVideoZoom: cropSource.powerVideoZoom ?? base.powerVideoZoom,
     powerVideoCrop: cropSource.powerVideoCrop ?? base.powerVideoCrop,
     lockedVideos: cropSource.lockedVideos ?? existing?.lockedVideos,
+    shellSettings:
+      cropSource.shellSettings ??
+      existing?.shellSettings ??
+      draft?.shellSettings ??
+      loadAquariumShellSettingsForSnapshot(catalog?.id),
     // Paths always from catalog so art assignment is frozen correctly
     spriteUrl: AQUARIUM_OVERLAY_SKIN_IDS.has(catalog?.id)
       ? undefined
@@ -332,15 +417,22 @@ function seedMissingLockedTuningSnapshots(sprite_tuning) {
 
     const draft = loadRawSpriteLabDraft(skinId);
     const needsSeed = !existing;
-    const needsPathBackfill = !!(existing && !snapshotHasSpritePaths(existing) && catalog);
+    const needsPathBackfill = !!(
+      existing &&
+      !snapshotHasSpritePaths(existing) &&
+      catalog &&
+      !AQUARIUM_OVERLAY_SKIN_IDS.has(skinId)
+    );
 
     if (!needsSeed && !needsPathBackfill) {
       // Still mirror lock flag into profile if missing
       if (flagKey) {
         try {
           const flag = localStorage.getItem(flagKey);
-          const locked = flag === null ? true : flag === "1";
-          if (flag === null) localStorage.setItem(flagKey, "1");
+          const locked = flag === null ? defaultLockedForSkin(skinId) : flag === "1";
+          if (flag === null) {
+            localStorage.setItem(flagKey, locked ? "1" : "0");
+          }
           const entry = sprite_tuning[skinId];
           if (!entry || entry.locked !== locked || !entry.snapshot) {
             sprite_tuning[skinId] = {
@@ -371,17 +463,17 @@ function seedMissingLockedTuningSnapshots(sprite_tuning) {
 
     // Auto-lock so Sprite Lab doesn't ask the user to re-lock each skin.
     // Respect an explicit unlock ("0") — still write the snapshot for when they lock.
-    let locked = true;
+    let locked = defaultLockedForSkin(skinId);
     if (flagKey) {
       try {
         const flag = localStorage.getItem(flagKey);
         if (flag === "0") locked = false;
+        else if (flag === "1") locked = true;
         else {
-          localStorage.setItem(flagKey, "1");
-          locked = true;
+          localStorage.setItem(flagKey, locked ? "1" : "0");
         }
       } catch {
-        locked = true;
+        locked = defaultLockedForSkin(skinId);
       }
     }
 
@@ -421,6 +513,8 @@ export function hydrateSpriteLabPersistence() {
       const snapshot = preferRicherSnapshot(lsSnap, profileSnap);
       if (!snapshot) continue;
 
+      restoreAquariumShellSettingsFromSnapshot(skinId, snapshot);
+
       const flagKey = TUNING_LOCK_FLAG_KEYS[skinId];
       const flag = flagKey ? localStorage.getItem(flagKey) : null;
       const profileLocked = sprite_tuning[skinId]?.locked;
@@ -428,7 +522,7 @@ export function hydrateSpriteLabPersistence() {
         flag === null
           ? typeof profileLocked === "boolean"
             ? profileLocked
-            : true
+            : defaultLockedForSkin(skinId)
           : flag === "1";
 
       sprite_tuning[skinId] = {
@@ -488,7 +582,7 @@ export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", 
 
 export const DEFAULT_SPRITE_LAB_SKIN_ID = "matrix";
 
-/** All dice skins with a sprite sheet, featured ones first then A–Z */
+/** All dice skins with a sprite sheet or video grid — featured first, then A–Z */
 export function getSpriteLabSkins() {
   const featured = new Set(SPRITE_LAB_SKIN_IDS);
   const priority = SPRITE_LAB_SKIN_IDS.map((id) => DICE_SKINS.find((s) => s.id === id)).filter(Boolean);
@@ -519,49 +613,54 @@ export function emptyFaceMap(source) {
   );
 }
 
-/** Keep catalog per-face nudges unless the lab draft has a non-zero override. */
+/** Saved lab face nudges override catalog when a draft/lock snapshot exists. */
 export function mergeSpriteLabFaceOffsets(catalogOffsets = {}, draftOffsets, { fullReplace = false } = {}) {
   if (!draftOffsets) return catalogOffsets;
-  if (fullReplace) return draftOffsets;
-  const merged = { ...catalogOffsets };
-  for (const face of FACES) {
-    const draft = draftOffsets[face] ?? draftOffsets[String(face)];
-    if (draft && (draft.x !== 0 || draft.y !== 0)) {
-      merged[face] = draft;
-    }
-  }
-  return merged;
+  if (fullReplace) return emptyFaceMap(draftOffsets);
+  return emptyFaceMap({ ...(catalogOffsets ?? {}), ...draftOffsets });
 }
 
 export function loadSpriteLabDraft(skinId) {
   try {
-    if (skinId === "classic_white") {
-      recoverClassicWhiteLockOnce();
-    }
-    // Locked skins: always prefer the saved lock snapshot. Never wipe it.
-    if (isSpriteTuningLocked(skinId)) {
-      return loadLockedTuningSnapshot(skinId);
-    }
-
-    const key = spriteLabStorageKey(skinId);
-    let raw = localStorage.getItem(key);
-    if (!raw && skinId === "ragnarok") {
-      raw = localStorage.getItem("yourneek_ragnarok_sprite_lab");
-    }
-    if (!raw) return null;
-    return JSON.parse(raw);
+    const lockedSnap = loadLockedTuningSnapshot(skinId);
+    const rawDraft = loadRawSpriteLabDraft(skinId);
+    return preferRicherSnapshot(lockedSnap, rawDraft);
   } catch {
     return null;
   }
 }
 
-export function saveSpriteLabDraft(skinId, payload) {
+/** Write draft + lock snapshot + profile backup so tuning survives reload/restart. */
+export function persistSpriteLabTuning(skinId, payload, { locked = isSpriteTuningLocked(skinId) } = {}) {
+  const catalog = catalogSkinById(skinId);
+  const withMeta = {
+    ...payload,
+    savedAt: Date.now(),
+    ...(catalog && !AQUARIUM_OVERLAY_SKIN_IDS.has(skinId)
+      ? {
+          spriteUrl: payload.spriteUrl ?? catalog.spriteUrl,
+          powerSpriteUrl: payload.powerSpriteUrl ?? catalog.powerSpriteUrl,
+          powerVideoUrl: payload.powerVideoUrl ?? catalog.powerVideoUrl,
+          videoUrl: payload.videoUrl ?? catalog.videoUrl,
+        }
+      : {}),
+  };
   try {
-    if (isSpriteTuningLocked(skinId)) return;
-    localStorage.setItem(spriteLabStorageKey(skinId), JSON.stringify(payload));
+    localStorage.setItem(spriteLabStorageKey(skinId), JSON.stringify(withMeta));
   } catch {
     /* ignore quota errors */
   }
+  try {
+    localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(withMeta));
+  } catch {
+    /* ignore quota errors */
+  }
+  writeProfileSpriteTuningEntry(skinId, { locked: !!locked, snapshot: withMeta });
+}
+
+export function saveSpriteLabDraft(skinId, payload) {
+  if (isSpriteTuningLocked(skinId)) return;
+  persistSpriteLabTuning(skinId, payload, { locked: false });
 }
 
 export function clearSpriteLabDraft(skinId) {

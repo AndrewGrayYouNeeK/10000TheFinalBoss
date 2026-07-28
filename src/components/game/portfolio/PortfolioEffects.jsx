@@ -6,6 +6,12 @@ import { useAudioLevels } from "./useAudioLevels";
 import SoundwaveBarDisplay from "./SoundwaveBarDisplay";
 import { getScoreMeterTheme } from "@/lib/scoreMeterTheme";
 
+/** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
+function safeAnimDuration(seconds, min = 0.001) {
+  const n = Number(seconds);
+  return Number.isFinite(n) ? Math.max(min, n) : min;
+}
+
 function SweepLine({ color = "rgba(0,255,255,0.85)", width = 3 }) {
   const ctx = usePortfolioDie();
   const fallbackSweep = useMotionValue(0);
@@ -35,6 +41,100 @@ function RadarRings({ radius, color = "rgba(52,211,153,0.35)" }) {
       <line x1="50" y1="0" x2="50" y2="100" stroke={color} strokeWidth="0.4" />
       <line x1="0" y1="50" x2="100" y2="50" stroke={color} strokeWidth="0.4" />
     </svg>
+  );
+}
+
+/** Rainfall portfolio skin — rain by default; snow while Score Freeze / ice overlay is active. */
+function RainfallScene({ radius, size = 64, frozen = false }) {
+  const snowTimes = [0, 0.15, 0.5, 0.85, 1];
+
+  if (frozen) {
+    const flakeBase = Math.max(2, Math.round(size * 0.045));
+    return (
+      <div key="rainfall-frozen" className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            borderRadius: radius,
+            background: "linear-gradient(180deg, #1e3a5e 0%, #334155 50%, #475569 100%)",
+          }}
+        />
+        {Array.from({ length: 24 }).map((_, i) => {
+          const flakeSize = flakeBase + (i % 3);
+          const drift = size * (0.03 + (i % 4) * 0.015);
+          return (
+            <motion.div
+              key={`snow-${i}`}
+              className="absolute pointer-events-none rounded-full bg-white"
+              style={{
+                left: `${(i * 4.1) % 96}%`,
+                width: flakeSize,
+                height: flakeSize,
+                boxShadow: "0 0 3px rgba(255,255,255,0.85)",
+                opacity: 0.55 + (i % 3) * 0.15,
+              }}
+              animate={{
+                // WAAPI requires equal-length keyframe arrays per property.
+                top: ["-14%", "18%", "46%", "74%", "112%"],
+                x: [0, drift, -drift * 0.6, drift * 0.35, 0],
+              }}
+              transition={{
+                duration: safeAnimDuration(1.4 + (i % 5) * 0.28),
+                repeat: Infinity,
+                delay: (i * 0.11) % 1.8,
+                ease: "linear",
+                times: snowTimes,
+              }}
+            />
+          );
+        })}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-35"
+          style={{
+            borderRadius: radius,
+            background:
+              "radial-gradient(circle at 50% 0%, rgba(186,230,253,0.22) 0%, transparent 55%), radial-gradient(circle at 50% 100%, rgba(255,255,255,0.08) 0%, transparent 45%)",
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div key="rainfall-rain" className="absolute inset-0 pointer-events-none">
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          borderRadius: radius,
+          background: "linear-gradient(180deg, #1e293b 0%, #334155 55%, #475569 100%)",
+        }}
+      />
+      {Array.from({ length: 28 }).map((_, i) => (
+        <motion.div
+          key={`rain-${i}`}
+          className="absolute w-[1px] pointer-events-none"
+          style={{
+            left: `${(i * 3.7) % 98}%`,
+            height: 8 + (i % 4) * 3,
+            background: "linear-gradient(to bottom, transparent, rgba(186,230,253,0.85))",
+          }}
+          animate={{ top: ["-12%", "112%"] }}
+          transition={{
+            duration: safeAnimDuration(0.45 + (i % 5) * 0.12),
+            repeat: Infinity,
+            delay: (i * 0.07) % 1.2,
+            ease: "linear",
+          }}
+        />
+      ))}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-30"
+        style={{
+          borderRadius: radius,
+          background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.15) 0%, transparent 50%)",
+        }}
+      />
+    </div>
   );
 }
 
@@ -982,25 +1082,7 @@ const EFFECTS = {
     </>
   ),
 
-  rainfall: ({ radius }) => (
-    <>
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "linear-gradient(180deg, #1e293b 0%, #334155 55%, #475569 100%)" }} />
-      {Array.from({ length: 28 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-[1px] pointer-events-none"
-          style={{
-            left: `${(i * 3.7) % 98}%`,
-            height: 8 + (i % 4) * 3,
-            background: "linear-gradient(to bottom, transparent, rgba(186,230,253,0.85))",
-          }}
-          animate={{ top: ["-12%", "112%"] }}
-          transition={{ duration: 0.45 + (i % 5) * 0.12, repeat: Infinity, delay: (i * 0.07) % 1.2, ease: "linear" }}
-        />
-      ))}
-      <div className="absolute inset-0 pointer-events-none opacity-30" style={{ borderRadius: radius, background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.15) 0%, transparent 50%)" }} />
-    </>
-  ),
+  rainfall: (props) => <RainfallScene {...props} />,
 
   score_meter: ({ radius, scoreFill = 0.5 }) => {
     const theme = getScoreMeterTheme(scoreFill);
@@ -1175,10 +1257,27 @@ const EFFECTS = {
   xray: ({ radius, layout }) => <XrayScene radius={radius} layout={layout} />,
 };
 
-export default function PortfolioDieEffect({ effectId, radius, scoreFill, layout, size, dieSeed = 0 }) {
+export default function PortfolioDieEffect({
+  effectId,
+  radius,
+  scoreFill,
+  layout,
+  size,
+  dieSeed = 0,
+  frozen = false,
+}) {
   const Effect = EFFECTS[effectId];
   if (!Effect) return null;
-  return <Effect radius={radius} scoreFill={scoreFill} layout={layout} size={size} dieSeed={dieSeed} />;
+  return (
+    <Effect
+      radius={radius}
+      scoreFill={scoreFill}
+      layout={layout}
+      size={size}
+      dieSeed={dieSeed}
+      frozen={frozen}
+    />
+  );
 }
 
 export const PORTFOLIO_EFFECT_IDS = Object.keys(EFFECTS);

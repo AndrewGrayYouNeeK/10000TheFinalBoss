@@ -38,7 +38,7 @@ function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false 
   const p = players[playerIndex];
   if (!p) return players;
   const next = [...players];
-  // Charge survives banking. Only busting or firing consumes it.
+  // Charge survives banking. Only firing consumes it (consumeSkinPower).
   const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
   next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
   return next;
@@ -150,6 +150,7 @@ export function createInitialState(playerNames, options = {}) {
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     xrayReveals: {},
+    xrayScannerIndex: null,
     prisonDice: null,
     sharkBiteFx: false,
     sharkDiceHidden: false,
@@ -542,6 +543,12 @@ export function playerHasPowerCharge(state, playerIndex = state?.currentIndex) {
   return !!state?.players?.[playerIndex]?.powerCharge;
 }
 
+/** Power-mode visuals / fire gate — charge persists across banks and busts until fire. */
+export function isPlayerPowerModeActive(state, playerIndex = state?.currentIndex) {
+  if (!state || state.winner) return false;
+  return playerHasPowerCharge(state, playerIndex);
+}
+
 /** Mark skin secret power as spent — consumes the player's power charge. */
 export function consumeSkinPower(state) {
   const idx = state.currentIndex;
@@ -670,14 +677,11 @@ export function bankAndPass(state) {
   }
 
   // Sabotage debuffs on the banker clear; power charge carries to their next turn
-  // unless Shark Bite just resolved (power visuals must drop after the bite).
-  const biteResolved = sharkBiteFx || pendingSharkBite;
+  // until they fire their secret power (bust alone does not consume charge).
   const chargeSaved =
-    !biteResolved &&
-    !!newPlayers[finishedIdx]?.powerCharge &&
-    !state.skinPowerUsedThisTurn;
+    !!newPlayers[finishedIdx]?.powerCharge && !state.skinPowerUsedThisTurn;
   const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx, {
-    skinPowerUsedThisTurn: state.skinPowerUsedThisTurn || biteResolved,
+    skinPowerUsedThisTurn: state.skinPowerUsedThisTurn,
   });
 
   const storyIce = state.storyIceFreeze;
@@ -745,8 +749,9 @@ export function passAfterFarkle(state) {
   const busted = state.players[bustedIdx];
   // Shark Bite waits for a bank — survive farkle clears. Other debuffs drop.
   const keepShark = sharkBiteDebuffOnly(busted);
+  // Bust alone does not consume power charge — only firing does (consumeSkinPower).
   let players = state.players.map((p, i) =>
-    i === bustedIdx ? { ...p, debuffs: keepShark, powerCharge: false } : p
+    i === bustedIdx ? { ...p, debuffs: keepShark } : p
   );
   // Fired a power then busted — sabotage effects you cast are lost.
   if (state.skinPowerUsedThisTurn) {

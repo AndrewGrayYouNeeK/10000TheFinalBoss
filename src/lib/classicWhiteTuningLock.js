@@ -1,43 +1,13 @@
-import { CLASSIC_WHITE_LOCKED_SNAPSHOT } from "./classicWhiteSpriteTuning";
-
 const LOCK_KEY = "yourneek_classic_white_tuning_locked";
-const RESTORE_KEY = "yourneek_classic_white_restored_baseline_v1";
-const RECOVER_KEY = "yourneek_classic_white_recovered_lock_v1";
-const DRAFT_KEY = "yourneek_sprite_lab_classic_white";
-const SNAPSHOT_KEY = "yourneek_locked_tuning_classic_white";
 
-/**
- * Undo the accidental baseline wipe — put your saved lock snapshot back.
- */
-export function recoverClassicWhiteLockOnce() {
-  try {
-    if (typeof localStorage === "undefined") return;
-    if (localStorage.getItem(RECOVER_KEY) === "1") return;
-
-    const snap = {
-      ...CLASSIC_WHITE_LOCKED_SNAPSHOT,
-      savedAt: Date.now(),
-    };
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(snap));
-    localStorage.setItem(LOCK_KEY, "1");
-    // Clear the bad "wipe baseline" flag so it can't fire again.
-    localStorage.removeItem(RESTORE_KEY);
-    localStorage.setItem(RECOVER_KEY, "1");
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Classic White stays locked to your saved Sprite Lab snapshot by default. */
+/** Classic White starts unlocked in Sprite Lab until you tap Lock. */
 export function isClassicWhiteTuningLocked() {
-  recoverClassicWhiteLockOnce();
   try {
     const v = localStorage.getItem(LOCK_KEY);
-    if (v === null) return true;
+    if (v === null) return false;
     return v === "1";
   } catch {
-    return true;
+    return false;
   }
 }
 

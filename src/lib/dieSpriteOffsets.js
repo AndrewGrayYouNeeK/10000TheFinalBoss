@@ -119,14 +119,21 @@ export function resolveFaceSpriteNudges(skinId, value, size, faceOffset, { power
   };
 }
 
-export function getSkinFaceOffset(skin, powerMode, value) {
+/**
+ * Per-face sprite nudge from catalog / sprite lab.
+ * @param {"regular"|"powerSprite"|"powerVideo"} offsetMode — which tuning map to read.
+ *   Use powerSprite only when a power sprite sheet is on screen; powerVideo when a
+ *   power video cell is cropped; otherwise regular (including power charge with no
+ *   dedicated power asset — e.g. Frozen Ice after hot dice).
+ */
+export function getSkinFaceOffset(skin, value, offsetMode = "regular") {
   const regular =
     skin?.spriteFaceOffsets?.regular?.[value] ?? skin?.spriteFaceOffsets?.regular?.[String(value)];
-  if (!powerMode) return regular ?? null;
+  if (offsetMode === "regular") return regular ?? null;
   const power =
     skin?.spriteFaceOffsets?.power?.[value] ?? skin?.spriteFaceOffsets?.power?.[String(value)];
   // Power video uses its own nudge map — don't inherit regular sprite offsets.
-  if (skin?.powerVideoUrl && !skin?.powerSpriteUrl) return power ?? null;
+  if (offsetMode === "powerVideo") return power ?? null;
   return power ?? regular ?? null;
 }
 
@@ -206,7 +213,7 @@ export function getAquamarineShellStyle(skin, value, size, nudges = {}) {
   return getSpriteSheetStyle(skin, value, size, nudges);
 }
 
-/** Tesla/plasma video face offsets — already in die-width units (do not scale by size). */
+/** Plasma video face offsets — already in die-width units (do not scale by size). */
 export function getVideoFaceOffset(value) {
   const txRef = { 1: -0.3, 2: -3.8, 3: -7.0, 4: -1.3, 5: -3.1, 6: -6.8 };
   const tyRef = { 1: -0.05, 2: 0, 3: 0, 4: -3, 5: -3, 6: -3 };
@@ -219,7 +226,7 @@ export function getSpriteBleed(size) {
 
 /**
  * Crop a 3×2 power-video grid onto one die face.
- * Matrix (spriteSheetSize) uses sprite crop + face nudges — not Tesla offsets.
+ * Matrix (spriteSheetSize) uses sprite crop + face nudges — not plasma video offsets.
  */
 export function getPowerVideoCellStyle(skin, value, size, { powerMode = true } = {}) {
   const cols = skin.spriteGrid?.cols ?? 3;
@@ -234,7 +241,7 @@ export function getPowerVideoCellStyle(skin, value, size, { powerMode = true } =
     const crop = skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 };
     const cropX = crop.offsetX ? size * crop.offsetX : 0;
     const cropY = crop.offsetY ? size * crop.offsetY : 0;
-    const faceOffset = getSkinFaceOffset(skin, powerMode, value);
+    const faceOffset = getSkinFaceOffset(skin, value, "powerVideo");
     const { xNudge, yNudge } = resolveFaceSpriteNudges(skin.id, value, size, faceOffset, {
       powerVideo: true,
     });

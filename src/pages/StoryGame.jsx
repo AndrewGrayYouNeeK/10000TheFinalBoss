@@ -21,6 +21,7 @@ import {
   getObscuredScoreIndices,
   consumeSkinPower,
   skipFrozenOpponentTurn,
+  isPlayerPowerModeActive,
 } from "@/lib/gameLogic";
 import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import {
@@ -41,6 +42,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import StoryBossFightVideo from "@/components/story/StoryBossFightVideo";
 import MarlinLoopPositionTool from "@/components/story/MarlinLoopPositionTool";
 import ScorePanel from "@/components/game/ScorePanel";
+import { xrayRevealsVisible } from "@/lib/xrayScan";
 import TurnBanner from "@/components/game/TurnBanner";
 import BigPopup from "@/components/game/BigPopup";
 import BossDialogue from "@/components/story/BossDialogue";
@@ -216,7 +218,13 @@ export default function StoryGame() {
   const dialogueRef = useRef(dialogue);
   dialogueRef.current = dialogue;
   const fightSnapshotRef = useRef(null);
-  const playerPowerResolve = game ? resolvePlayerPower(game, STORY_PLAYER_INDEX) : null;
+  const ghostOptions = React.useMemo(
+    () => ({ ghostDisguiseId, ownedSkins }),
+    [ghostDisguiseId, ownedSkins]
+  );
+  const playerPowerResolve = game
+    ? resolvePlayerPower(game, STORY_PLAYER_INDEX, ghostOptions)
+    : null;
   /** Player power comes from THEIR equipped skin — never steal Marlin's Shark Bite. */
   const rawSkinPower = playerPowerResolve?.power ?? null;
   const skinPower = resolveStorySkinPower(rawSkinPower, bossId);
@@ -928,13 +936,9 @@ export default function StoryGame() {
     canFireStoryIce(game, STORY_PLAYER_INDEX, bossId);
   const plasmaCutRescue =
     myTurn && skinPower?.id === "plasma_cut" && !!playerCharge && game.farkle;
+  const storyPlayerPowerMode = isPlayerPowerModeActive(game, STORY_PLAYER_INDEX);
   const powerModeActive =
-    !!playerCharge &&
-    !game.winner &&
-    (storyIceReady ||
-      (myTurn &&
-        (!game.farkle || plasmaCutRescue) &&
-        (skinPower?.id !== "plasma_cut" || game.hasRolled)));
+    storyPlayerPowerMode && (storyIceReady || myTurn);
   const isSaboPower = skinPower?.kind === "sabo";
   const frozenTargetIdx = game?.storyIceFreeze?.targetIdx;
   const showFrozenEnemyDice =
@@ -980,12 +984,11 @@ export default function StoryGame() {
         : practiceVariant === "ice"
           ? getPower("frosty_ice")
           : null;
-  // Dice tray power VFX when charged (or practice preview).
-  // Sabo powers stay secret — no charge glow on your dice until fired on the enemy.
+  // Dice tray power VFX when charged on your turn (or practice preview).
+  const trayPlayerPowerMode = storyPlayerPowerMode && myTurn;
   const trayPowerMode =
     !diceRolling &&
-    !isSaboPower &&
-    (powerModeActive || (practicePowerPreview && !!practiceVariant));
+    (trayPlayerPowerMode || (practicePowerPreview && !!practiceVariant));
   const trayIceFrozen = showFrozenEnemyDice;
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
@@ -1080,7 +1083,10 @@ export default function StoryGame() {
             players={game.players}
             currentIndex={game.currentIndex}
             obscuredIndices={obscuredScores}
-            xrayReveals={game.xrayReveals}
+            xrayReveals={xrayRevealsVisible(game.xrayReveals, {
+              scannerIndex: game.xrayScannerIndex,
+              currentIndex: game.currentIndex,
+            })}
           />
         </div>
 

@@ -9,10 +9,10 @@ function pickMorphTarget(trueValue) {
 }
 
 /**
- * Cycles X-Ray die face visuals among pip-compatible values (add/remove pips only).
- * Game `trueValue` is unchanged — this is fluoroscopy flicker only.
+ * X-Ray die face layout. Pips stay on the true value unless power mode allows
+ * fluoroscopy morph on this die (one die per tray). Game `trueValue` is unchanged.
  */
-export function useXrayMorphLayout(trueValue, rolling, enabled) {
+export function useXrayMorphLayout(trueValue, rolling, allowMorph) {
   const trueLayout = useMemo(() => layoutGrid(trueValue), [trueValue]);
   const [morphValue, setMorphValue] = useState(trueValue);
   const [displayLayout, setDisplayLayout] = useState(trueLayout);
@@ -23,7 +23,7 @@ export function useXrayMorphLayout(trueValue, rolling, enabled) {
   }, [trueValue]);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!allowMorph) return undefined;
 
     let cancelled = false;
     let timeoutId;
@@ -47,9 +47,9 @@ export function useXrayMorphLayout(trueValue, rolling, enabled) {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [trueValue, rolling, enabled]);
+  }, [trueValue, rolling, allowMorph]);
 
-  if (!enabled) {
+  if (!allowMorph) {
     return { morphValue: trueValue, displayLayout: trueLayout, trueLayout };
   }
 

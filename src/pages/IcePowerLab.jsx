@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Snowflake } from "lucide-react";
+import { toast } from "sonner";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
 import DiceTray from "@/components/game/DiceTray";
@@ -11,13 +12,18 @@ import {
   DEFAULT_FROZEN_TINT_COLOR,
   ICE_BLEND_MODES,
   ICE_TINT_BLEND_MODES,
-  applyFrozenFaceToAll,
+  applyFrozenFaceToAllForSkin,
+  clearSkinIcePowerOverride,
   getFrozenFaceSettings,
+  hasSkinIcePowerOverride,
   makeDefaultFrozenFaces,
-  patchFrozenFace,
-  resetFrozenFace,
-  saveAllFrozenFaces,
+  patchFrozenFaceForSkin,
+  resetFrozenFaceForSkin,
+  loadIcePowerSettings,
+  resolveIcePowerSettingsForSkin,
+  saveAllFrozenFacesForSkin,
   saveIcePowerSettings,
+  saveSkinIcePowerSettings,
   resetIcePowerSettings,
 } from "@/lib/icePowerSettings";
 import {
@@ -92,22 +98,32 @@ function BlendSelect({ label = "Blend mode", value, onChange, disabled, modes = 
 }
 
 export default function IcePowerLab() {
-  const settings = useIcePowerSettings();
-  const update = (patch) => saveIcePowerSettings({ ...settings, ...patch });
+  const allSettings = useIcePowerSettings();
+  const labSkinId = allSettings.labSkinId || "classic_white";
+  const settings = resolveIcePowerSettingsForSkin(allSettings, labSkinId);
+  const skinHasOwnTuning = hasSkinIcePowerOverride(allSettings, labSkinId);
 
-  const dieSize = Math.round(settings.labDieSize || 88);
-  const labSkinId = settings.labSkinId || "classic_white";
+  const updateLab = (patch) =>
+    saveIcePowerSettings({ ...loadIcePowerSettings(), ...patch });
+  const updateSkin = (patch) => saveSkinIcePowerSettings(null, labSkinId, patch);
+
+  const dieSize = Math.round(allSettings.labDieSize || 88);
   const selectedSkin = getSkin(labSkinId) || DICE_SKINS[0];
-  const trayMode = !!settings.labTrayMode;
-  const showAllFaces = !trayMode && !!settings.labShowAll;
-  const editFace = Math.min(6, Math.max(1, Math.round(settings.labFace) || 1));
+
+  const handleSaveAllFacesForSkin = () => {
+    saveAllFrozenFacesForSkin(null, labSkinId);
+    toast.success(`${selectedSkin?.name || labSkinId} — all faces saved on this device`);
+  };
+  const trayMode = !!allSettings.labTrayMode;
+  const showAllFaces = !trayMode && !!allSettings.labShowAll;
+  const editFace = Math.min(6, Math.max(1, Math.round(allSettings.labFace) || 1));
   const faceTune = getFrozenFaceSettings(settings, editFace);
   const previewFaces = showAllFaces ? FACE_VALUES : [editFace];
   const overlayOn = settings.frozenEnabled !== false;
-  const setOverlayOn = (frozenEnabled) => update({ frozenEnabled: !!frozenEnabled });
+  const setOverlayOn = (frozenEnabled) => updateSkin({ frozenEnabled: !!frozenEnabled });
 
-  const selectFace = (face) => update({ labFace: face });
-  const updateFace = (patch) => saveIcePowerSettings(patchFrozenFace(settings, editFace, patch));
+  const selectFace = (face) => updateLab({ labFace: face });
+  const updateFace = (patch) => patchFrozenFaceForSkin(null, labSkinId, editFace, patch);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-sky-950/40 to-black text-white pb-12">
@@ -182,13 +198,13 @@ export default function IcePowerLab() {
               <ToggleRow
                 label="Full tray (6)"
                 checked={trayMode}
-                onChange={(labTrayMode) => update({ labTrayMode })}
+                onChange={(labTrayMode) => updateLab({ labTrayMode })}
               />
               {!trayMode && (
                 <ToggleRow
                   label="All faces"
                   checked={showAllFaces}
-                  onChange={(labShowAll) => update({ labShowAll })}
+                  onChange={(labShowAll) => updateLab({ labShowAll })}
                 />
               )}
               {!trayMode && !showAllFaces && (
@@ -215,6 +231,15 @@ export default function IcePowerLab() {
           <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px]">
             <span className="text-slate-500 font-bold uppercase tracking-wider">Skin</span>
             <span className="text-sky-100 font-black">{selectedSkin?.name || labSkinId}</span>
+            <span
+              className={`text-[9px] font-black uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+                skinHasOwnTuning
+                  ? "border-sky-400/50 text-sky-200 bg-sky-500/15"
+                  : "border-slate-600 text-slate-400 bg-black/20"
+              }`}
+            >
+              {skinHasOwnTuning ? "This skin only" : "Global defaults"}
+            </span>
             <label className="flex items-center gap-2 rounded-full border border-sky-400/35 bg-sky-950/40 px-2.5 py-1 cursor-pointer">
               <input
                 type="checkbox"
@@ -283,7 +308,7 @@ export default function IcePowerLab() {
               max={140}
               step={1}
               format={(v) => `${Math.round(v)}px`}
-              onChange={(labDieSize) => update({ labDieSize })}
+              onChange={(labDieSize) => updateLab({ labDieSize })}
             />
           )}
         </section>
@@ -293,8 +318,8 @@ export default function IcePowerLab() {
           <div>
             <h2 className="text-sm font-black text-sky-100">Frozen overlay</h2>
             <p className="text-[10px] text-slate-500 mt-0.5">
-              Pick a face (1–6), then zoom / offset that ice cube only. Opacity, blend &amp; cyan
-              tint stay global — transparent ice sheet (skins show through).
+              Sliders save for <b>{selectedSkin?.name || labSkinId}</b> only — other skins keep their
+              own settings. Pick a face (1–6), then zoom / offset that ice cube for this skin.
             </p>
           </div>
 
@@ -366,7 +391,7 @@ export default function IcePowerLab() {
 
           <div className="border-t border-white/10 pt-3 space-y-3">
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-              Global (all faces)
+              For {selectedSkin?.name || labSkinId} (all faces)
             </p>
             <SliderRow
               label="Opacity"
@@ -375,7 +400,7 @@ export default function IcePowerLab() {
               max={1}
               step={0.01}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenOpacity) => update({ frozenOpacity })}
+              onChange={(frozenOpacity) => updateSkin({ frozenOpacity })}
             />
             <SliderRow
               label="Center clear"
@@ -384,7 +409,7 @@ export default function IcePowerLab() {
               max={1}
               step={0.01}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenCenterClear) => update({ frozenCenterClear })}
+              onChange={(frozenCenterClear) => updateSkin({ frozenCenterClear })}
             />
             <SliderRow
               label="Clear radius"
@@ -393,7 +418,7 @@ export default function IcePowerLab() {
               max={0.9}
               step={0.01}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenCenterRadius) => update({ frozenCenterRadius })}
+              onChange={(frozenCenterRadius) => updateSkin({ frozenCenterRadius })}
             />
             <p className="text-[10px] text-slate-500 -mt-1">
               Higher center clear fades mid-face ice so pips show; clear radius widens that soft
@@ -402,7 +427,7 @@ export default function IcePowerLab() {
             <BlendSelect
               value={settings.frozenBlend || "normal"}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenBlend) => update({ frozenBlend })}
+              onChange={(frozenBlend) => updateSkin({ frozenBlend })}
             />
           </div>
 
@@ -431,7 +456,7 @@ export default function IcePowerLab() {
                 type="color"
                 value={settings.frozenTintColor || DEFAULT_FROZEN_TINT_COLOR}
                 disabled={!settings.frozenEnabled}
-                onChange={(e) => update({ frozenTintColor: e.target.value })}
+                onChange={(e) => updateSkin({ frozenTintColor: e.target.value })}
                 className="h-8 w-12 cursor-pointer rounded border border-white/15 bg-slate-900 disabled:cursor-not-allowed"
               />
             </label>
@@ -442,7 +467,7 @@ export default function IcePowerLab() {
               max={1}
               step={0.01}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenTintStrength) => update({ frozenTintStrength })}
+              onChange={(frozenTintStrength) => updateSkin({ frozenTintStrength })}
             />
             <SliderRow
               label="Ice saturate"
@@ -451,35 +476,35 @@ export default function IcePowerLab() {
               max={2.5}
               step={0.01}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenTintSaturate) => update({ frozenTintSaturate })}
+              onChange={(frozenTintSaturate) => updateSkin({ frozenTintSaturate })}
             />
             <BlendSelect
               label="Tint blend"
               value={settings.frozenTintBlend || "color"}
               modes={ICE_TINT_BLEND_MODES}
               disabled={!settings.frozenEnabled}
-              onChange={(frozenTintBlend) => update({ frozenTintBlend })}
+              onChange={(frozenTintBlend) => updateSkin({ frozenTintBlend })}
             />
           </div>
 
           <div className="flex flex-wrap gap-3 pt-1">
             <button
               type="button"
-              onClick={() => saveAllFrozenFaces(settings)}
+              onClick={handleSaveAllFacesForSkin}
               className="text-[11px] font-bold uppercase tracking-wider text-sky-300 hover:text-sky-100"
             >
-              Save all faces
+              Save all faces (this skin)
             </button>
             <button
               type="button"
-              onClick={() => applyFrozenFaceToAll(settings, editFace)}
+              onClick={() => applyFrozenFaceToAllForSkin(null, labSkinId, editFace)}
               className="text-[11px] font-bold uppercase tracking-wider text-sky-300/80 hover:text-sky-100"
             >
               Apply face {editFace} → all
             </button>
             <button
               type="button"
-              onClick={() => saveIcePowerSettings(resetFrozenFace(settings, editFace))}
+              onClick={() => resetFrozenFaceForSkin(null, labSkinId, editFace)}
               className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white"
             >
               Reset this face
@@ -487,7 +512,7 @@ export default function IcePowerLab() {
             <button
               type="button"
               onClick={() =>
-                update({
+                updateSkin({
                   frozenOpacity: DEFAULT_ICE_POWER_SETTINGS.frozenOpacity,
                   frozenCenterClear: DEFAULT_ICE_POWER_SETTINGS.frozenCenterClear,
                   frozenCenterRadius: DEFAULT_ICE_POWER_SETTINGS.frozenCenterRadius,
@@ -505,8 +530,17 @@ export default function IcePowerLab() {
               }
               className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white"
             >
-              Reset overlay only
+              Reset this skin
             </button>
+            {skinHasOwnTuning && (
+              <button
+                type="button"
+                onClick={() => clearSkinIcePowerOverride(null, labSkinId)}
+                className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white"
+              >
+                Use global defaults
+              </button>
+            )}
           </div>
         </section>
 
@@ -515,17 +549,19 @@ export default function IcePowerLab() {
           <div>
             <h2 className="text-sm font-black text-sky-100">Dice skin</h2>
             <p className="text-[10px] text-slate-500 mt-0.5">
-              Preview the freeze cube on every skin (story puts it on the opponent&apos;s tray)
+              Each skin has its own freeze overlay tuning — pick a skin, adjust sliders, then try
+              another skin without losing your work.
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 max-h-64 overflow-y-auto pr-1">
             {DICE_SKINS.map((skin) => {
               const active = labSkinId === skin.id;
+              const tuned = hasSkinIcePowerOverride(allSettings, skin.id);
               return (
                 <button
                   key={skin.id}
                   type="button"
-                  onClick={() => update({ labSkinId: skin.id })}
+                  onClick={() => updateLab({ labSkinId: skin.id })}
                   className={`rounded-lg border px-2 py-1.5 text-left transition-colors ${
                     active
                       ? "border-sky-400 bg-sky-500/25 text-white"
@@ -533,7 +569,10 @@ export default function IcePowerLab() {
                   }`}
                 >
                   <div className="text-[11px] font-black truncate">{skin.name}</div>
-                  <div className="text-[9px] text-slate-500 truncate font-mono">{skin.id}</div>
+                  <div className="text-[9px] text-slate-500 truncate font-mono">
+                    {skin.id}
+                    {tuned ? " · tuned" : ""}
+                  </div>
                 </button>
               );
             })}
@@ -605,9 +644,10 @@ export default function IcePowerLab() {
           Open{" "}
           <code className="text-sky-300">/ice-lab</code> or{" "}
           <code className="text-sky-300">/frosty-lab</code>. Settings key{" "}
-          <code className="text-slate-400">dice10k_ice_power_settings_v2</code> — used by Story
-          Frozen Ice reveal. Use <span className="text-sky-300">Save all faces</span> to persist
-          every face&apos;s zoom/offset on this device.
+          <code className="text-slate-400">dice10k_ice_power_settings_v2</code> — per-skin overrides in{" "}
+          <code className="text-slate-400">skinOverrides</code>. Story Frozen Ice uses the opponent
+          tray skin. Use <span className="text-sky-300">Save all faces (this skin)</span> to persist
+          every face for the selected skin on this device.
         </p>
       </div>
     </div>

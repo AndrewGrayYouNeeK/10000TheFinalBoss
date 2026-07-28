@@ -16,12 +16,16 @@ import {
   SESSION_PLAYER_DISGUISES_KEY,
   SESSION_PLAYER_SKINS_KEY,
 } from "@/lib/ghostDisguise";
+import PassPlayPrivacySettings from "@/components/game/PassPlayPrivacySettings";
+import { loadPassPlayPrivacy, savePassPlayPrivacy } from "@/lib/passPlayPrivacy";
+import { clearOnlineMockSession } from "@/lib/onlineVisibility";
 
 export default function Setup() {
   const [players, setPlayers] = useState(["Player 1", "Player 2"]);
   const [playerSkins, setPlayerSkins] = useState(null);
   const [playerDisguises, setPlayerDisguises] = useState(null);
   const [disguiseLocked, setDisguiseLocked] = useState([]);
+  const [privacySettings, setPrivacySettings] = useState(() => loadPassPlayPrivacy());
   const navigate = useNavigate();
   const { equippedSkinId, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
 
@@ -119,6 +123,8 @@ export default function Setup() {
     sessionStorage.setItem("dice10k_players", JSON.stringify(names));
     sessionStorage.setItem(SESSION_PLAYER_SKINS_KEY, JSON.stringify(skins));
     sessionStorage.setItem(SESSION_PLAYER_DISGUISES_KEY, JSON.stringify(disguises));
+    savePassPlayPrivacy(privacySettings, { persistProfile: true });
+    clearOnlineMockSession();
     navigate("/game");
   };
 
@@ -254,6 +260,24 @@ export default function Setup() {
             )}
           </div>
         </div>
+
+        {players.length >= 2 && (
+          <div className="px-4 max-w-md w-full mx-auto mt-4">
+            <div
+              className="rounded-2xl p-3 border"
+              style={{
+                borderColor: "rgba(0,255,200,0.35)",
+                background: "rgba(8,2,20,0.45)",
+                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+              }}
+            >
+              <PassPlayPrivacySettings
+                settings={privacySettings}
+                onChange={setPrivacySettings}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="px-4 max-w-md w-full mx-auto mt-6">
           <Button

@@ -10,8 +10,6 @@ export function getBlueGelTrayFishProps(dieIndex) {
   return {
     bigFishVariantIndex: BLUE_GEL_TRAY_FISH_VARIANTS[idx],
     bigFishExtraScale: BLUE_GEL_TRAY_FISH_SCALES[idx],
-    // Face 1 — static angelfish centered behind the shell pip (no swim path into mis-crop zone).
-    bigFishStaticPose: idx === 0,
   };
 }
 

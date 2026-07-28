@@ -48,7 +48,6 @@ export const SKIN_TIERS = {
   love_is_love: 4,
   galaxy: 4,
   dragon_scale: 4,
-  tesla: 4,
   circuit_board: 4,
   amber_wasp: 4,
   toxic_plasma_v2: 4,

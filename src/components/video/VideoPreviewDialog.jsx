@@ -24,6 +24,9 @@ export default function VideoPreviewDialog({
   contentClassName,
   startAtSeconds = 0,
   videoStyle,
+  videoClassName = "w-full h-full max-h-[min(70vh,520px)] bg-black",
+  videoContainerClassName = "max-h-[min(70vh,520px)]",
+  onVideoMetadata,
 }) {
   const videoRef = useRef(null);
 
@@ -62,7 +65,12 @@ export default function VideoPreviewDialog({
         </DialogHeader>
 
         {src ? (
-          <div className="rounded-lg overflow-hidden border border-white/10 bg-black max-h-[min(70vh,520px)]">
+          <div
+            className={cn(
+              "rounded-lg overflow-hidden border border-white/10 bg-black",
+              videoContainerClassName
+            )}
+          >
             <video
               ref={videoRef}
               key={src}
@@ -72,8 +80,11 @@ export default function VideoPreviewDialog({
               loop
               muted
               playsInline
-              className="w-full h-full max-h-[min(70vh,520px)] bg-black"
+              className={cn(videoClassName, "bg-black")}
               style={videoStyle}
+              onLoadedMetadata={
+                onVideoMetadata ? (e) => onVideoMetadata(e.currentTarget) : undefined
+              }
             />
           </div>
         ) : (

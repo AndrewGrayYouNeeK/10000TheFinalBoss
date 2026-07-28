@@ -103,7 +103,177 @@ export const DEFAULT_ICE_POWER_SETTINGS = {
   labFace: 1, // 1–6 (single-die mode + face editor target)
   labDieSize: 88,
   labSkinId: "classic_white", // try freeze overlay on any shop skin
+  /** Per-skin freeze overlay tuning — keys are shop skin ids (e.g. ice, classic_white). */
+  skinOverrides: {},
 };
+
+/** Overlay fields stored globally (defaults) or per skin in skinOverrides. */
+const OVERLAY_SETTING_KEYS = [
+  "frozenEnabled",
+  "frozenOpacity",
+  "frozenBlend",
+  "frozenCenterClear",
+  "frozenCenterRadius",
+  "frozenTintColor",
+  "frozenTintStrength",
+  "frozenTintBlend",
+  "frozenTintSaturate",
+  "frozenZoom",
+  "frozenOffsetX",
+  "frozenOffsetY",
+  "frozenFaces",
+];
+
+function pickOverlayFields(src) {
+  if (!src || typeof src !== "object") return {};
+  const out = {};
+  for (const key of OVERLAY_SETTING_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(src, key)) out[key] = src[key];
+  }
+  return out;
+}
+
+function mergeFrozenFaces(baseFaces, patchFaces) {
+  const base = makeDefaultFrozenFaces();
+  for (let face = 1; face <= 6; face += 1) {
+    base[face] = normalizeFaceEntry(baseFaces?.[face], base[face]);
+  }
+  if (!patchFaces || typeof patchFaces !== "object") return base;
+  for (let face = 1; face <= 6; face += 1) {
+    if (patchFaces[face] != null || patchFaces[String(face)] != null) {
+      base[face] = normalizeFaceEntry(patchFaces[face] ?? patchFaces[String(face)], base[face]);
+    }
+  }
+  return base;
+}
+
+function normalizeSkinOverride(raw) {
+  const incoming = raw && typeof raw === "object" ? raw : {};
+  const faces = incoming.frozenFaces
+    ? mergeFrozenFaces(makeDefaultFrozenFaces(), incoming.frozenFaces)
+    : undefined;
+  const next = normalizeIcePowerSettings({
+    ...DEFAULT_ICE_POWER_SETTINGS,
+    ...incoming,
+    ...(faces ? { frozenFaces: faces } : {}),
+  });
+  return pickOverlayFields(next);
+}
+
+function normalizeSkinOverridesMap(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  const out = {};
+  for (const [skinId, entry] of Object.entries(raw)) {
+    if (!skinId || typeof skinId !== "string") continue;
+    out[skinId] = normalizeSkinOverride(entry);
+  }
+  return out;
+}
+
+/** Merge global defaults with a skin-specific override for rendering / lab editing. */
+export function resolveIcePowerSettingsForSkin(raw, skinId) {
+  const base = normalizeIcePowerSettings(raw);
+  const id = typeof skinId === "string" && skinId ? skinId : base.labSkinId || "classic_white";
+  const override = base.skinOverrides?.[id];
+  if (!override || typeof override !== "object" || Object.keys(override).length === 0) {
+    return base;
+  }
+  const mergedFaces = override.frozenFaces
+    ? mergeFrozenFaces(base.frozenFaces, override.frozenFaces)
+    : base.frozenFaces;
+  return normalizeIcePowerSettings({
+    ...base,
+    ...override,
+    frozenFaces: mergedFaces,
+    skinOverrides: base.skinOverrides,
+  });
+}
+
+export function hasSkinIcePowerOverride(raw, skinId) {
+  const id = typeof skinId === "string" ? skinId : "";
+  if (!id) return false;
+  const entry = normalizeIcePowerSettings(raw).skinOverrides?.[id];
+  return !!entry && typeof entry === "object" && Object.keys(entry).length > 0;
+}
+
+/** Always read storage before writes so React state cannot clobber newer slider saves. */
+function freshIcePowerSettings(fallback) {
+  try {
+    return normalizeIcePowerSettings(loadIcePowerSettings());
+  } catch {
+    return normalizeIcePowerSettings(fallback);
+  }
+}
+
+/** Persist overlay tuning for one skin only (does not change other skins). */
+export function saveSkinIcePowerSettings(_allSettings, skinId, patch) {
+  const base = freshIcePowerSettings(_allSettings);
+  const id = typeof skinId === "string" ? skinId : base.labSkinId || "classic_white";
+  const prev = base.skinOverrides?.[id] || {};
+  const merged = normalizeSkinOverride({
+    ...prev,
+    ...patch,
+    ...(patch?.frozenFaces
+      ? { frozenFaces: mergeFrozenFaces(prev.frozenFaces ?? base.frozenFaces, patch.frozenFaces) }
+      : {}),
+  });
+  return saveIcePowerSettings({
+    ...base,
+    skinOverrides: {
+      ...base.skinOverrides,
+      [id]: merged,
+    },
+  });
+}
+
+export function clearSkinIcePowerOverride(_allSettings, skinId) {
+  const base = freshIcePowerSettings(_allSettings);
+  const id = typeof skinId === "string" ? skinId : "";
+  if (!id || !base.skinOverrides?.[id]) return base;
+  const nextOverrides = { ...base.skinOverrides };
+  delete nextOverrides[id];
+  return saveIcePowerSettings({ ...base, skinOverrides: nextOverrides });
+}
+
+export function patchFrozenFaceForSkin(_allSettings, skinId, faceValue, patch) {
+  const base = freshIcePowerSettings(_allSettings);
+  const resolved = resolveIcePowerSettingsForSkin(base, skinId);
+  const patched = patchFrozenFace(resolved, faceValue, patch);
+  return saveSkinIcePowerSettings(base, skinId, pickOverlayFields(patched));
+}
+
+/**
+ * Persist the full overlay snapshot for one skin (all six faces + opacity/tint/blend).
+ * Used by Ice Power Lab "Save all faces (this skin)".
+ */
+export function saveAllFrozenFacesForSkin(_allSettings, skinId) {
+  const base = freshIcePowerSettings(_allSettings);
+  const id = typeof skinId === "string" ? skinId : base.labSkinId || "classic_white";
+  const resolved = resolveIcePowerSettingsForSkin(base, id);
+  const frozenFaces = makeDefaultFrozenFaces();
+  for (let face = 1; face <= 6; face += 1) {
+    frozenFaces[face] = normalizeFaceEntry(resolved.frozenFaces?.[face], DEFAULT_FROZEN_FACE);
+  }
+  const snapshot = {
+    ...pickOverlayFields(resolved),
+    frozenFaces,
+    savedAt: Date.now(),
+  };
+  return saveSkinIcePowerSettings(base, id, snapshot);
+}
+
+export function applyFrozenFaceToAllForSkin(_allSettings, skinId, faceValue) {
+  const base = freshIcePowerSettings(_allSettings);
+  const resolved = resolveIcePowerSettingsForSkin(base, skinId);
+  const src = getFrozenFaceSettings(resolved, faceValue);
+  return saveSkinIcePowerSettings(base, skinId, {
+    frozenFaces: makeDefaultFrozenFaces(src),
+  });
+}
+
+export function resetFrozenFaceForSkin(_allSettings, skinId, faceValue) {
+  return patchFrozenFaceForSkin(_allSettings, skinId, faceValue, { ...DEFAULT_FROZEN_FACE });
+}
 
 function clampFace(value) {
   const n = Math.round(Number(value));
@@ -183,6 +353,7 @@ export function normalizeIcePowerSettings(raw) {
     // Explicit boolean — missing / null means ON (lab + story preview default).
     frozenEnabled: merged.frozenEnabled !== false,
     frozenFaces: faces,
+    skinOverrides: normalizeSkinOverridesMap(incoming.skinOverrides ?? merged.skinOverrides),
     // Mirror face 1 into legacy keys so old readers stay sane
     frozenZoom: faces[1].zoom,
     frozenOffsetX: faces[1].offsetX,
@@ -441,6 +612,7 @@ export function resetIcePowerSettings() {
   return saveIcePowerSettings({
     ...DEFAULT_ICE_POWER_SETTINGS,
     frozenFaces: makeDefaultFrozenFaces(),
+    skinOverrides: {},
   });
 }
 

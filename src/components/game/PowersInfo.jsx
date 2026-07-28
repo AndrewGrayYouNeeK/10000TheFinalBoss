@@ -1,5 +1,7 @@
 import React from "react";
-import { BASE_POWERS, SABO_POWERS } from "@/lib/powers";
+import { BASE_POWERS, SABO_POWERS, POWER_MODE_HOT_DICE } from "@/lib/powers";
+
+const HOT_DICE_ORDINAL = ["", "1st", "2nd", "3rd", "4th", "5th", "6th"][POWER_MODE_HOT_DICE] ?? `${POWER_MODE_HOT_DICE}th`;
 
 // Shared powers reference shown in Rules + Shop so players know what each does.
 // `variant="rules"` uses the dark-slate panel style; `variant="shop"` uses the
@@ -33,9 +35,9 @@ export default function PowersInfo({ variant = "rules" }) {
         ⚡ Powers
       </h2>
       <p className={`text-sm mb-3 ${isShop ? "text-cyan-100/80" : "text-slate-300"}`}>
-        Every dice skin carries <b>one secret power</b>. Hit your <b>3rd Hot Dice</b> in a single turn to earn a{" "}
-        <b>power charge</b>. Hold the charge across turns — <b>banking keeps it</b>. Fire anytime on your turn.{" "}
-        <b>Only a bust before you use it loses the charge.</b>
+        Every dice skin carries <b>one secret power</b>. Hit your <b>{HOT_DICE_ORDINAL} Hot Dice</b> in a single turn to earn a{" "}
+        <b>power charge</b>. Hold the charge across turns — <b>banking and busting keep it</b>. Fire anytime on your turn.{" "}
+        <b>Only firing the power spends the charge.</b>
       </p>
 
       <Group
@@ -49,7 +51,7 @@ export default function PowersInfo({ variant = "rules" }) {
         color={isShop ? "#ff00aa" : "#fb7185"}
         powers={SABO_POWERS}
         isShop={isShop}
-        footer="Sabotage debuffs last for the opponent's turn. Bust before firing and you lose your charge."
+        footer="Sabotage debuffs last for the opponent's turn. Fire then bust and your sabotage effects are lost."
       />
 
       <div

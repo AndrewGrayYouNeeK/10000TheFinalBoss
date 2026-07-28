@@ -313,21 +313,6 @@ const ALL_BOSSES = [
     coins: 2000, xp: 2200, skin: "neon_grid",
   }),
   fight({
-    id: "tesla_phreak", name: "Tesla", title: "Lightning Conduit",
-    avatar: "⚡", color: "from-purple-500 to-slate-900",
-    isBoss: true,
-    difficulty: { bankThreshold: 1350, greed: 0.5, holdGreedy: true },
-    gimmick: {
-      id: "doubled_sixes", name: "Power Surge",
-      description: "Tesla's non-scoring dice often spark into 6s mid-roll.",
-      doubledSixes: true,
-    },
-    intro: "Three. Six. Nine. The universe sings. You scream.",
-    winLine: "Frequency interrupted. I'll re-tune.",
-    loseLine: "ELECTRIFIED!",
-    coins: 2400, xp: 2600, skin: "tesla",
-  }),
-  fight({
     id: "neo", name: "Neo", title: "The One",
     avatar: "/assets/neo_avatar.jpg", color: "from-green-500 to-slate-950",
     difficulty: { bankThreshold: 1350, greed: 0.5, holdGreedy: true },

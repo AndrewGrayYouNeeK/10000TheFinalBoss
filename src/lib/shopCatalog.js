@@ -44,7 +44,7 @@ export const PRODUCTION_DICE_SKINS = [
     glow: "",
     description: "The original. Timeless.",
     realistic: true,
-    spriteUrl: "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
+    spriteUrl: "/assets/classic_white_dice.png",
     ...CLASSIC_WHITE_SPRITE_TUNING,
   },
   {
@@ -177,18 +177,6 @@ export const PRODUCTION_DICE_SKINS = [
     realistic: true,
     spriteUrl: "/assets/09a488969_Ub3rBdwrMd_RZcipohKxd_EQnQspfS1.png",
     ...MOONSTONE_SPRITE_TUNING,
-  },
-  {
-    id: "tesla",
-    name: "Tesla",
-    price: 1200,
-    gradient: "from-slate-900 via-purple-950 to-black",
-    border: "border-purple-700",
-    pipColor: "bg-white",
-    glow: "shadow-purple-500/70",
-    description: "Crackling electric arcs.",
-    realistic: true,
-    videoUrl: "/assets/fde6fe169_ca9c480e8677452185635915c4d441a5.mp4",
   },
   {
     id: "teal_crackle",
@@ -448,7 +436,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Hot pink & cyan neon cyberpunk dice.",
     preview: true,
     realistic: true,
-    spriteUrl: "/assets/354eae8fe_generated_image.png",
+    spriteUrl: "/assets/1faa6e66a_4sGTKX3C3u5uBHFW6rhKC_oVYyNtwY.png",
     spriteGrid: { cols: 3, rows: 2 },
     ...CYBER_NEON_SPRITE_TUNING,
   },
@@ -457,7 +445,7 @@ export const PRODUCTION_DICE_SKINS = [
 /** Shop dice sections */
 export const SHOP_DICE_CATEGORIES = [
   { id: "regular", label: "Regular", blurb: "Classic, gold, chrome & prison dice" },
-  { id: "power", label: "Power", blurb: "Secret powers — charge on your 3rd Hot Dice" },
+  { id: "power", label: "Power", blurb: "Secret powers — charge on your 1st Hot Dice" },
   { id: "gemstone", label: "Gemstones", blurb: "Gems, materials & standard sets" },
   { id: "exotic", label: "Exotic", blurb: "Cosmic, tech, themed & wild" },
 ];
@@ -496,7 +484,6 @@ const EXOTIC_SKIN_IDS = new Set([
   "amber_wasp",
   "galaxy",
   "dragon_scale",
-  "tesla",
   "neon_grid",
   "circuit_board",
   "toxic_plasma_v2",
@@ -915,8 +902,10 @@ export const BADGES = Array.from({ length: 100 }, (_, i) => {
 });
 
 export const RAGNAROK_LEGACY_SKIN_IDS = ["lava", "ragnarok_regular"];
+const REMOVED_SKIN_IDS = ["tesla"];
 
 export function normalizeSkinId(id) {
+  if (REMOVED_SKIN_IDS.includes(id)) return "plasma";
   if (RAGNAROK_LEGACY_SKIN_IDS.includes(id)) return "ragnarok";
   return id;
 }
@@ -956,7 +945,8 @@ export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = 
     return {
       spriteUrl: skin.powerSpriteUrl,
       spriteCrop: skin.powerSpriteCrop ?? skin.spriteCrop,
-      offsetSkinId: "lava",
+      offsetSkinId: skin.id,
+      isPowerLayer: true,
     };
   }
   if (!skin.spriteUrl) return null;
@@ -964,6 +954,7 @@ export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = 
     spriteUrl: skin.spriteUrl,
     spriteCrop: skin.spriteCrop,
     offsetSkinId: skin.id,
+    isPowerLayer: false,
   };
 }
 
@@ -985,9 +976,10 @@ function applyLockedSpritePaths(skin, draft, locked) {
   // Old lock snapshots may still carry sprite paths — aquarium skins never use them.
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
   const next = { ...skin };
-  if (typeof draft.spriteUrl === "string" && draft.spriteUrl) next.spriteUrl = draft.spriteUrl;
-  if (typeof draft.powerSpriteUrl === "string") next.powerSpriteUrl = draft.powerSpriteUrl || undefined;
+  // Regular + power sprite sheets always follow catalog — lock stores crop/face tuning only.
+  // (Stale locks once pointed cyber_neon / ragnarok power at the wrong gameplay PNG.)
   if (typeof draft.powerVideoUrl === "string" && draft.powerVideoUrl) next.powerVideoUrl = draft.powerVideoUrl;
+  if (typeof draft.videoUrl === "string" && draft.videoUrl) next.videoUrl = draft.videoUrl;
   return next;
 }
 
@@ -999,9 +991,13 @@ export function getSkin(id) {
   const skin = withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked));
   if (!draft) return skin;
   const mergeRegular = (offsetsBase) =>
-    mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked });
+    draft.regularFaces
+      ? mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked })
+      : offsetsBase;
   const mergePower = (offsetsBase) =>
-    mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: locked });
+    draft.powerFaces
+      ? mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: locked })
+      : offsetsBase;
 
   if (skin.id === "matrix") {
     return {
@@ -1046,6 +1042,8 @@ export function getSkin(id) {
   if (skin.id === "ragnarok") {
     return {
       ...skin,
+      spriteUrl: base.spriteUrl,
+      powerSpriteUrl: base.powerSpriteUrl,
       spriteCrop: draft.regularCrop ?? skin.spriteCrop,
       powerSpriteCrop: draft.powerCrop ?? skin.powerSpriteCrop,
       spriteFaceOffsets: {

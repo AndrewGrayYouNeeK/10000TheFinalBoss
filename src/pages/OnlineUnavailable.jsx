@@ -1,15 +1,26 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { WifiOff } from "lucide-react";
+import { WifiOff, FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import NightCityBackground from "@/components/online/NightCityBackground";
+import OnlineVisibilityPreview from "@/components/online/OnlineVisibilityPreview";
 import MuteToggleButton from "@/components/game/MuteToggleButton";
 import { useCosmetics } from "@/hooks/useCosmetics";
+import { writeOnlineMockSession } from "@/lib/onlineVisibility";
+import { SESSION_PLAYER_SKINS_KEY } from "@/lib/ghostDisguise";
 
 export default function OnlineUnavailable() {
+  const navigate = useNavigate();
   const { sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted } = useCosmetics();
+
+  const startDevMock = () => {
+    sessionStorage.setItem("dice10k_players", JSON.stringify(["You", "Opponent"]));
+    sessionStorage.removeItem(SESSION_PLAYER_SKINS_KEY);
+    writeOnlineMockSession(0);
+    navigate("/game");
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative text-white" style={{ background: "#020408" }}>
@@ -55,8 +66,36 @@ export default function OnlineUnavailable() {
           Online Play Unavailable
         </h1>
         <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-          Multiplayer requires a dedicated game server. This standalone build runs entirely on your device — use local play or story mode instead.
+          Multiplayer across separate devices needs a dedicated game server. This build runs offline — use local play or story mode today.
         </p>
+
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-950/15 px-4 py-3 mb-4 text-left"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-2">
+            Privacy model (planned)
+          </p>
+          <p className="text-xs text-slate-400 leading-relaxed mb-3">
+            Each player chooses what opponents see during their turn — hidden dice, turn score, and power mode. The server sends <b className="text-white">different payloads</b> to each device (not one shared broadcast).
+          </p>
+          <OnlineVisibilityPreview />
+        </div>
+
+        <div
+          className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 mb-4 text-left"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+            Roadmap
+          </p>
+          <ul className="text-xs text-slate-500 leading-relaxed space-y-1 list-disc list-inside">
+            <li>WebSocket game server + authoritative <code className="text-slate-400">gameLogic</code></li>
+            <li>Per-client state fan-out via <code className="text-slate-400">buildClientMatchPayload()</code></li>
+            <li>Match invites / queue · profile sync · skin levels 1–100</li>
+          </ul>
+          <p className="text-[10px] text-slate-600 mt-2">
+            See <code className="text-slate-500">docs/ONLINE_ARCHITECTURE.md</code>
+          </p>
+        </div>
 
         <div
           className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 mb-4 text-left"
@@ -81,6 +120,17 @@ export default function OnlineUnavailable() {
         </div>
 
         <div className="flex flex-col gap-3">
+          {import.meta.env.DEV && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-amber-500/40 text-amber-200 hover:bg-amber-950/30"
+              onClick={startDevMock}
+            >
+              <FlaskConical className="w-4 h-4 mr-2" />
+              Preview in game (dev)
+            </Button>
+          )}
           <Button asChild className="w-full font-bold" style={{ background: "linear-gradient(135deg, #00ffc8, #00b8ff)", color: "#000" }}>
             <Link to="/setup">Play Local</Link>
           </Button>

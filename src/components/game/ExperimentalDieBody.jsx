@@ -3,7 +3,15 @@ import { motion } from "framer-motion";
 import PortfolioDieEffect from "./portfolio/PortfolioEffects";
 
 /** Renders procedural body for experimental / preview dice from skin.style config */
-export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, layout, size = 64, dieSeed = 0 }) {
+export default function ExperimentalDieBody({
+  style,
+  radius,
+  scoreFill = 0.5,
+  layout,
+  size = 64,
+  dieSeed = 0,
+  frozen = false,
+}) {
   if (!style) return null;
 
   if (style.effectId) {
@@ -15,6 +23,7 @@ export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, la
         layout={layout}
         size={size}
         dieSeed={dieSeed}
+        frozen={frozen}
       />
     );
   }

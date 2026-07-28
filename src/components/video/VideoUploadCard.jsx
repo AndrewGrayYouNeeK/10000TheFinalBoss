@@ -24,7 +24,10 @@ import {
   getStoryBossIdForAvatarKey,
   getStoryBossVideoStartOffsetForKey,
 } from "@/lib/storyBossVideos";
-import { loadSharkBiteSettings, getSharkBitePreviewVideoStyle } from "@/lib/sharkBiteSettings";
+import {
+  loadSharkBiteSettings,
+  getSharkBiteUploadPreviewLayout,
+} from "@/lib/sharkBiteSettings";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import { applyVideoStartOffset } from "@/lib/videoAudio";
 
@@ -45,6 +48,7 @@ export default function VideoUploadCard({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState(null);
+  const [previewVideoSize, setPreviewVideoSize] = useState({ width: 0, height: 0 });
 
   const blockUpload = disabled && !lockRemovesOnly;
   const blockRemove = disabled || lockRemovesOnly;
@@ -98,8 +102,13 @@ export default function VideoUploadCard({
       : getStoryBossVideoStartOffsetForKey(videoKey);
   const label = labelOverride ?? VIDEO_LABELS[videoKey] ?? videoKey;
   const description = descriptionOverride ?? VIDEO_DESCRIPTIONS[videoKey] ?? "";
-  const sharkPreviewStyle = isSharkBiteSlot
-    ? getSharkBitePreviewVideoStyle(loadSharkBiteSettings())
+  const sharkPreviewLayout = isSharkBiteSlot
+    ? getSharkBiteUploadPreviewLayout(
+        loadSharkBiteSettings(),
+        isSharkBiteChomp ? "chomp" : "intro",
+        previewVideoSize.width,
+        previewVideoSize.height
+      )
     : undefined;
   const fishermanTuning = useFishermanAvatarLoopSettings();
   const avatarBossId = getStoryBossIdForAvatarKey(videoKey);
@@ -109,7 +118,33 @@ export default function VideoUploadCard({
       ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
       : getStoryBossAvatarLoopVideoStyle(avatarBossId)
     : undefined;
-  const inlinePreviewStyle = sharkPreviewStyle ?? storyAvatarPreviewStyle ?? { objectFit: "cover" };
+  const inlinePreviewStyle =
+    sharkPreviewLayout?.videoStyle ?? storyAvatarPreviewStyle ?? { objectFit: "cover" };
+  const inlinePreviewVideoClassName =
+    sharkPreviewLayout?.videoClassName ??
+    (avatarBossId ? "w-full h-full bg-black" : "w-full h-40 bg-black");
+  const inlinePreviewContainerClassName =
+    sharkPreviewLayout?.containerClassName ??
+    (avatarBossId ? "mx-auto w-full max-w-[14rem] h-48 sm:h-56" : "max-h-40");
+  const dialogVideoContainerClassName = isSharkBiteSlot
+    ? inlinePreviewContainerClassName
+    : "max-h-[min(70vh,520px)]";
+  const dialogVideoClassName = isSharkBiteSlot
+    ? inlinePreviewVideoClassName
+    : "w-full h-full max-h-[min(70vh,520px)] bg-black";
+
+  const syncPreviewVideoSize = (video) => {
+    if (!video?.videoWidth || !video?.videoHeight) return;
+    setPreviewVideoSize((prev) =>
+      prev.width === video.videoWidth && prev.height === video.videoHeight
+        ? prev
+        : { width: video.videoWidth, height: video.videoHeight }
+    );
+  };
+
+  useEffect(() => {
+    setPreviewVideoSize({ width: 0, height: 0 });
+  }, [previewSrc, pendingPreviewUrl]);
 
   useEffect(() => {
     const video = inlinePreviewRef.current;
@@ -301,9 +336,7 @@ export default function VideoUploadCard({
 
       {previewSrc && !pendingPreviewUrl && (
         <div
-          className={`rounded-lg overflow-hidden border border-white/10 bg-black ${
-            avatarBossId ? "mx-auto w-full max-w-[14rem] h-48 sm:h-56" : "max-h-40"
-          }`}
+          className={`rounded-lg border border-white/10 bg-black ${inlinePreviewContainerClassName}`}
         >
           <video
             ref={inlinePreviewRef}
@@ -313,8 +346,9 @@ export default function VideoUploadCard({
             loop
             muted
             playsInline
-            className={avatarBossId ? "w-full h-full bg-black" : "w-full h-40 bg-black"}
+            className={`${inlinePreviewVideoClassName} bg-black`}
             style={inlinePreviewStyle}
+            onLoadedMetadata={(e) => syncPreviewVideoSize(e.currentTarget)}
             onError={(e) => {
               if (!previewUrl) e.currentTarget.style.display = "none";
             }}
@@ -330,6 +364,9 @@ export default function VideoUploadCard({
         sourceLabel={previewSourceLabel}
         startAtSeconds={pendingPreviewUrl ? 0 : startAtSeconds}
         videoStyle={inlinePreviewStyle}
+        videoClassName={dialogVideoClassName}
+        videoContainerClassName={dialogVideoContainerClassName}
+        onVideoMetadata={isSharkBiteSlot ? syncPreviewVideoSize : undefined}
         contentClassName={avatarBossId ? "max-w-md" : undefined}
       >
         {pendingPreviewUrl ? (

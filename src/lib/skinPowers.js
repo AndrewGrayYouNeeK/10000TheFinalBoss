@@ -1,4 +1,5 @@
 import { getPower, BASE_POWERS, SABO_POWERS, POWER_MODE_HOT_DICE } from "@/lib/powers";
+import { normalizeSkinId } from "@/lib/shopCatalog";
 import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
 
 /**
@@ -10,7 +11,7 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  * Sabo powers:  freeze | freeze_score | lockout | blackout | static | xray | overtime | prison_dice | shark_bite
  *
  * Example:
- *   ghost: (mimic — copies opponent's pretend skin; no fixed power)
+ *   ghost: (bare — mimics opponent; disguised — uses disguise skin power)
  *   matrix: "static",    // blinds opponent's own score until they bust
  *   blue_gel: "shark_bite", // shark eats opponent's next bank
  *
@@ -20,7 +21,6 @@ const SKIN_POWER_MAP = {
   // ── Self buffs ──
   lava: "hot_streak",
   ragnarok: "hot_streak",
-  tesla: "lucky_seven",
   matrix: "lucky_seven",
   pf_matrix_storm: "lucky_seven",
   pf_binary_storm: "lucky_seven",
@@ -54,11 +54,12 @@ export function isCustomDiceSkin(skinId) {
 
 /** Each equipped skin carries one secret power (stable per skin id). */
 export function getSkinPower(skinId) {
-  const mapped = SKIN_POWER_MAP[skinId];
+  const id = normalizeSkinId(skinId || "classic_white");
+  const mapped = SKIN_POWER_MAP[id];
   if (mapped) return getPower(mapped);
 
   let h = 0;
-  for (let i = 0; i < skinId.length; i++) h = (h * 31 + skinId.charCodeAt(i)) | 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   const pool = [...BASE_POWERS, ...SABO_POWERS];
   return pool[Math.abs(h) % pool.length];
 }
@@ -69,16 +70,7 @@ export const ASSIGNABLE_SKIN_POWER_IDS = [
   ...SABO_POWERS.map((p) => p.id),
 ];
 
-/** Skins / powers that earn a charge on the 2nd Hot Dice (not the 3rd). */
-const FAST_CHARGE_SKIN_IDS = new Set(["blue_gel", "crystal_cut"]);
-const FAST_CHARGE_POWER_IDS = new Set(["shark_bite"]);
-
 /** Hot dice clears needed this turn before earning a power charge. */
-export function getPowerChargeHotDiceThreshold(player) {
-  if (!player) return POWER_MODE_HOT_DICE;
-  const skinId = player.trueSkinId || player.skinId;
-  if (FAST_CHARGE_SKIN_IDS.has(skinId)) return 2;
-  const powerId = player.chargePowerId || getSkinPower(skinId)?.id;
-  if (powerId && FAST_CHARGE_POWER_IDS.has(powerId)) return 2;
+export function getPowerChargeHotDiceThreshold(_player) {
   return POWER_MODE_HOT_DICE;
 }

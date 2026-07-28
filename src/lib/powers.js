@@ -1,15 +1,15 @@
 // YouNeeK 10,000 — Powers System
 // Each equipped dice skin carries one secret power.
 //
-// CHARGE:  Hit your 3rd Hot Dice in a single turn → earn one power charge.
-// HOLD:    Keep the charge across turns; banking never costs it.
-// FIRE:    Activate anytime on your turn while holding a charge.
-// BUST:    Bust before using the charge → lose it.
-//          Fire then bust on the same turn → sabotage effects you cast are lost.
-// DURATION: Power effects last for the rest of that round (turn until bank/bust).
+// CHARGE:  Hit your 1st Hot Dice in a single turn → earn one power charge. (TESTING: was 3rd)
+// HOLD:    Keep the charge across banks, busts, and turns — power-mode dice stay on until fire.
+// FIRE:    Activate anytime on your turn while holding a charge (consumes the charge).
+// BUST:    Bust without firing → charge is kept; power-mode returns on your next turn.
+//          Fire then bust on the same turn → charge already spent; sabotage effects you cast are lost.
+// DURATION: Sabotage debuffs on the opponent last for their turn; your charge lasts until fire.
 
-/** Hot dice clears required in one turn to earn a power charge (3rd hot dice). */
-export const POWER_MODE_HOT_DICE = 3;
+/** Hot dice clears required in one turn to earn a power charge (TESTING: 1; production default was 3). */
+export const POWER_MODE_HOT_DICE = 1;
 
 export const MAX_POWER = 100;
 
@@ -175,7 +175,7 @@ export const POWERS = [
     cost: 45,
     icon: "🔬",
     color: "#38bdf8",
-    description: "Scan opponents — reveals disguises, secret powers, hidden dice traits, and active concealment.",
+    description: "Scan opponents — reveals Ghost vs real skin, secret powers, hidden dice traits, and active debuffs.",
     tagline: "Nothing stays hidden.",
   },
   {

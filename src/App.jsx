@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
 import PageNotFound from './lib/PageNotFound';
@@ -47,6 +47,16 @@ class RouteErrorBoundary extends Component {
     return { error };
   }
 
+  componentDidUpdate(prevProps) {
+    // Auto-reset when the route changes so a transient error on one screen
+    // doesn't strand the user on every subsequent navigation.
+    if (this.state.error && prevProps.routeKey !== this.props.routeKey) {
+      this.setState({ error: null });
+    }
+  }
+
+  reset = () => this.setState({ error: null });
+
   render() {
     if (this.state.error) {
       const msg = this.state.error.message || "";
@@ -72,14 +82,32 @@ class RouteErrorBoundary extends Component {
               (Cmd+Shift+R), and check your Terminal for red Vite compile errors.
             </p>
           )}
-          <a href="/" className="text-cyan-400 text-sm font-bold underline">
-            Back to Home
-          </a>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={this.reset}
+              className="text-cyan-400 text-sm font-bold underline"
+            >
+              Try again
+            </button>
+            <a href="/" className="text-cyan-400 text-sm font-bold underline">
+              Back to Home
+            </a>
+          </div>
         </div>
       );
     }
     return this.props.children;
   }
+}
+
+function RouteErrorBoundaryWithLocation({ children }) {
+  const location = useLocation();
+  return (
+    <RouteErrorBoundary routeKey={location.pathname}>
+      {children}
+    </RouteErrorBoundary>
+  );
 }
 
 function App() {
@@ -89,7 +117,7 @@ function App() {
     <QueryClientProvider client={queryClientInstance}>
       <Router>
         <Suspense fallback={<PageLoader />}>
-          <RouteErrorBoundary>
+          <RouteErrorBoundaryWithLocation>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/setup" element={<Setup />} />
@@ -117,7 +145,7 @@ function App() {
             <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
-          </RouteErrorBoundary>
+          </RouteErrorBoundaryWithLocation>
         </Suspense>
       </Router>
       <Toaster />

@@ -5,6 +5,7 @@ import {
   iceOffsetPx,
   getFrozenFaceSettings,
   DEFAULT_ICE_POWER_SETTINGS,
+  resolveIcePowerSettingsForSkin,
 } from "@/lib/icePowerSettings";
 import {
   ICE_FACE_PAD_FRAC,
@@ -122,13 +123,15 @@ export default function IcePowerOverlay({
   value = 1,
   size = 64,
   radius = 4,
+  skinId = "classic_white",
   settings: settingsProp,
   /** Allow ice silhouette drips outside the die face box. */
   allowOverflow = true,
 }) {
   void radius;
   const liveSettings = useIcePowerSettings();
-  const s = settingsProp || liveSettings;
+  const base = settingsProp || liveSettings;
+  const s = resolveIcePowerSettingsForSkin(base, skinId);
 
   if (s.frozenEnabled === false) return null;
 

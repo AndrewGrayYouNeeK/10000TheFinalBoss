@@ -89,32 +89,48 @@ export function scanPlayerHidden(player) {
   const skinId = player.skinId || "classic_white";
   const trueSkinId = player.trueSkinId;
 
-  if (skinId === GHOST_SKIN_ID && trueSkinId) {
-    addFinding(findings, seen, "👻", `Ghost — disguised as ${getSkinLabel(trueSkinId)}`);
-    addFinding(
-      findings,
-      seen,
-      "🎭",
-      "Power mimics opponent's pretend skin (Ghost vs Ghost = swap disguises)"
-    );
-    const disguisePower = getSkinPower(trueSkinId);
-    if (disguisePower) {
+  if (skinId === GHOST_SKIN_ID) {
+    if (player.ghostBare || !trueSkinId) {
       addFinding(
         findings,
         seen,
-        "⚡",
-        `Disguise power (${getSkinLabel(trueSkinId)}): ${disguisePower.name} — only if they were real`
+        "👻",
+        "Ghost — no disguise (mimics opponent's pretend skin)"
       );
+      addFinding(
+        findings,
+        seen,
+        "🎭",
+        "Power mimics opponent's pretend skin (Ghost vs Ghost = swap disguises)"
+      );
+    } else {
+      addFinding(findings, seen, "👻", `Ghost — disguised as ${getSkinLabel(trueSkinId)}`);
+      addFinding(
+        findings,
+        seen,
+        "🎭",
+        "Power mimics opponent's pretend skin (Ghost vs Ghost = swap disguises)"
+      );
+      const disguisePower = getSkinPower(trueSkinId);
+      if (disguisePower) {
+        addFinding(
+          findings,
+          seen,
+          "⚡",
+          `Disguise power (${getSkinLabel(trueSkinId)}): ${disguisePower.name} — only if they were real`
+        );
+      }
+      scanSkinTraits(trueSkinId, findings, seen, getSkinLabel(trueSkinId));
     }
-    scanSkinTraits(trueSkinId, findings, seen, getSkinLabel(trueSkinId));
   } else {
+    addFinding(findings, seen, "✓", `Not Ghost — real skin: ${getSkinLabel(skinId)}`);
     const power = getSkinPower(skinId);
     if (power) {
       addFinding(findings, seen, "⚡", `Hidden power: ${power.name}`);
     }
+    scanSkinTraits(skinId, findings, seen);
   }
 
-  scanSkinTraits(skinId, findings, seen);
   scanDebuffs(player, findings, seen);
 
   return findings;
@@ -145,6 +161,25 @@ export function formatXraySummary(scanned) {
   return scanned
     .map(({ name, findings }) => `${name}: ${findings.map((f) => f.text).join("; ")}`)
     .join(" · ");
+}
+
+/**
+ * X-ray intel belongs to the scanning player. Show only on their turn; hide for everyone
+ * when the turn passes. Online clients also require viewerIndex === scannerIndex.
+ *
+ * @param {Record<number, unknown>|null|undefined} reveals
+ * @param {{
+ *   scannerIndex?: number|null,
+ *   currentIndex: number,
+ *   viewerIndex?: number|null,
+ * }} opts
+ */
+export function xrayRevealsVisible(reveals, { scannerIndex, currentIndex, viewerIndex = null }) {
+  if (!reveals || Object.keys(reveals).length === 0) return {};
+  if (scannerIndex == null) return reveals;
+  if (currentIndex !== scannerIndex) return {};
+  if (viewerIndex != null && viewerIndex !== scannerIndex) return {};
+  return reveals;
 }
 
 /** Whether a skin has visual/mechanical hidden traits (beyond secret power). */

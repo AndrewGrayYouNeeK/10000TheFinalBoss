@@ -3,7 +3,7 @@
  */
 
 /** TEMP/DEV: After hot dice, grant power charge immediately for all skins (Game + Story). */
-export const TEMP_HOT_DICE_ALWAYS_POWER = false;
+export const TEMP_HOT_DICE_ALWAYS_POWER = true;
 
 const SESSION_KEY = "dice10k_devPower";
 
@@ -33,9 +33,8 @@ export function setTempHotDiceAlwaysPower(enabled) {
 
 /** Options for confirmAndReroll when dev hot-dice → power testing is active. */
 export function getHotDicePowerConfirmOptions() {
-  return isTempHotDiceAlwaysPowerEnabled()
-    ? { powerChargeHotDiceThreshold: 1 }
-    : undefined;
+  if (!isTempHotDiceAlwaysPowerEnabled()) return undefined;
+  return { powerChargeHotDiceThreshold: 1 };
 }
 
 /** Story mode: first hot dice earns a power charge (no dev flag required). */
