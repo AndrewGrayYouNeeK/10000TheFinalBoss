@@ -44,7 +44,7 @@ export const PRODUCTION_DICE_SKINS = [
     glow: "",
     description: "The original. Timeless.",
     realistic: true,
-    spriteUrl: "/assets/classic_white_dice.png",
+    spriteUrl: "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
     ...CLASSIC_WHITE_SPRITE_TUNING,
   },
   {

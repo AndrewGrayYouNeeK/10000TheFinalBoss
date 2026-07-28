@@ -698,7 +698,6 @@ function Die({
         {skin.experimental && skin.style && (
           <ExperimentalDieBody
             style={skin.style}
-            radius={radius}
             scoreFill={scoreFill}
             layout={layout}
             size={size}
