@@ -1050,7 +1050,6 @@ export default function StoryGame() {
         {!cutsceneOverlay && (
           <StoryBossFightVideo
             bossId={bossId}
-            enabled={!lowPower}
             loopPanEnabled={bossId === "fisherman" && marlinLoopToolOpen}
             frozen={storyIceFight && !!game?.storyIceFreeze}
           />

@@ -19,6 +19,16 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
 
   const watchKeys = bossId && enabled ? getStoryBossVideoWatchKeys(bossId, slot) : [];
 
+  const recoverWatchKeys = useCallback(async () => {
+    if (!watchKeys.length) return;
+    try {
+      const { recoverVideoKeyFromSnapshots } = await import("@/lib/spriteLabLockedVideos");
+      await Promise.all(watchKeys.map((key) => recoverVideoKeyFromSnapshots(key)));
+    } catch {
+      /* best-effort — matches VideoUploadCard / Sprite Lab preview */
+    }
+  }, [watchKeys.join("|")]);
+
   const refresh = useCallback(async () => {
     if (!enabled || !bossId) {
       setSrc(null);
@@ -27,12 +37,13 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
       setReady(true);
       return;
     }
+    await recoverWatchKeys();
     const result = await resolveStoryBossVideoPlayback(bossId, slot);
     setSrc(result.src);
     setHasLocal(result.hasLocal);
     setFailed(false);
     setReady(true);
-  }, [bossId, slot, enabled]);
+  }, [bossId, slot, enabled, recoverWatchKeys]);
 
   useEffect(() => {
     setSrc(null);
@@ -54,6 +65,7 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
         }
         return;
       }
+      await recoverWatchKeys();
       const result = await resolveStoryBossVideoPlayback(bossId, slot);
       if (!cancelled) {
         setSrc(result.src);
@@ -69,7 +81,7 @@ export function useStoryBossVideo(bossId, slot, { enabled = true } = {}) {
       cancelled = true;
       unsubs.forEach((unsub) => unsub());
     };
-  }, [bossId, slot, enabled, watchKeys.join("|"), refresh]);
+  }, [bossId, slot, enabled, watchKeys.join("|"), refresh, recoverWatchKeys]);
 
   const playableSrc = hasLocal ? src : failed ? null : src;
 

@@ -1,5 +1,4 @@
 import { getBossDefinition, STORY_LADDER_IDS } from "./storyBosses";
-import { isLowPowerDevice } from "./platform";
 import { getFishermanAvatarLoopVideoStyle } from "./fishermanAvatarLoopSettings";
 import {
   getLocalVideoBlob,
@@ -191,12 +190,10 @@ export async function resolveStoryBossVideoPlayback(bossId, slot) {
   }
 
   if (slot === "avatar") {
-    // Intro clips are fullscreen cutscenes — too heavy to loop as fight avatars on phones.
-    if (!isLowPowerDevice()) {
-      const introLocal = await getLocalVideoObjectUrl(storyBossIntroKey(bossId));
-      if (introLocal) {
-        return { src: introLocal, hasLocal: true };
-      }
+    // Before match doubles as the fight-panel loop when Avatar loop is empty (Sir Scale, etc.).
+    const introLocal = await getLocalVideoObjectUrl(storyBossIntroKey(bossId));
+    if (introLocal) {
+      return { src: introLocal, hasLocal: true };
     }
     return { src: null, hasLocal: false };
   }
