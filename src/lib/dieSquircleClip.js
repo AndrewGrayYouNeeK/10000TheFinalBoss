@@ -6,6 +6,7 @@
  * Coords are mapped through the same padded viewBox so the bulge stays inside the die
  * square — raw pixel paths with negative control points get flattened by overflow:hidden.
  */
+/** Shared squircle clip for Die.jsx visual stack and custom-dice portfolio layers. */
 export function getDieSquircleClipStyle(size) {
   const b = 0.04;
   const cr = 0.08;
