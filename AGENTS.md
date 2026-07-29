@@ -56,3 +56,15 @@ npm run ios:open   # builds in Xcode, run on simulator or device
 ```
 
 Bundle ID: `com.yourneek.neon10000`
+
+## Cursor Cloud specific instructions
+
+Standalone browser app — there is **no backend, no database, and no required env vars/secrets**. Setup is just `npm install`; the update script runs it on startup. Player progress lives in browser `localStorage` (`src/lib/localProfile.js`), so to reset state clear site data at `http://localhost:5173`.
+
+Run/lint/build commands are already listed under `## Commands`. Notes and gotchas:
+
+- **Manual/GUI testing:** run `npm run dev` and drive the app in a browser at `http://localhost:5173`. Core gameplay flow: Home → `PLAY NOW` → Setup (enter player names) → Game → `ROLL DICE` → click a scoring die (a 1 = +100, a 5 = +50).
+- **CI** (`.github/workflows/ci.yml`) runs `npm ci`, `npm run lint`, `npm run build` on PRs to `main`.
+- **Pre-existing lint failure:** `npm run lint` currently exits non-zero due to an unused import (`DEFAULT_MIC_SETTINGS`) in `src/components/game/portfolio/SoundwaveMicSettingsForm.jsx`. This is unrelated to environment setup, so CI lint on `main` is red independent of your change. `npm run build` passes.
+- **Smoke test:** `npm run smoke` (`scripts/smoke-test.mjs`) uses Playwright against a preview build at `127.0.0.1:4173`; start `npm run start` (build + preview) first. Playwright browsers may need `npx playwright install chromium`. It is not part of CI.
+- iOS/Capacitor targets (`ios:*`) require macOS + Xcode and cannot run in this Linux cloud VM.
