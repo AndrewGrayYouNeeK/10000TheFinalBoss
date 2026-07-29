@@ -4,7 +4,7 @@ import PowerBar from "@/components/game/PowerBar";
 import PowerSlot from "@/components/game/PowerSlot";
 
 /**
- * Shown while the active player holds a power charge (earned on 3rd Hot Dice).
+ * Shown while the active player holds a power charge (earned on 1st Hot Dice — testing).
  */
 export default function SkinPowerPanel({
   power,
@@ -18,57 +18,48 @@ export default function SkinPowerPanel({
   isGhostMimic = false,
   mimicSkinLabel = null,
   mimicFromName = null,
+  hidePowerName = false,
+  /** Toned-down panel for pass-and-play — active player still sees charge, less neon for bystanders. */
+  subtle = false,
 }) {
   if (!skinPower) return null;
+
+  const accent = skinPower.kind === "sabo" ? "#ff6b9d" : "#ffb347";
+  const borderColor = skinPower.kind === "sabo"
+    ? (subtle ? "rgba(255,0,170,0.28)" : "rgba(255,0,170,0.65)")
+    : (subtle ? "rgba(255,140,0,0.28)" : "rgba(255,140,0,0.6)");
+  const glow = subtle
+    ? "0 0 6px rgba(255,140,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05)"
+    : `0 0 16px ${skinPower.kind === "sabo" ? "rgba(255,0,170,0.35)" : "rgba(255,140,0,0.35)"}, inset 0 0 0 1px rgba(255,255,255,0.08)`;
 
   return (
     <AnimatePresence>
       {powerMode && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: subtle ? 2 : 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8 }}
-          className="rounded-xl border px-3 py-2 space-y-2"
+          exit={{ opacity: 0, y: subtle ? 2 : 6 }}
+          className={subtle ? "rounded-md border px-1.5 py-1 space-y-0.5" : "rounded-lg border px-2 py-1.5 space-y-1"}
           style={{
-            borderColor: skinPower.kind === "sabo" ? "rgba(255,0,170,0.5)" : "rgba(255,107,0,0.45)",
+            borderColor,
             background:
               skinPower.kind === "sabo"
-                ? "linear-gradient(135deg, rgba(255,0,170,0.14), rgba(120,0,50,0.1))"
-                : "linear-gradient(135deg, rgba(255,107,0,0.12), rgba(168,85,247,0.08))",
-            boxShadow: "0 0 20px rgba(255,107,0,0.2), inset 0 0 0 1px rgba(255,255,255,0.06)",
+                ? (subtle
+                  ? "linear-gradient(90deg, rgba(255,0,170,0.08), rgba(120,0,50,0.06))"
+                  : "linear-gradient(90deg, rgba(255,0,170,0.22), rgba(120,0,50,0.14))")
+                : (subtle
+                  ? "linear-gradient(90deg, rgba(255,120,0,0.08), rgba(168,85,247,0.05))"
+                  : "linear-gradient(90deg, rgba(255,120,0,0.2), rgba(168,85,247,0.12))"),
+            boxShadow: glow,
           }}
         >
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 min-h-0">
             <span
-              className="text-[10px] font-black uppercase tracking-[0.25em]"
-              style={{ color: skinPower.kind === "sabo" ? "#ff6b9d" : "#ffb347", textShadow: "0 0 8px rgba(255,107,0,0.7)" }}
+              className={subtle ? "text-[7px] font-bold uppercase tracking-[0.18em] shrink-0 text-slate-400" : "text-[8px] font-black uppercase tracking-[0.22em] shrink-0"}
+              style={subtle ? {} : { color: accent, textShadow: `0 0 8px ${accent}` }}
             >
-              {isGhostMimic ? "👻 Ghost Mimic" : "⚡ Power Charge Ready"}
+              {isGhostMimic ? "👻 Mimic" : subtle ? "⚡ Charged" : "⚡ Power"}
             </span>
-            <span className="text-[9px] text-slate-400 text-right leading-snug max-w-[52%]">
-              {isGhostMimic
-                ? `Steals ${mimicFromName ? `${mimicFromName}'s` : "opponent's"} ${mimicSkinLabel || "skin"} power`
-                : "Bank to keep charge — bust before firing and you lose it"}
-            </span>
-          </div>
-          {isGhostMimic && mimicSkinLabel && (
-            <p className="text-[10px] text-violet-200/90 leading-snug">
-              Copying <span className="font-bold text-white">{mimicSkinLabel}</span>
-              {skinPower ? (
-                <>
-                  {" "}
-                  → <span className="font-bold text-white">{skinPower.name}</span>
-                </>
-              ) : null}
-            </p>
-          )}
-          <PowerBar power={power} label="SKIN POWER" frozen={frozen} />
-          <div className="grid grid-cols-[1fr_88px] gap-2 items-stretch">
-            <p className="text-[10px] text-slate-300 leading-snug flex items-center">
-              <span className="font-bold text-white">{skinPower.name}</span>
-              <span className="text-slate-500 mx-1">—</span>
-              {skinPower.tagline}
-            </p>
             <PowerSlot
               power={skinPower}
               currentPower={power}
@@ -77,6 +68,20 @@ export default function SkinPowerPanel({
               onFire={disabled ? undefined : onFire}
             />
           </div>
+          {!subtle && <PowerBar power={power} label="CHARGE" frozen={frozen} compact />}
+          <p className={`${subtle ? "text-[7px] text-slate-500" : "text-[8px] text-slate-300"} leading-tight truncate`}>
+            {hidePowerName ? (
+              <>Secret sabotage ready — fire before they bank.</>
+            ) : (
+              <>
+                <span className="font-bold text-white">{skinPower.name}</span>
+                <span className="text-slate-500 mx-1">·</span>
+                {isGhostMimic
+                  ? `Steals ${mimicFromName ? `${mimicFromName}'s` : "opponent's"} ${mimicSkinLabel || "skin"} power`
+                  : skinPower.tagline}
+              </>
+            )}
+          </p>
         </motion.div>
       )}
     </AnimatePresence>

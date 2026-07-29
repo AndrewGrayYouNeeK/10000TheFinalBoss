@@ -11,6 +11,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    port: 5173,
+    strictPort: true,
+    // IPv4 loopback — default Vite on macOS often listens on IPv6 [::1] only, so 127.0.0.1 refused.
+    host: '127.0.0.1',
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
+    host: '127.0.0.1',
+  },
   build: {
     rollupOptions: {
       output: {

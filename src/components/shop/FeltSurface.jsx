@@ -8,6 +8,7 @@ import {
   getFeltNapLayers,
   getPhotoTextureStyle,
   getThemedFabricUnderlayOpacity,
+  isDedicatedPhotoFelt,
   isFabricFelt,
   usesPhotoFeltTexture,
 } from "@/lib/feltVisuals";
@@ -16,13 +17,14 @@ import FeltThemeOverlay from "./FeltThemeOverlay";
 /**
  * Layered billiard-cloth surface: mottling → photo/cloth nap → theme → fibers → lighting.
  */
-export default function FeltSurface({ felt, compact = false }) {
+export default function FeltSurface({ felt, compact = false, intense = false }) {
   if (!felt) return null;
 
   const nap = getFeltNapLayers(felt, compact);
   const lighting = getFeltLighting(felt, compact);
   const theme = getFeltTheme(felt.id);
   const isFabric = isFabricFelt(felt.id);
+  const isPhotoOnly = isDedicatedPhotoFelt(felt.id);
   const fabricStrength = getThemedFabricUnderlayOpacity(felt.id);
   const showPhoto = usesPhotoFeltTexture(felt.id) && felt.textureUrl;
   const wearOpacity = compact ? 0.22 : 0.38;
@@ -34,7 +36,7 @@ export default function FeltSurface({ felt, compact = false }) {
       <div
         className="absolute inset-0 pointer-events-none mix-blend-soft-light"
         style={{
-          opacity: isFabric ? 0.85 : 0.45 * fabricStrength,
+          opacity: isPhotoOnly ? 0.35 : isFabric ? 0.85 : 0.45 * fabricStrength,
           background: getFeltMottlingLayers(felt),
         }}
       />
@@ -50,7 +52,7 @@ export default function FeltSurface({ felt, compact = false }) {
       )}
 
       {/* Cloth body for standard felts + subtle underlay on themed ones */}
-      {(isFabric || fabricStrength > 0) && felt.id !== "wolf_fur" && (
+      {(isFabric || fabricStrength > 0) && !isPhotoOnly && (
         <>
           <div
             className="absolute inset-0 pointer-events-none mix-blend-multiply"
@@ -69,7 +71,7 @@ export default function FeltSurface({ felt, compact = false }) {
         </>
       )}
 
-      <FeltThemeOverlay felt={felt} compact={compact} />
+      <FeltThemeOverlay felt={felt} compact={compact} intense={intense} />
 
       {/* Wool fuzz — directional fiber noise */}
       <div
@@ -101,7 +103,7 @@ export default function FeltSurface({ felt, compact = false }) {
       />
 
       {/* Play-wear — dice rolling wears the center over time */}
-      {isFabric && (
+      {isFabric && !isPhotoOnly && (
         <div
           className="absolute inset-0 pointer-events-none mix-blend-multiply"
           style={{

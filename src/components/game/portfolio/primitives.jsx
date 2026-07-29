@@ -1,27 +1,28 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { getDieSquircleClipStyle } from "@/lib/dieSquircleClip";
 
-export const base = (radius) => ({ borderRadius: radius, position: "absolute", inset: 0, pointerEvents: "none" });
+export const base = (size) => ({ ...getDieSquircleClipStyle(size), position: "absolute", inset: 0, pointerEvents: "none" });
 
-export function Layer({ radius, background, opacity = 1, blend, animate, transition, style = {} }) {
+export function Layer({ size = 64, background, opacity = 1, blend, animate, transition, style = {} }) {
   return (
     <motion.div
       className="absolute inset-0 pointer-events-none"
       animate={animate}
       transition={transition}
-      style={{ borderRadius: radius, background, opacity, mixBlendMode: blend, ...style }}
+      style={{ ...getDieSquircleClipStyle(size), background, opacity, mixBlendMode: blend, ...style }}
     />
   );
 }
 
-export function RotatingConic({ radius, stops, duration = 8, opacity = 1, blur = 0, reverse = false }) {
+export function RotatingConic({ size = 64, stops, duration = 8, opacity = 1, blur = 0, reverse = false }) {
   return (
     <motion.div
       className="absolute inset-0 pointer-events-none"
       animate={{ rotate: reverse ? -360 : 360 }}
       transition={{ duration, repeat: Infinity, ease: "linear" }}
       style={{
-        borderRadius: radius,
+        ...getDieSquircleClipStyle(size),
         opacity,
         filter: blur ? `blur(${blur}px)` : undefined,
         background: `conic-gradient(from 0deg, ${stops})`,
@@ -30,7 +31,7 @@ export function RotatingConic({ radius, stops, duration = 8, opacity = 1, blur =
   );
 }
 
-export function PulseRing({ radius, color, delay = 0 }) {
+export function PulseRing({ color, delay = 0 }) {
   return (
     <motion.div
       className="absolute pointer-events-none"
@@ -50,7 +51,7 @@ export function PulseRing({ radius, color, delay = 0 }) {
   );
 }
 
-export function SparkField({ radius, color, count = 8 }) {
+export function SparkField({ color, count = 8 }) {
   const sparks = React.useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
@@ -137,7 +138,7 @@ export function TwinkleStar({ size = 12, tint = "#bae6fd", delay = 0, duration =
   );
 }
 
-export function ScanLine({ radius, color = "rgba(0,255,255,0.35)" }) {
+export function ScanLine({ color = "rgba(0,255,255,0.35)" }) {
   return (
     <motion.div
       className="absolute left-0 right-0 h-[2px] pointer-events-none"
@@ -148,9 +149,9 @@ export function ScanLine({ radius, color = "rgba(0,255,255,0.35)" }) {
   );
 }
 
-export function CrackOverlay({ radius, color = "#f97316" }) {
+export function CrackOverlay({ size = 64, color = "#f97316" }) {
   return (
-    <svg className="absolute inset-0 pointer-events-none opacity-70" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ borderRadius: radius }}>
+    <svg className="absolute inset-0 pointer-events-none opacity-70" viewBox="0 0 100 100" preserveAspectRatio="none" style={getDieSquircleClipStyle(size)}>
       <motion.path
         d="M48 8 L52 28 L44 42 L58 55 L50 72 L54 92"
         fill="none"
@@ -173,7 +174,7 @@ export function CrackOverlay({ radius, color = "#f97316" }) {
   );
 }
 
-export function HexGrid({ radius, stroke = "rgba(0,255,255,0.25)" }) {
+export function HexGrid({ size = 64, stroke = "rgba(0,255,255,0.25)" }) {
   const hex = (cx, cy, r) => {
     const pts = [];
     for (let i = 0; i < 6; i++) {
@@ -183,7 +184,7 @@ export function HexGrid({ radius, stroke = "rgba(0,255,255,0.25)" }) {
     return pts.join(" ");
   };
   return (
-    <svg className="absolute inset-0 pointer-events-none opacity-50" viewBox="0 0 100 100" style={{ borderRadius: radius }}>
+    <svg className="absolute inset-0 pointer-events-none opacity-50" viewBox="0 0 100 100" style={getDieSquircleClipStyle(size)}>
       {[
         [25, 25], [50, 25], [75, 25],
         [12, 50], [37, 50], [62, 50], [87, 50],
@@ -195,19 +196,20 @@ export function HexGrid({ radius, stroke = "rgba(0,255,255,0.25)" }) {
   );
 }
 
-export function SpecularHighlight({ radius, intensity = 0.5 }) {
+export function SpecularHighlight({ size = 64, intensity = 0.5 }) {
   return (
     <div
       className="absolute inset-0 pointer-events-none"
       style={{
-        borderRadius: radius,
+        ...getDieSquircleClipStyle(size),
         background: `radial-gradient(circle at 28% 22%, rgba(255,255,255,${intensity}) 0%, transparent 42%)`,
       }}
     />
   );
 }
 
-export function EdgeFrame({ radius, color, width = 1, glow, animate = false }) {
+export function EdgeFrame({ size = 64, color, width = 1, glow, animate = false }) {
+  const clip = getDieSquircleClipStyle(size);
   const box = `inset 0 0 0 ${width}px ${color}${glow ? `, ${glow}` : ""}`;
   if (animate) {
     return (
@@ -215,19 +217,19 @@ export function EdgeFrame({ radius, color, width = 1, glow, animate = false }) {
         className="absolute inset-0 pointer-events-none"
         animate={{ opacity: [0.45, 1, 0.45] }}
         transition={{ duration: 2.2, repeat: Infinity }}
-        style={{ borderRadius: radius, boxShadow: box }}
+        style={{ ...clip, boxShadow: box }}
       />
     );
   }
-  return <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, boxShadow: box }} />;
+  return <div className="absolute inset-0 pointer-events-none" style={{ ...clip, boxShadow: box }} />;
 }
 
-export function NoiseFilm({ radius, opacity = 0.08 }) {
+export function NoiseFilm({ size = 64, opacity = 0.08 }) {
   return (
     <div
       className="absolute inset-0 pointer-events-none"
       style={{
-        borderRadius: radius,
+        ...getDieSquircleClipStyle(size),
         opacity,
         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
         mixBlendMode: "overlay",

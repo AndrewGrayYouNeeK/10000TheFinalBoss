@@ -4,11 +4,19 @@ import { EdgeFrame, NoiseFilm } from "./primitives";
 import { usePortfolioDie } from "./PortfolioDieContext";
 import { useAudioLevels } from "./useAudioLevels";
 import SoundwaveBarDisplay from "./SoundwaveBarDisplay";
-import { armBugZapperAudio, playBugZapSound, startBugZapperHum, stopBugZapperHum, whenBugZapperAudioReady } from "./bugZapperSound";
-import { useCosmetics } from "@/hooks/useCosmetics";
 import { getScoreMeterTheme } from "@/lib/scoreMeterTheme";
-import { shouldPlayBugZapperSfx } from "@/lib/gameAudioSettings";
-import { useDiceSkinAudioAllowed } from "@/lib/useDiceSkinAudioAllowed";
+import { getDieSquircleClipStyle } from "@/lib/dieSquircleClip";
+
+/** Bulging squircle — same silhouette as sprite dice (not plain border-radius). */
+function dieShape(size) {
+  return getDieSquircleClipStyle(size);
+}
+
+/** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
+function safeAnimDuration(seconds, min = 0.001) {
+  const n = Number(seconds);
+  return Number.isFinite(n) ? Math.max(min, n) : min;
+}
 
 function SweepLine({ color = "rgba(0,255,255,0.85)", width = 3 }) {
   const ctx = usePortfolioDie();
@@ -30,9 +38,9 @@ function SweepLine({ color = "rgba(0,255,255,0.85)", width = 3 }) {
   );
 }
 
-function RadarRings({ radius, color = "rgba(52,211,153,0.35)" }) {
+function RadarRings({ size = 64, color = "rgba(52,211,153,0.35)" }) {
   return (
-    <svg className="absolute inset-0 pointer-events-none opacity-60" viewBox="0 0 100 100" style={{ borderRadius: radius }}>
+    <svg className="absolute inset-0 pointer-events-none opacity-60" viewBox="0 0 100 100" style={dieShape(size)}>
       {[20, 35, 50].map((r) => (
         <circle key={r} cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="0.6" />
       ))}
@@ -42,13 +50,107 @@ function RadarRings({ radius, color = "rgba(52,211,153,0.35)" }) {
   );
 }
 
-function RotatingRadarSweep({ radius }) {
+/** Rainfall portfolio skin — rain by default; snow while Score Freeze / ice overlay is active. */
+function RainfallScene({ size = 64, frozen = false }) {
+  const snowTimes = [0, 0.15, 0.5, 0.85, 1];
+
+  if (frozen) {
+    const flakeBase = Math.max(2, Math.round(size * 0.045));
+    return (
+      <div key="rainfall-frozen" className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            ...dieShape(size),
+            background: "linear-gradient(180deg, #1e3a5e 0%, #334155 50%, #475569 100%)",
+          }}
+        />
+        {Array.from({ length: 24 }).map((_, i) => {
+          const flakeSize = flakeBase + (i % 3);
+          const drift = size * (0.03 + (i % 4) * 0.015);
+          return (
+            <motion.div
+              key={`snow-${i}`}
+              className="absolute pointer-events-none rounded-full bg-white"
+              style={{
+                left: `${(i * 4.1) % 96}%`,
+                width: flakeSize,
+                height: flakeSize,
+                boxShadow: "0 0 3px rgba(255,255,255,0.85)",
+                opacity: 0.55 + (i % 3) * 0.15,
+              }}
+              animate={{
+                // WAAPI requires equal-length keyframe arrays per property.
+                top: ["-14%", "18%", "46%", "74%", "112%"],
+                x: [0, drift, -drift * 0.6, drift * 0.35, 0],
+              }}
+              transition={{
+                duration: safeAnimDuration(1.4 + (i % 5) * 0.28),
+                repeat: Infinity,
+                delay: (i * 0.11) % 1.8,
+                ease: "linear",
+                times: snowTimes,
+              }}
+            />
+          );
+        })}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-35"
+          style={{
+            ...dieShape(size),
+            background:
+              "radial-gradient(circle at 50% 0%, rgba(186,230,253,0.22) 0%, transparent 55%), radial-gradient(circle at 50% 100%, rgba(255,255,255,0.08) 0%, transparent 45%)",
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div key="rainfall-rain" className="absolute inset-0 pointer-events-none">
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          ...dieShape(size),
+          background: "linear-gradient(180deg, #1e293b 0%, #334155 55%, #475569 100%)",
+        }}
+      />
+      {Array.from({ length: 28 }).map((_, i) => (
+        <motion.div
+          key={`rain-${i}`}
+          className="absolute w-[1px] pointer-events-none"
+          style={{
+            left: `${(i * 3.7) % 98}%`,
+            height: 8 + (i % 4) * 3,
+            background: "linear-gradient(to bottom, transparent, rgba(186,230,253,0.85))",
+          }}
+          animate={{ top: ["-12%", "112%"] }}
+          transition={{
+            duration: safeAnimDuration(0.45 + (i % 5) * 0.12),
+            repeat: Infinity,
+            delay: (i * 0.07) % 1.2,
+            ease: "linear",
+          }}
+        />
+      ))}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-30"
+        style={{
+          ...dieShape(size),
+          background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.15) 0%, transparent 50%)",
+        }}
+      />
+    </div>
+  );
+}
+
+function RotatingRadarSweep({ size = 64 }) {
   const { radarAngle } = usePortfolioDie();
   const rotate = useTransform(radarAngle, (v) => `${v}deg`);
   return (
     <motion.div
       className="absolute inset-0 pointer-events-none origin-center"
-      style={{ rotate, borderRadius: radius }}
+      style={{ rotate, ...dieShape(size) }}
     >
       <div
         className="absolute top-1/2 left-1/2 w-1/2 h-[2px] origin-left -translate-y-1/2"
@@ -61,7 +163,6 @@ function RotatingRadarSweep({ radius }) {
         className="absolute inset-0"
         style={{
           background: "conic-gradient(from 0deg, rgba(52,211,153,0.25) 0deg, transparent 45deg)",
-          borderRadius: radius,
         }}
       />
     </motion.div>
@@ -126,7 +227,7 @@ function RadarBlipDot({ cx, cy, targetAngle, blipRadius, gradId, glowId, glowWid
   );
 }
 
-function RadarBlipsLayer({ layout, size, radius }) {
+function RadarBlipsLayer({ layout, size = 64 }) {
   const uid = React.useId().replace(/:/g, "");
   const gradId = `blipGrad${uid}`;
   const glowId = `blipGlow${uid}`;
@@ -141,7 +242,7 @@ function RadarBlipsLayer({ layout, size, radius }) {
   });
 
   return (
-    <svg className="absolute inset-0 pointer-events-none z-20" viewBox="0 0 100 100" style={{ borderRadius: radius }}>
+    <svg className="absolute inset-0 pointer-events-none z-20" viewBox="0 0 100 100" style={dieShape(size)}>
       <defs>
         <radialGradient id={gradId} cx="38%" cy="32%">
           <stop offset="0%" stopColor="#ffffff" />
@@ -223,7 +324,7 @@ function rippleMaxRadius(x, y) {
   );
 }
 
-function HypnoBurstRings({ layout, radius }) {
+function HypnoBurstRings({ layout, size = 64 }) {
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
   const ringCount = 120;
   const ringDuration = 2.35;
@@ -234,14 +335,14 @@ function HypnoBurstRings({ layout, radius }) {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "radial-gradient(circle at 50% 50%, #14101f 0%, #050508 65%, #000 100%)",
         }}
       />
       <motion.div
         className="absolute inset-0 pointer-events-none z-[3]"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background:
             "repeating-conic-gradient(from 0deg, rgba(255,255,255,0.07) 0deg 12deg, transparent 12deg 24deg)",
         }}
@@ -251,7 +352,7 @@ function HypnoBurstRings({ layout, radius }) {
       <motion.div
         className="absolute inset-0 pointer-events-none z-[4]"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background:
             "conic-gradient(from 0deg, transparent, rgba(168,85,247,0.06), transparent, rgba(34,211,238,0.06), transparent, rgba(244,114,182,0.06), transparent)",
         }}
@@ -260,7 +361,7 @@ function HypnoBurstRings({ layout, radius }) {
       />
       <motion.div
         className="absolute inset-0 pointer-events-none z-[4]"
-        style={{ borderRadius: radius, background: "radial-gradient(circle, rgba(168,85,247,0.1) 0%, transparent 55%)" }}
+        style={{ ...dieShape(size), background: "radial-gradient(circle, rgba(168,85,247,0.1) 0%, transparent 55%)" }}
         animate={{ scale: [1, 1.06, 1], opacity: [0.35, 0.65, 0.35] }}
         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
       />
@@ -268,7 +369,7 @@ function HypnoBurstRings({ layout, radius }) {
         className="absolute inset-0 pointer-events-none z-[5] overflow-visible"
         viewBox="0 0 100 100"
         preserveAspectRatio="xMidYMid meet"
-        style={{ borderRadius: radius }}
+        style={dieShape(size)}
       >
         {targets.flatMap((t, pipIdx) => {
           const [light, dark] = HYPNO_PAIRS[pipIdx % HYPNO_PAIRS.length];
@@ -305,7 +406,7 @@ function HypnoBurstRings({ layout, radius }) {
   );
 }
 
-function XrayScene({ radius, layout }) {
+function XrayScene({ size = 64, layout }) {
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
   const bone = "rgba(224,242,254,0.92)";
   const boneDim = "rgba(125,211,252,0.45)";
@@ -316,14 +417,14 @@ function XrayScene({ radius, layout }) {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "radial-gradient(ellipse at 50% 42%, #0c1a2e 0%, #030712 52%, #000 100%)",
         }}
       />
       <div
         className="absolute inset-0 pointer-events-none z-[1]"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "radial-gradient(circle at 50% 50%, rgba(56,189,248,0.08) 0%, transparent 62%)",
           mixBlendMode: "screen",
         }}
@@ -332,7 +433,7 @@ function XrayScene({ radius, layout }) {
         className="absolute inset-0 pointer-events-none z-[3] overflow-visible"
         viewBox="0 0 100 100"
         preserveAspectRatio="xMidYMid meet"
-        style={{ borderRadius: radius, filter: "drop-shadow(0 0 4px rgba(56,189,248,0.35))" }}
+        style={{ ...dieShape(size), filter: "drop-shadow(0 0 4px rgba(56,189,248,0.35))" }}
       >
         <rect x="4.5" y="4.5" width="91" height="91" rx="10" fill="none" stroke={bone} strokeWidth="2.2" opacity="0.95" />
         <rect x="9" y="9" width="82" height="82" rx="8" fill="none" stroke={boneDim} strokeWidth="1" />
@@ -407,20 +508,20 @@ function XrayScene({ radius, layout }) {
 
       <motion.div
         className="absolute inset-0 pointer-events-none z-[6]"
-        style={{ borderRadius: radius, boxShadow: "inset 0 0 28px 8px rgba(0,0,0,0.85)" }}
+        style={{ ...dieShape(size), boxShadow: "inset 0 0 28px 8px rgba(0,0,0,0.85)" }}
         animate={{ opacity: [0.85, 1, 0.88, 1] }}
         transition={{ duration: 0.08, repeat: Infinity, repeatDelay: 2.4 }}
       />
 
       <motion.div
         className="absolute inset-0 pointer-events-none z-[4] mix-blend-screen"
-        style={{ borderRadius: radius, background: "rgba(186,230,254,0.04)" }}
+        style={{ ...dieShape(size), background: "rgba(186,230,254,0.04)" }}
         animate={{ opacity: [0.2, 0.55, 0.25, 0.5, 0.2] }}
         transition={{ duration: 0.12, repeat: Infinity, repeatDelay: 0.04 }}
       />
 
-      <NoiseFilm radius={radius} opacity={0.14} />
-      <EdgeFrame radius={radius} color="rgba(125,211,252,0.55)" glow="0 0 16px rgba(56,189,248,0.35)" animate />
+      <NoiseFilm size={size} opacity={0.14} />
+      <EdgeFrame size={size} color="rgba(125,211,252,0.55)" glow="0 0 16px rgba(56,189,248,0.35)" animate />
     </>
   );
 }
@@ -540,18 +641,52 @@ function ZapBurstFlash({ x, y, active }) {
     <motion.div
       className="absolute pointer-events-none z-[7]"
       style={{ left: `${x}%`, top: `${y}%`, x: "-50%", y: "-50%" }}
-      initial={{ opacity: 0.95, scale: 0.5 }}
-      animate={{ opacity: 0, scale: 2.8 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
     >
-      <div
-        className="rounded-full"
+      {/* Hot white core */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
         style={{
-          width: 16,
-          height: 16,
-          background: "radial-gradient(circle, #fff 0%, #c4b5fd 35%, rgba(168,85,247,0.5) 60%, transparent 75%)",
-          boxShadow: "0 0 14px #fff, 0 0 26px rgba(168,85,247,0.95)",
+          width: 10,
+          height: 10,
+          marginLeft: -5,
+          marginTop: -5,
+          background: "#fff",
+          boxShadow: "0 0 10px #fff, 0 0 22px #fff, 0 0 36px rgba(255,255,255,0.95)",
         }}
+        initial={{ opacity: 1, scale: 0.4 }}
+        animate={{ opacity: 0, scale: 3.2 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+      />
+      {/* Violet bloom */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: 28,
+          height: 28,
+          marginLeft: -14,
+          marginTop: -14,
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(196,181,253,0.85) 28%, rgba(168,85,247,0.55) 55%, transparent 72%)",
+          boxShadow: "0 0 18px rgba(255,255,255,0.9), 0 0 40px rgba(168,85,247,0.95)",
+        }}
+        initial={{ opacity: 1, scale: 0.35 }}
+        animate={{ opacity: 0, scale: 2.6 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      />
+      {/* Brief screen flash at the zap point */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: 48,
+          height: 48,
+          marginLeft: -24,
+          marginTop: -24,
+          background: "radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.15) 40%, transparent 70%)",
+          mixBlendMode: "screen",
+        }}
+        initial={{ opacity: 1, scale: 0.5 }}
+        animate={{ opacity: 0, scale: 2.1 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
       />
     </motion.div>
   );
@@ -584,7 +719,6 @@ function ZapperFly({ targets, instanceKey, initialDelay = 0, variant = {} }) {
     } else if (phase === "approach") {
       timer = setTimeout(() => {
         setShowBurst(true);
-        if (shouldPlayBugZapperSfx()) playBugZapSound();
         setPhase("zap");
       }, approachDur * 1000);
     } else if (phase === "zap") {
@@ -593,7 +727,7 @@ function ZapperFly({ targets, instanceKey, initialDelay = 0, variant = {} }) {
         setTargetPip(null);
         setCycle((c) => c + 1);
         setPhase("idle");
-      }, 170);
+      }, 280);
     }
 
     return () => clearTimeout(timer);
@@ -676,38 +810,23 @@ function ZapperFly({ targets, instanceKey, initialDelay = 0, variant = {} }) {
   );
 }
 
-function BugZapperScene({ radius, layout, dieSeed = 0 }) {
+function BugZapperScene({ size = 64, layout, dieSeed = 0 }) {
   const uid = React.useId().replace(/:/g, "");
   const glowId = `zapMeshGlow${uid}`;
   const targets = React.useMemo(() => getPipTargets(layout), [layout]);
   // One fly per pip — die value equals fly count (e.g. 4 pips → 4 flies).
   const flyCount = targets.length;
-  const { sfxMuted } = useCosmetics();
-  const audioAllowed = useDiceSkinAudioAllowed();
-
-  useEffect(() => {
-    if (!audioAllowed || !shouldPlayBugZapperSfx()) {
-      stopBugZapperHum();
-      return undefined;
-    }
-    armBugZapperAudio();
-    const unsub = whenBugZapperAudioReady(() => startBugZapperHum());
-    return () => {
-      unsub();
-      stopBugZapperHum();
-    };
-  }, [sfxMuted, audioAllowed]);
 
   return (
     <>
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "radial-gradient(circle at 50% 35%, rgba(60,20,100,0.35) 0%, #0a0612 100%)",
         }}
       />
-      <svg className="absolute inset-0 pointer-events-none z-[4]" viewBox="0 0 100 100" style={{ borderRadius: radius }}>
+      <svg className="absolute inset-0 pointer-events-none z-[4]" viewBox="0 0 100 100" style={dieShape(size)}>
         <defs>
           <filter id={glowId}>
             <feGaussianBlur stdDeviation="0.5" result="b" />
@@ -756,7 +875,7 @@ function BugZapperScene({ radius, layout, dieSeed = 0 }) {
           />
         );
       })}
-      <EdgeFrame radius={radius} color="rgba(167,139,250,0.45)" glow="0 0 10px rgba(168,85,247,0.3)" />
+      <EdgeFrame size={size} color="rgba(167,139,250,0.45)" glow="0 0 10px rgba(168,85,247,0.3)" />
     </>
   );
 }
@@ -768,7 +887,7 @@ function matrixStormChar(col, row, layer) {
   return MATRIX_STORM_TEXT[(start + row) % MATRIX_STORM_TEXT.length];
 }
 
-function MatrixStormScene({ radius }) {
+function MatrixStormScene({ size = 64 }) {
   const columns = 12;
   const rowCount = 10;
 
@@ -777,7 +896,7 @@ function MatrixStormScene({ radius }) {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "radial-gradient(circle at 50% 45%, #041208 0%, #010403 55%, #000 100%)",
         }}
       />
@@ -842,7 +961,7 @@ function MatrixStormScene({ radius }) {
       >
         {MATRIX_STORM_TEXT}
       </motion.div>
-      <EdgeFrame radius={radius} color="rgba(34,197,94,0.4)" />
+      <EdgeFrame size={size} color="rgba(34,197,94,0.4)" />
     </>
   );
 }
@@ -892,21 +1011,21 @@ function SoundwaveBars() {
 }
 
 const EFFECTS = {
-  radar_sweep: ({ radius }) => (
+  radar_sweep: ({ size = 64 }) => (
     <>
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "linear-gradient(180deg, #020408 0%, #0f172a 100%)" }} />
-      <RadarRings radius={radius} color="rgba(0,255,255,0.3)" />
+      <div className="absolute inset-0 pointer-events-none" style={{ ...dieShape(size), background: "linear-gradient(180deg, #020408 0%, #0f172a 100%)" }} />
+      <RadarRings size={size} color="rgba(0,255,255,0.3)" />
       <SweepLine color="rgba(0,255,255,0.9)" width={4} />
-      <EdgeFrame radius={radius} color="rgba(0,255,255,0.35)" animate />
+      <EdgeFrame size={size} color="rgba(0,255,255,0.35)" animate />
     </>
   ),
 
-  tornado_mono: ({ radius }) => (
+  tornado_mono: ({ size = 64 }) => (
     <>
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "radial-gradient(circle at 50% 50%, #262626 0%, #0a0a0a 55%, #000 100%)",
         }}
       />
@@ -915,7 +1034,7 @@ const EFFECTS = {
         animate={{ rotate: 360 }}
         transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
         style={{
-          borderRadius: radius,
+          ...dieShape(size),
           background: "conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.04) 30deg, transparent 60deg)",
         }}
       />
@@ -968,32 +1087,14 @@ const EFFECTS = {
     </>
   ),
 
-  rainfall: ({ radius }) => (
-    <>
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "linear-gradient(180deg, #1e293b 0%, #334155 55%, #475569 100%)" }} />
-      {Array.from({ length: 28 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-[1px] pointer-events-none"
-          style={{
-            left: `${(i * 3.7) % 98}%`,
-            height: 8 + (i % 4) * 3,
-            background: "linear-gradient(to bottom, transparent, rgba(186,230,253,0.85))",
-          }}
-          animate={{ top: ["-12%", "112%"] }}
-          transition={{ duration: 0.45 + (i % 5) * 0.12, repeat: Infinity, delay: (i * 0.07) % 1.2, ease: "linear" }}
-        />
-      ))}
-      <div className="absolute inset-0 pointer-events-none opacity-30" style={{ borderRadius: radius, background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.15) 0%, transparent 50%)" }} />
-    </>
-  ),
+  rainfall: (props) => <RainfallScene {...props} />,
 
-  score_meter: ({ radius, scoreFill = 0.5 }) => {
+  score_meter: ({ size = 64, scoreFill = 0.5 }) => {
     const theme = getScoreMeterTheme(scoreFill);
     return (
       <>
-        <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "#0f172a" }} />
-        <div className="absolute inset-2 pointer-events-none overflow-hidden" style={{ borderRadius: radius - 4 }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ ...dieShape(size), background: "#0f172a" }} />
+        <div className="absolute inset-2 pointer-events-none overflow-hidden" style={dieShape(size)}>
           <motion.div
             className="absolute bottom-0 left-0 right-0 pointer-events-none"
             style={{
@@ -1008,14 +1109,14 @@ const EFFECTS = {
             <div key={t} className="absolute left-0 right-0 h-px bg-white/20 pointer-events-none" style={{ bottom: `${t}%` }} />
           ))}
         </div>
-        <EdgeFrame radius={radius} color={theme.edgeColor} glow={theme.edgeGlow} animate={theme.full} />
+        <EdgeFrame size={size} color={theme.edgeColor} glow={theme.edgeGlow} animate={theme.full} />
       </>
     );
   },
 
-  binary_storm: ({ radius }) => (
+  binary_storm: ({ size = 64 }) => (
     <>
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "#020408" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ ...dieShape(size), background: "#020408" }} />
       {Array.from({ length: 16 }).map((_, i) => (
         <motion.div
           key={i}
@@ -1029,41 +1130,41 @@ const EFFECTS = {
           ))}
         </motion.div>
       ))}
-      <NoiseFilm radius={radius} opacity={0.12} />
-      <EdgeFrame radius={radius} color="rgba(34,197,94,0.45)" animate />
+      <NoiseFilm size={size} opacity={0.12} />
+      <EdgeFrame size={size} color="rgba(34,197,94,0.45)" animate />
     </>
   ),
 
-  soundwave: ({ radius }) => (
+  soundwave: ({ size = 64 }) => (
     <>
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "linear-gradient(145deg, #020408 0%, #1e1b4b 100%)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ ...dieShape(size), background: "linear-gradient(145deg, #020408 0%, #1e1b4b 100%)" }} />
       <SoundwaveBars />
-      <EdgeFrame radius={radius} color="rgba(255,0,234,0.25)" />
+      <EdgeFrame size={size} color="rgba(255,0,234,0.25)" />
     </>
   ),
 
-  radar_blips: ({ radius, layout, size = 64 }) => (
+  radar_blips: ({ layout, size = 64 }) => (
     <>
-      <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: radius, background: "radial-gradient(circle, #052e16 0%, #020408 70%)" }} />
-      <RadarRings radius={radius} />
-      <RotatingRadarSweep radius={radius} />
-      <RadarBlipsLayer layout={layout} size={size} radius={radius} />
-      <EdgeFrame radius={radius} color="rgba(74,222,128,0.35)" />
+      <div className="absolute inset-0 pointer-events-none" style={{ ...dieShape(size), background: "radial-gradient(circle, #052e16 0%, #020408 70%)" }} />
+      <RadarRings size={size} />
+      <RotatingRadarSweep size={size} />
+      <RadarBlipsLayer layout={layout} size={size} />
+      <EdgeFrame size={size} color="rgba(74,222,128,0.35)" />
     </>
   ),
 
-  matrix_storm: ({ radius }) => <MatrixStormScene radius={radius} />,
+  matrix_storm: ({ size = 64 }) => <MatrixStormScene size={size} />,
 
-  plasma_cut: ({ radius, layout, size = 64 }) => {
+  plasma_cut: ({ layout, size = 64 }) => {
     const targets = getPipTargets(layout);
     const pipR = ((size * 0.145) / 2 / size) * 100;
     return (
     <>
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ borderRadius: radius, background: "linear-gradient(145deg, #0f172a 0%, #020408 100%)" }}
+        style={{ ...dieShape(size), background: "linear-gradient(145deg, #0f172a 0%, #020408 100%)" }}
       />
-      <svg className="absolute inset-0 pointer-events-none z-[5]" viewBox="0 0 100 100" style={{ borderRadius: radius }}>
+      <svg className="absolute inset-0 pointer-events-none z-[5]" viewBox="0 0 100 100" style={dieShape(size)}>
         <motion.rect
           x="5"
           y="5"
@@ -1150,21 +1251,36 @@ const EFFECTS = {
     );
   },
 
-  core_burst: ({ radius, layout }) => (
-    <HypnoBurstRings layout={layout} radius={radius} />
+  core_burst: ({ layout, size = 64 }) => (
+    <HypnoBurstRings layout={layout} size={size} />
   ),
 
-  bug_zapper: ({ radius, layout, dieSeed }) => (
-    <BugZapperScene radius={radius} layout={layout} dieSeed={dieSeed ?? 0} />
+  bug_zapper: ({ layout, dieSeed, size = 64 }) => (
+    <BugZapperScene size={size} layout={layout} dieSeed={dieSeed ?? 0} />
   ),
 
-  xray: ({ radius, layout }) => <XrayScene radius={radius} layout={layout} />,
+  xray: ({ layout, size = 64 }) => <XrayScene size={size} layout={layout} />,
 };
 
-export default function PortfolioDieEffect({ effectId, radius, scoreFill, layout, size, dieSeed = 0 }) {
+export default function PortfolioDieEffect({
+  effectId,
+  scoreFill,
+  layout,
+  size = 64,
+  dieSeed = 0,
+  frozen = false,
+}) {
   const Effect = EFFECTS[effectId];
   if (!Effect) return null;
-  return <Effect radius={radius} scoreFill={scoreFill} layout={layout} size={size} dieSeed={dieSeed} />;
+  return (
+    <Effect
+      scoreFill={scoreFill}
+      layout={layout}
+      size={size}
+      dieSeed={dieSeed}
+      frozen={frozen}
+    />
+  );
 }
 
 export const PORTFOLIO_EFFECT_IDS = Object.keys(EFFECTS);

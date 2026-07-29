@@ -7,7 +7,29 @@ export default function GameAudioControls({
   onToggleSfx,
   onToggleOpponent,
   showOpponent = true,
+  compact = false,
 }) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-0.5">
+        <MuteToggleButton
+          muted={sfxMuted}
+          onToggle={onToggleSfx}
+          label="game sounds"
+          compact
+        />
+        {showOpponent && (
+          <MuteToggleButton
+            muted={opponentSfxMuted}
+            onToggle={onToggleOpponent}
+            label="opponent"
+            compact
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex items-center justify-center gap-2 flex-wrap rounded-xl border px-3 py-2"

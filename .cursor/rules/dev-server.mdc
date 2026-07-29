@@ -1,0 +1,23 @@
+---
+description: Dev server behavior for AI agents — avoid killing localhost:5173
+alwaysApply: true
+---
+
+# Dev Server — Do Not Start Ephemerally
+
+Agent shell sessions are **ephemeral**. When an agent finishes, any `npm run dev` it started is killed. The user then sees `ERR_CONNECTION_REFUSED` at `http://localhost:5173`.
+
+## Rules for agents
+
+1. **Do not run `npm run dev`** as part of routine coding unless the user explicitly asks.
+2. Tell the user to run the dev server **once in their own Terminal** (outside agent sessions):
+   ```bash
+   npm run dev
+   ```
+3. Verify changes with `npm run build` and/or `npm run lint` instead of starting a dev server.
+4. If you must start dev for the user, warn that it stops when the agent session ends.
+
+## Not the root cause
+
+- `--strictPort` only fails startup when port 5173 is already taken; it does not kill a running server.
+- HMR syntax errors during edits show overlay errors but Vite keeps running once the file is fixed.

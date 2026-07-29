@@ -13,6 +13,7 @@ description: >-
 1. Read `AGENTS.md` and `.cursor/rules/`.
 2. Confirm whether the task touches **game logic** (`gameLogic.js`, `scoring.js`, `powers.js`, `aiOpponent.js`). If yes, only proceed when the user explicitly asked for gameplay changes.
 3. Player data is local only — use `src/lib/localProfile.js` and `useCosmetics()`, not remote APIs.
+4. **Do not start `npm run dev`** unless the user asks — agent sessions kill it when they end. Verify with `npm run build` / `npm run lint` instead.
 
 ## Common Tasks
 
@@ -41,3 +42,4 @@ npm run lint && npm run build
 - Re-add external platform SDKs, auth gates, or cloud matchmaking without explicit request
 - Refactor dice rolling, scoring, or turn rules "while you're in there"
 - Commit `.env` files with secrets
+- Start `npm run dev` in agent terminals (user should run it persistently in their own Terminal)

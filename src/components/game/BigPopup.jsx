@@ -1,59 +1,98 @@
 import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { isBustWord } from "@/lib/gameLogic";
 
-// A huge full-screen pop-up, e.g. "YEEET!" or "SKEERT!" after a bust.
-// Auto-dismisses after `duration` ms (default 1400).
-export default function BigPopup({ word, variant = "danger", open, onClose, duration = 1400 }) {
+// Full-screen bust slam — YEEEET! / SKRRRT! etc.
+// Bust: keep the punch, but clear the blackout early so dice / next turn stay readable.
+export default function BigPopup({ word, variant = "danger", open, onClose, duration, burstKey }) {
+  const isBust = variant === "bust" || isBustWord(word);
+  // Bust used to dismiss at 1500ms while the dim stayed solid — screen went dark too long.
+  const dismissMs = duration ?? (isBust ? 820 : 1400);
+
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => onClose && onClose(), duration);
+    const t = setTimeout(() => onClose && onClose(), dismissMs);
     return () => clearTimeout(t);
-  }, [open, onClose, duration]);
+  }, [open, onClose, dismissMs]);
 
   const gradient =
     variant === "success"
       ? "from-emerald-400 via-yellow-300 to-amber-500"
-      : "from-rose-500 via-red-500 to-orange-500";
+      : "from-rose-400 via-red-500 to-orange-400";
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          key={burstKey ?? word}
+          className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.12 }}
         >
           <motion.div
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          />
-          <motion.div
-            initial={{ scale: 0.3, rotate: -15, opacity: 0 }}
             animate={{
-              scale: [0.3, 1.3, 1],
-              rotate: [-15, 8, -4, 0],
-              opacity: 1,
+              // Bust: lighter peak + fade out with the shout (was stuck at ~0.85 until unmount)
+              opacity: isBust ? [0, 0.42, 0.28, 0] : 0.7,
             }}
-            exit={{ scale: 1.5, opacity: 0, rotate: 20 }}
-            transition={{ duration: 0.55, ease: "easeOut" }}
-            className="relative"
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: isBust ? 0.75 : 0.2,
+              times: isBust ? [0, 0.16, 0.5, 1] : undefined,
+              ease: "easeOut",
+            }}
+          />
+
+          <motion.div
+            className="relative w-full max-w-[100vw] px-1 sm:px-4 flex items-center justify-center"
+            initial={{ scale: 0.15, opacity: 0, rotate: -12 }}
+            animate={{
+              scale: isBust ? [0.15, 1.45, 1.05, 1.05] : [0.15, 1.45, 1.08],
+              opacity: isBust ? [0, 1, 1, 0] : [0, 1, 1],
+              rotate: isBust ? [-12, 4, 0, 0] : [-12, 6, -2, 0],
+            }}
+            exit={{ scale: 1.5, opacity: 0, rotate: 10 }}
+            transition={{
+              duration: isBust ? 0.78 : 0.55,
+              ease: "easeOut",
+              times: isBust ? [0, 0.26, 0.68, 1] : undefined,
+            }}
           >
             <div
-              className={`text-[22vw] sm:text-[16vw] leading-none font-black tracking-tighter bg-gradient-to-br ${gradient} bg-clip-text text-transparent drop-shadow-2xl`}
-              style={{ WebkitTextStroke: "2px rgba(0,0,0,0.3)" }}
+              className={`w-full text-center font-black uppercase leading-[0.82] tracking-tighter bg-gradient-to-br ${gradient} bg-clip-text text-transparent select-none`}
+              style={{
+                fontSize: isBust ? "clamp(3.5rem, 28vw, 14rem)" : "clamp(2rem, 22vw, 10rem)",
+                WebkitTextStroke: isBust ? "3px rgba(0,0,0,0.45)" : "2px rgba(0,0,0,0.3)",
+                filter: isBust
+                  ? "drop-shadow(0 0 40px rgba(255,60,60,0.85)) drop-shadow(0 8px 0 rgba(0,0,0,0.55))"
+                  : "drop-shadow(0 0 24px rgba(255,80,80,0.6))",
+                transform: isBust ? "scaleX(1.06)" : undefined,
+              }}
             >
               {word}
             </div>
-            {/* emphasis lines */}
-            <motion.div
-              className="absolute -inset-8 rounded-full border-4 border-white/20"
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1.4, opacity: 0 }}
-              transition={{ duration: 0.8 }}
-            />
+
+            {isBust && (
+              <>
+                <motion.div
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                  initial={{ opacity: 0, scaleX: 0.2 }}
+                  animate={{ opacity: [0, 0.55, 0], scaleX: [0.2, 1.15, 1.35] }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                >
+                  <div className="w-[92vw] h-[0.35rem] rounded-full bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                </motion.div>
+                <motion.div
+                  className="absolute -inset-4 rounded-full border-[6px] border-rose-400/30"
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: [0.4, 1.55], opacity: [0.7, 0] }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </>
+            )}
           </motion.div>
         </motion.div>
       )}

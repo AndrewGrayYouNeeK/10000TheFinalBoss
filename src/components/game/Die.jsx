@@ -1,30 +1,104 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getSkin } from "@/lib/shopCatalog";
+import {
+  getCachedMatrixPowerVideoObjectUrl,
+  preloadMatrixPowerVideo,
+  subscribeMatrixPowerVideo,
+} from "@/lib/matrixPowerVideo";
+import {
+  getCachedDiamondCutPowerVideoObjectUrl,
+  preloadDiamondCutPowerVideo,
+  subscribeDiamondCutPowerVideo,
+} from "@/lib/diamondCutPowerVideo";
+import {
+  AQUARIUM_OVERLAY_SKIN_IDS,
+  getSkin,
+  getSkinSpriteLayer,
+  getActiveVideoUrl,
+} from "@/lib/shopCatalog";
 import { layoutGrid } from "@/lib/diceAssets";
 import { useXrayMorphLayout } from "@/hooks/useXrayMorphLayout";
 import Pip from "./Pip";
 import FishOverlay from "./FishOverlay";
+import { BlueGelSharkAttack, BlueGelSharkBiteCharge, BloodPowerFx, BloodyWaterTint, skinUsesBloodPowerFx } from "./BlueGelPowerFX";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
+import IcePowerOverlay from "./IcePowerOverlay";
 import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
 import HeldDiceOverlay from "./HeldDiceOverlay";
 import { DEFAULT_HELD_DICE_STYLE } from "@/lib/heldDiceStyles";
+import {
+  getAquamarineShellStyle,
+  getSpriteSheetStyle,
+  getPowerVideoCellStyle,
+  getSkinFaceOffset,
+  resolveFaceSpriteNudges,
+} from "@/lib/dieSpriteOffsets";
+import { getDieSquircleClipStyle } from "@/lib/dieSquircleClip";
+import {
+  getSnowGlobeShellCrop,
+  resolveSnowGlobeShellNudges,
+  useSnowGlobeSettings,
+} from "@/lib/snowGlobeSettings";
+import {
+  getBlueGelShellCrop,
+  resolveBlueGelShellNudges,
+  useBlueGelSettings,
+} from "@/lib/blueGelSettings";
+import { assetUrl } from "@/lib/assetUrl";
 
-function useRollVariants() {
-  const ref = React.useRef(null);
-  if (!ref.current) {
-    const dir = Math.random() > 0.5 ? 1 : -1;
-    const spins = (3 + Math.floor(Math.random() * 3)) * 360 * dir;
-    const bounceH = 18 + Math.random() * 28;
-    ref.current = {
-      rotate: [0, spins * 0.3, spins * 0.6, spins * 0.85, spins * 0.95, spins],
-      y: [0, -bounceH, -bounceH * 0.4, -bounceH * 0.6, -bounceH * 0.15, 0],
-      x: [0, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 4, 0, 0],
-      scale: [1, 1.15, 1.05, 1.1, 0.97, 1]
-    };
+const LOCAL_POWER_VIDEO_SKINS = {
+  matrix: {
+    getCached: getCachedMatrixPowerVideoObjectUrl,
+    preload: preloadMatrixPowerVideo,
+    subscribe: subscribeMatrixPowerVideo,
+  },
+  crystal_cut: {
+    getCached: getCachedDiamondCutPowerVideoObjectUrl,
+    preload: preloadDiamondCutPowerVideo,
+    subscribe: subscribeDiamondCutPowerVideo,
+  },
+};
+
+/** Survives Die remounts (roll animation keys) so skins don't flash pip fallback. */
+const SPRITE_LOAD_CACHE = new Set();
+
+function preloadSpriteUrl(url, onResult) {
+  const resolved = assetUrl(url);
+  if (SPRITE_LOAD_CACHE.has(resolved)) {
+    onResult(true);
+    return () => {};
   }
-  return ref.current;
+  let cancelled = false;
+  const img = new Image();
+  img.onload = () => {
+    SPRITE_LOAD_CACHE.add(resolved);
+    if (!cancelled) onResult(true);
+  };
+  img.onerror = () => {
+    if (!cancelled) onResult(false);
+  };
+  img.decoding = "async";
+  img.src = resolved;
+  if (img.complete && img.naturalWidth > 0) {
+    SPRITE_LOAD_CACHE.add(resolved);
+    onResult(true);
+  }
+  return () => {
+    cancelled = true;
+  };
+}
+
+function buildRollMotion() {
+  const dir = Math.random() > 0.5 ? 1 : -1;
+  const spins = (3 + Math.floor(Math.random() * 3)) * 360 * dir;
+  const bounceH = 18 + Math.random() * 28;
+  return {
+    rotate: [0, spins * 0.3, spins * 0.65, spins * 0.88, spins * 0.97, spins],
+    y: [0, -bounceH, -bounceH * 0.35, -bounceH * 0.55, -bounceH * 0.12, 0],
+    x: [0, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 5, 0, 0],
+    scale: [1, 1.18, 1.06, 1.12, 0.96, 1],
+  };
 }
 
 function Die({
@@ -40,46 +114,128 @@ function Die({
   skinId = "classic_white",
   bigFishVariantIndex = 0,
   bigFishExtraScale = 1,
+  bigFishStaticPose = false,
+  includeJellyfish = false,
   scoreFill = 0.5,
   heldStyleId = DEFAULT_HELD_DICE_STYLE,
   dieSeed,
   lowPower = false,
+  powerMode = false,
+  powerModeSubtle = false,
+  /** When true (power mode + chosen die), X-Ray may morph this die's pip face. */
+  allowXrayMorph = false,
+  iceFrozenOverlay = false,
+  sharkBiteFx = false,
+  /** Feeding Frenzy — opponent targeted these fish dice (not Blue Gel's own Shark Bite charge). */
+  fishFeastMode = false,
+  /** Online opponent view — face values withheld by server. */
+  valueHidden = false,
+  bloodWaterLocked = false,
+  onBloodWaterSettled,
+  devSkin = null,
+  /** Sprite Lab override for Snow Globe glass-shell alignment. */
+  snowGlobeShellSettings: snowGlobeShellSettingsProp = null,
+  /** Sprite Lab override for Blue Gel glass-shell alignment. */
+  blueGelShellSettings: blueGelShellSettingsProp = null,
 }) {
   const stableSeedRef = React.useRef(Math.floor(Math.random() * 10000));
   const effectDieSeed = dieSeed ?? stableSeedRef.current;
   const effectiveHeldStyleId = heldStyleId;
-  const reduceEffects = lowPower || rolling;
   const handleClick = React.useCallback(() => {
     if (onClick) onClick();
     else if (onToggleDie && dieId != null) onToggleDie(dieId);
   }, [onClick, onToggleDie, dieId]);
-  const skin = getSkin(skinId);
+  const skin = devSkin ?? getSkin(skinId);
+  const effectiveSkinId = devSkin?.id ?? skinId;
+  const powerVideoSkin = LOCAL_POWER_VIDEO_SKINS[skin.id];
+  const [failedVideoUrls, setFailedVideoUrls] = React.useState(() => new Set());
+  const [localPowerVideoUrl, setLocalPowerVideoUrl] = React.useState(
+    () => powerVideoSkin?.getCached() ?? null
+  );
+  // Real aspect ratio of the loaded power video (w/h). Matrix videos aren't
+  // always 3:2, so we need this to crop each cell without stretching.
+  const [videoAspect, setVideoAspect] = React.useState(null);
+  React.useEffect(() => {
+    setFailedVideoUrls(new Set());
+  }, [skin.id, powerMode, skin.powerVideoUrl, skin.videoUrl, localPowerVideoUrl]);
+  React.useEffect(() => {
+    if (!powerVideoSkin) return undefined;
+    let cancelled = false;
+    powerVideoSkin.preload().then((url) => {
+      if (!cancelled) setLocalPowerVideoUrl(url);
+    });
+    const unsub = powerVideoSkin.subscribe((url) => {
+      if (!cancelled) setLocalPowerVideoUrl(url);
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [skin.id, powerVideoSkin]);
+  const catalogVideoUrl = getActiveVideoUrl(skin, { powerMode, allowPowerVideo: true });
+  const localPowerSrc = powerVideoSkin && powerMode ? localPowerVideoUrl : null;
+  const videoCandidates =
+    powerVideoSkin && powerMode
+      ? [localPowerSrc, catalogVideoUrl]
+      : [catalogVideoUrl];
+  const activeVideoUrl =
+    videoCandidates.find((url) => url && !failedVideoUrls.has(url)) ?? null;
+  const videoOk = !!activeVideoUrl;
+  const reduceEffects = lowPower || rolling;
+  const reducePowerPresentation = reduceEffects || powerModeSubtle;
+  // Reserve sprite only while the video layer is actually on screen (not during roll/lowPower/subtle).
+  const videoPlaying = Boolean(activeVideoUrl && !reducePowerPresentation);
+  const videoSkinActive = videoPlaying;
+  const chargedSpriteLayer = getSkinSpriteLayer(skin, {
+    powerMode,
+    allowPowerVideo: videoOk && videoPlaying,
+  });
+  const regularSpriteLayer = getSkinSpriteLayer(skin, {
+    powerMode: false,
+    allowPowerVideo: false,
+  });
+  const displaySpriteLayer = videoPlaying
+    ? null
+    : (chargedSpriteLayer || regularSpriteLayer);
+  const spriteOffsetMode = videoPlaying
+    ? "powerVideo"
+    : displaySpriteLayer?.isPowerLayer
+      ? "powerSprite"
+      : "regular";
+  const [spriteOk, setSpriteOk] = React.useState(true);
+  React.useEffect(() => {
+    const url = displaySpriteLayer?.spriteUrl;
+    if (!url) return undefined;
+    if (SPRITE_LOAD_CACHE.has(assetUrl(url))) {
+      setSpriteOk(true);
+      return undefined;
+    }
+    setSpriteOk(true);
+    return preloadSpriteUrl(url, (ok) => setSpriteOk(ok));
+  }, [displaySpriteLayer?.spriteUrl]);
+  const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
+  const showBloodPowerFx =
+    !reducePowerPresentation && usesBloodPowerFx && (powerMode || bloodWaterLocked);
   const isXray = skin.id === "pf_xray";
-  const { displayLayout: xrayLayout } = useXrayMorphLayout(value, rolling, isXray);
+  const { displayLayout: xrayLayout } = useXrayMorphLayout(
+    value,
+    rolling,
+    isXray && allowXrayMorph
+  );
   const layout = isXray ? xrayLayout : layoutGrid(value);
-  const rollVariants = useRollVariants();
 
-  const rollKey = React.useRef(0);
   const wasRolling = React.useRef(false);
   const [settling, setSettling] = React.useState(false);
-  if (rolling && !wasRolling.current) {
-    rollKey.current += 1;
-    const dir = Math.random() > 0.5 ? 1 : -1;
-    const spins = (3 + Math.floor(Math.random() * 3)) * 360 * dir;
-    const bounceH = 18 + Math.random() * 28;
-    rollVariants.rotate = [0, spins * 0.3, spins * 0.65, spins * 0.88, spins * 0.97, spins];
-    rollVariants.y = [0, -bounceH, -bounceH * 0.35, -bounceH * 0.55, -bounceH * 0.12, 0];
-    rollVariants.x = [0, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 5, 0, 0];
-    rollVariants.scale = [1, 1.18, 1.06, 1.12, 0.96, 1];
-  }
+  // Stable key — remounting on every roll was causing a second spin.
+  const [rollMotion, setRollMotion] = React.useState(null);
   React.useEffect(() => {
-    let startTimer, endTimer;
+    let startTimer;
+    let endTimer;
     if (rolling && !wasRolling.current) {
-      // Start the wild snow ~0.55s into the 0.85s roll, so it begins before the die stops.
+      setRollMotion(buildRollMotion());
       startTimer = setTimeout(() => setSettling(true), 550);
       wasRolling.current = true;
     } else if (!rolling && wasRolling.current) {
-      // Keep it going briefly after the die lands, then calm down.
       endTimer = setTimeout(() => setSettling(false), 700);
       wasRolling.current = false;
     }
@@ -92,24 +248,44 @@ function Die({
   // Standard dice corner radius
   const radius = Math.round(size * 0.06);
 
-  // Squircle mask — bows the edges outward between the corners like a real die.
-  // b = bulge amount (fraction of size that the midpoint of each edge extends past the square)
-  const b = 0.04;
-  const vb = `${-b} ${-b} ${1 + 2 * b} ${1 + 2 * b}`;
-  const cr = 0.08; // corner radius in path units
-  const squirclePath = `M ${cr},0 L ${1 - cr},0 Q ${1 + b},${0.5} ${1 - cr},1 L ${cr},1 Q ${-b},${0.5} ${cr},0 Z`
-    .replace(`L ${1 - cr},0 Q`, `L ${1 - cr},0 Q ${1 + b * 0.3},${-b * 0.3} ${1},${cr} L ${1},${1 - cr} Q`)
-    .replace(`L ${cr},1 Q`, `L ${cr},1 Q ${-b * 0.3},${1 + b * 0.3} ${0},${1 - cr} L ${0},${cr} Q`);
-  const squircleSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='${vb}' preserveAspectRatio='none'><path d='M ${cr} 0 Q ${0.5} ${-b} ${1 - cr} 0 Q 1 0 1 ${cr} Q ${1 + b} ${0.5} 1 ${1 - cr} Q 1 1 ${1 - cr} 1 Q ${0.5} ${1 + b} ${cr} 1 Q 0 1 0 ${1 - cr} Q ${-b} ${0.5} 0 ${cr} Q 0 0 ${cr} 0 Z' fill='black'/></svg>`;
-  const squircleMaskUrl = `url("data:image/svg+xml;utf8,${encodeURIComponent(squircleSvg)}")`;
-  const squircleStyle = {
-    WebkitMaskImage: squircleMaskUrl,
-    maskImage: squircleMaskUrl,
-    WebkitMaskSize: "100% 100%",
-    maskSize: "100% 100%",
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
-  };
+  // Score Freeze cube overlay — only when explicitly frozen (never from ice skin power charge).
+  const icePowerActive = iceFrozenOverlay && !reduceEffects;
+  const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
+  const aquamarineShellSkin = isAquariumOverlaySkin ? getSkin("aquamarine") : null;
+  const aquamarineShellUrl = aquamarineShellSkin?.spriteUrl ?? null;
+  const [aquaShellOk, setAquaShellOk] = React.useState(true);
+  React.useEffect(() => {
+    if (!aquamarineShellUrl) {
+      setAquaShellOk(false);
+      return undefined;
+    }
+    setAquaShellOk(true);
+    return preloadSpriteUrl(aquamarineShellUrl, (ok) => setAquaShellOk(ok));
+  }, [aquamarineShellUrl]);
+  const showAquamarineShell = Boolean(aquamarineShellUrl && aquaShellOk);
+  const liveSnowGlobeSettings = useSnowGlobeSettings();
+  const snowGlobeShellSettings =
+    effectiveSkinId === "snow_globe"
+      ? snowGlobeShellSettingsProp ?? liveSnowGlobeSettings
+      : null;
+  const liveBlueGelSettings = useBlueGelSettings();
+  const blueGelShellSettings =
+    effectiveSkinId === "blue_gel"
+      ? blueGelShellSettingsProp ?? liveBlueGelSettings
+      : null;
+  // Convex squircle on the inner visual stack — never on the button (that hid sprites).
+  const dieShapeStyle = getDieSquircleClipStyle(size);
+
+  const showSpriteLayer =
+    displaySpriteLayer &&
+    !videoPlaying &&
+    !isAquariumOverlaySkin &&
+    spriteOk;
+  const showPipFallback =
+    !isAquariumOverlaySkin &&
+    !videoPlaying &&
+    !videoSkinActive &&
+    (!displaySpriteLayer || !spriteOk);
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -130,6 +306,8 @@ function Die({
 
   const isClearBody =
     skin.id === "classic_white" ||
+    isAquariumOverlaySkin ||
+    videoSkinActive ||
     skin.videoUrl ||
     isExperimentalClearBody(skin) ||
     (skin.experimental && (skin.style?.kind === "clear" || skin.style?.kind === "glass"));
@@ -199,9 +377,7 @@ function Die({
         }
         const diamondEffects = ["glow", "shinyStar", "blackHole"];
         let effect = null;
-        if (skin.id === "toxic_plasma_v2") {
-          effect = "radiationPulse";
-        } else if (skin.experimental) {
+        if (skin.experimental) {
           effect = style?.pipEffect;
         } else if (skin.id === "diamond") {
           effect = diamondEffects[i % 3];
@@ -224,30 +400,43 @@ function Die({
     );
   };
 
+  const isRollingAnim = rolling && !held && !used && rollMotion;
   return (
     <motion.div
-      key={rolling ? rollKey.current : "idle"}
+      key={dieId != null ? `die-${dieId}` : "die"}
       className="relative flex-shrink-0 overflow-visible"
       style={{ width: size, height: size }}
       initial={false}
       animate={
-      rolling ?
-      { rotate: rollVariants.rotate, y: rollVariants.y, x: rollVariants.x, scale: rollVariants.scale } :
-      held && !used ?
-      { rotate: 0, y: -10, x: 0, scale: 1.08 } :
-      { rotate: 0, y: 0, x: 0, scale: 1 }
+        isRollingAnim
+          ? {
+              rotate: rollMotion.rotate,
+              y: rollMotion.y,
+              x: rollMotion.x,
+              scale: rollMotion.scale,
+            }
+          : held && !used
+            ? { rotate: 0, y: -10, x: 0, scale: 1.08 }
+            : { rotate: 0, y: 0, x: 0, scale: 1 }
       }
       transition={
-      rolling ?
-      {
-        duration: 0.85,
-        ease: [0.25, 0.46, 0.45, 0.94],
-        times: [0, 0.2, 0.45, 0.65, 0.85, 1]
-      } :
-      { type: "spring", stiffness: 300, damping: 18 }
+        isRollingAnim
+          ? {
+              duration: 0.85,
+              ease: [0.25, 0.46, 0.45, 0.94],
+              times: [0, 0.2, 0.45, 0.65, 0.85, 1],
+            }
+          : {
+              y: { type: "spring", stiffness: 300, damping: 18 },
+              x: { type: "spring", stiffness: 300, damping: 18 },
+              scale: { type: "spring", stiffness: 300, damping: 18 },
+              // Snap — do not animate from multi-turn roll rotate back to 0
+              // (that unwind looked like a second spin).
+              rotate: { duration: 0 },
+            }
       }
-      whileTap={!used && !rolling ? { scale: 0.92 } : {}}
-      whileHover={!used && !rolling ? { y: -5, rotate: 3 } : {}}>
+      whileTap={!used && !(rolling && !held) ? { scale: 0.92 } : {}}
+      whileHover={!used && !(rolling && !held) ? { y: -5, rotate: 3 } : {}}>
 
       {held && !used && (
         <div className="absolute inset-0 z-20 pointer-events-none overflow-visible">
@@ -259,123 +448,136 @@ function Die({
       <button
         type="button"
         onClick={handleClick}
-        disabled={used || rolling}
-        className={`relative w-full h-full ${!isClearBody && !skin.experimental ? `bg-gradient-to-br ${skin.gradient}` : ""} ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
+        disabled={used || (rolling && !held)}
+        className={`relative w-full h-full ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
-          borderRadius: radius,
-          boxShadow: buildShadow(),
-          overflow: "hidden",
-          background: isClearBody ? "transparent" : undefined,
-          ...squircleStyle
+          boxShadow: icePowerActive ? "none" : buildShadow(),
+          // Ice drips must paint outside the squircle — don't clip the button.
+          overflow: icePowerActive ? "visible" : "hidden",
+          background: "transparent",
         }}>
-        
-        {/* Video background skin — cropped 3x2 grid, zoomed 3x centered in each cell */}
-        {skin.videoUrl && !reduceEffects && (() => {
-          const zoom = 3.0;
-          const cols = 3;
-          const rows = 2;
-          const col = (value - 1) % cols;
-          const row = Math.floor((value - 1) / cols);
-          // Container is the die. Video is sized so one cell == one die.
-          // Zoom in by scaling video to (cols*zoom) x (rows*zoom) of die size,
-          // and translating so the centered region of the cell aligns with the die.
-          const videoW = cols * zoom; // multiples of die width
-          const videoH = rows * zoom; // multiples of die height
-          // Center of the cell in video units (die widths): col + 0.5
-          // Translate so that center lands at die center (0.5, 0.5)
-          // ✅ APPROVED Plasma orb offsets — do not change
-          const FACE_TX_OFFSET = { 1: -0.3, 2: -3.8, 3: -7.0, 4: -1.3, 5: -3.1, 6: -6.8 };
-          const FACE_TY_OFFSET = { 1: -0.05, 2: 0, 3: 0, 4: -3, 5: -3, 6: -3 };
-          const tx = (col + 0.5) * zoom - 0.5 + (FACE_TX_OFFSET[value] || 0); // in die widths (per-face right shift)
-          const ty = (row + 0.5) * zoom - 0.5 + (FACE_TY_OFFSET[value] || 0); // in die heights (per-face down shift)
+        {/* Visual stack — squircle clip-path on skin layers only (not ice overlay). */}
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={dieShapeStyle}
+        >
+        {!isClearBody && !skin.experimental && !showSpriteLayer && (
+          <div
+            className={`absolute inset-0 bg-gradient-to-br ${skin.gradient}`}
+            aria-hidden
+          />
+        )}
+
+        {/* Video background skin — cropped 3×2 grid, one face per die */}
+        {activeVideoUrl && !reduceEffects && (() => {
+          let videoStyle;
+          if (skin.id === "matrix") {
+            // Preserve the video's real aspect and COVER each cell so the face
+            // fills the square die with no stretching. Center on the target cell.
+            const cols = 3;
+            const rows = 2;
+            const col = (value - 1) % cols;
+            const row = Math.floor((value - 1) / cols);
+            const z = skin.powerVideoZoom ?? 1.28;
+            const ratio = videoAspect ?? cols / rows;
+            const faceOffset = getSkinFaceOffset(skin, value, "powerVideo");
+            const { xNudge, yNudge } = resolveFaceSpriteNudges(skin.id, value, size, faceOffset, {
+              powerVideo: true,
+            });
+            const crop = skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 };
+            const cropX = (crop.offsetX || 0) * size;
+            const cropY = (crop.offsetY || 0) * size;
+            const elW = cols * size * z;
+            const elH = elW / ratio;
+            const cellW = elW / cols;
+            const cellH = elH / rows;
+            const left = size / 2 - (col + 0.5) * cellW + cropX + xNudge;
+            const top = size / 2 - (row + 0.5) * cellH - cropY + yNudge;
+            videoStyle = {
+              width: `${elW}px`,
+              height: `${elH}px`,
+              maxWidth: "none",
+              maxHeight: "none",
+              transform: `translate(${left}px, ${top}px)`,
+              transformOrigin: "top left",
+              objectFit: "fill",
+            };
+          } else {
+            const { videoW, videoH, txPos, tyPos, objectFit = "cover" } =
+              getPowerVideoCellStyle(skin, value, size, { powerMode });
+            videoStyle = {
+              width: `${videoW * 100}%`,
+              height: `${videoH * 100}%`,
+              maxWidth: "none",
+              maxHeight: "none",
+              transform: `translate(${(-txPos / videoW) * 100}%, ${(-tyPos / videoH) * 100}%)`,
+              transformOrigin: "top left",
+              objectFit,
+            };
+          }
           return (
             <div
               className="absolute overflow-hidden pointer-events-none"
-              style={{ borderRadius: radius, top: -9, left: -9, right: -9, bottom: -9 }}
+              style={{ inset: 0 }}
             >
               <video
-                src={skin.videoUrl}
+                key={activeVideoUrl}
+                src={activeVideoUrl}
                 autoPlay
                 loop
                 muted
                 playsInline
-                className="absolute top-0 left-0 pointer-events-none"
-                style={{
-                  width: `${videoW * 100}%`,
-                  height: `${videoH * 100}%`,
-                  transform: `translate(${(-tx / videoW) * 100}%, ${(-ty / videoH) * 100}%)`,
-                  transformOrigin: "top left",
-                  objectFit: "cover",
+                preload="auto"
+                onLoadedMetadata={(e) => {
+                  const { videoWidth, videoHeight } = e.currentTarget;
+                  if (videoWidth && videoHeight) setVideoAspect(videoWidth / videoHeight);
                 }}
+                onError={() => {
+                  setFailedVideoUrls((prev) => {
+                    const next = new Set(prev);
+                    next.add(activeVideoUrl);
+                    return next;
+                  });
+                }}
+                className="absolute top-0 left-0 pointer-events-none"
+                style={videoStyle}
               />
-              {!rolling && (
-                <>
-                  {/* Pink translucent glass tint */}
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      background:
-                        "radial-gradient(ellipse at 35% 30%, rgba(255,192,225,0.45) 0%, rgba(255,105,180,0.35) 55%, rgba(255,20,147,0.45) 100%)",
-                      mixBlendMode: "screen",
-                    }}
-                  />
-                  {/* Pink glass rim + highlights */}
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      borderRadius: radius,
-                      boxShadow:
-                        "inset 0 0 0 2px rgba(255,210,230,0.55), inset 0 -6px 14px rgba(255,20,147,0.45), inset 0 4px 10px rgba(255,225,240,0.55)",
-                    }}
-                  />
-                </>
-              )}
             </div>
           );
         })()}
 
-        {/* Snow Globe — borrows the Aquamarine glass shell with snowflakes drifting inside */}
-        {skin.id === "snow_globe" && (() => {
-          const aqua = getSkin("aquamarine");
-          const cellW = size * 1.7;
-          const cellH = size * 1.32;
-          const cols = aqua.spriteGrid?.cols ?? 3;
-          const rows = aqua.spriteGrid?.rows ?? 2;
-          const col = (value - 1) % cols;
-          const row = Math.floor((value - 1) / cols);
-          const AQUA_X_OFFSET = { 3: -size * 0.03, 4: -size * 0.01, 5: -size * 0.03, 6: -size * 0.04 };
-          const AQUA_Y_OFFSET = { 1: 0, 3: size * 0.01, 4: -size * 0.04 };
-          const FACE_X_OFFSET = { 2: -size * 0.015, 3: -size * 0.022, 5: -size * 0.022, 6: -size * 0.032 };
-          const FACE_Y_OFFSET = { 1: -size * 0.01, 2: -size * 0.01, 3: -size * 0.01, 4: -size * 0.04, 5: -size * 0.05, 6: -size * 0.045 };
-          const xNudge = AQUA_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0);
-          const yNudge = AQUA_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0);
+        {/* Snow Globe — drifting snow + semi-transparent Aquamarine glass shell (original stack). */}
+        {effectiveSkinId === "snow_globe" && (() => {
+          const aqua = aquamarineShellSkin ?? getSkin("aquamarine");
+          const { xNudge, yNudge } = resolveSnowGlobeShellNudges(
+            value,
+            size,
+            snowGlobeShellSettings
+          );
+          const aquaForShell = {
+            ...aqua,
+            spriteCrop: getSnowGlobeShellCrop(aqua.spriteCrop, snowGlobeShellSettings),
+          };
+          const shellStyle = getAquamarineShellStyle(aquaForShell, value, size, { xNudge, yNudge });
           return (
             <>
-              {/* Snowflakes drift behind — density tied to face value; goes wild for a moment AFTER the roll */}
               <SnowGlobeOverlay size={size} radius={radius} count={value} shaking={settling} />
-              {/* Aquamarine sprite as a translucent glass shell */}
+              {showAquamarineShell ? (
+                <div
+                  className="absolute pointer-events-none z-[2]"
+                  style={{
+                    backgroundImage: `url(${assetUrl(aqua.spriteUrl)})`,
+                    opacity: 0.55,
+                    mixBlendMode: "multiply",
+                    ...shellStyle,
+                  }}
+                />
+              ) : null}
               <div
-                className="absolute pointer-events-none"
+                className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
-                  top: `${-size * 0.14 + yNudge}px`,
-                  bottom: `${-size * 0.8 + yNudge}px`,
-                  left: `${-size * 0.35 + xNudge}px`,
-                  right: `${-size * 0.35 + xNudge}px`,
-                  backgroundImage: `url(${aqua.spriteUrl})`,
-                  backgroundSize: `${cellW * cols}px ${cellH * rows}px`,
-                  backgroundPosition: `${-(col * cellW)}px ${-(row * cellH)}px`,
-                  backgroundRepeat: "no-repeat",
-                  opacity: 0.55,
-                  mixBlendMode: "multiply",
-                }}
-              />
-              {/* Glass rim */}
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  borderRadius: radius,
                   boxShadow:
-                    "inset 0 0 0 2px rgba(255,255,255,0.5), inset 0 -6px 12px rgba(0,0,0,0.2), inset 0 4px 8px rgba(255,255,255,0.45)",
+                    "inset 0 0 0 2px rgba(255,255,255,0.5), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.45)",
                 }}
               />
             </>
@@ -383,353 +585,188 @@ function Die({
         })()}
 
         {/* Blue Gel — borrows the Aquamarine glass shell with a fish swimming inside */}
-        {skin.id === "blue_gel" && (() => {
-          const aqua = getSkin("aquamarine");
-          const cellW = size * 1.7;
-          const cellH = size * 1.32;
-          const cols = aqua.spriteGrid?.cols ?? 3;
-          const rows = aqua.spriteGrid?.rows ?? 2;
-          const col = (value - 1) % cols;
-          const row = Math.floor((value - 1) / cols);
-          const AQUA_X_OFFSET = { 3: -size * 0.03, 4: -size * 0.01, 5: -size * 0.03, 6: -size * 0.04 };
-          const AQUA_Y_OFFSET = { 1: 0, 3: size * 0.01, 4: -size * 0.04 };
-          const FACE_X_OFFSET = { 2: -size * 0.015, 3: -size * 0.022, 5: -size * 0.022, 6: -size * 0.032 };
-          const FACE_Y_OFFSET = { 1: -size * 0.01, 2: -size * 0.01, 3: -size * 0.01, 4: -size * 0.04, 5: -size * 0.05, 6: -size * 0.045 };
-          const xNudge = AQUA_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0);
-          const yNudge = AQUA_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0);
+        {effectiveSkinId === "blue_gel" && (() => {
+          const aqua = aquamarineShellSkin ?? getSkin("aquamarine");
+          const { xNudge, yNudge } = resolveBlueGelShellNudges(
+            value,
+            size,
+            blueGelShellSettings
+          );
+          const aquaForShell = {
+            ...aqua,
+            spriteCrop: getBlueGelShellCrop(aqua.spriteCrop, blueGelShellSettings),
+          };
+          const shellStyle = getAquamarineShellStyle(aquaForShell, value, size, { xNudge, yNudge });
           return (
             <>
-              {/* Fish swim behind — one per pip on the face */}
-              <FishOverlay size={size} radius={radius} count={value} bigFishVariantIndex={bigFishVariantIndex} bigFishExtraScale={bigFishExtraScale} />
-              {/* Aquamarine sprite as a translucent glass shell — on top of the fish */}
+              {/* Bright aquarium water — clear body, no catalog sprite sheet */}
               <div
-                className="absolute pointer-events-none"
+                className="absolute inset-0 pointer-events-none z-0"
                 style={{
-                  top: `${-size * 0.14 + yNudge}px`,
-                  bottom: `${-size * 0.8 + yNudge}px`,
-                  left: `${-size * 0.35 + xNudge}px`,
-                  right: `${-size * 0.35 + xNudge}px`,
-                  backgroundImage: `url(${aqua.spriteUrl})`,
-                  backgroundSize: `${cellW * cols}px ${cellH * rows}px`,
-                  backgroundPosition: `${-(col * cellW)}px ${-(row * cellH)}px`,
-                  backgroundRepeat: "no-repeat",
-                  opacity: 0.7,
-                  mixBlendMode: "multiply",
+                  background:
+                    "linear-gradient(160deg, rgba(125,211,252,0.55) 0%, rgba(56,189,248,0.65) 35%, rgba(37,99,235,0.75) 70%, rgba(30,64,175,0.85) 100%)",
                 }}
               />
+              {/* Fish swim between water and glass shell */}
+              <div className="absolute inset-0 z-[1] pointer-events-none">
+              {fishFeastMode && !reduceEffects ? (
+                <BlueGelSharkAttack
+                  key="feeding-frenzy"
+                  size={size}
+                  radius={radius}
+                  count={value}
+                  bigFishVariantIndex={bigFishVariantIndex}
+                  onSettled={onBloodWaterSettled}
+                >
+                  <FishOverlay
+                    size={size}
+                    radius={radius}
+                    count={value}
+                    bigFishVariantIndex={bigFishVariantIndex}
+                    bigFishExtraScale={bigFishExtraScale}
+                    bigFishStaticPose={bigFishStaticPose}
+                    includeJellyfish={includeJellyfish}
+                    frozen={icePowerActive}
+                  />
+                </BlueGelSharkAttack>
+              ) : powerMode && !reducePowerPresentation ? (
+                <BlueGelSharkBiteCharge size={size} radius={radius} count={value}>
+                  <FishOverlay
+                    size={size}
+                    radius={radius}
+                    count={value}
+                    bigFishVariantIndex={bigFishVariantIndex}
+                    bigFishExtraScale={bigFishExtraScale}
+                    bigFishStaticPose={bigFishStaticPose}
+                    includeJellyfish={includeJellyfish}
+                    frozen={icePowerActive}
+                  />
+                </BlueGelSharkBiteCharge>
+              ) : (
+                <>
+                  <FishOverlay
+                    size={size}
+                    radius={radius}
+                    count={value}
+                    bigFishVariantIndex={bigFishVariantIndex}
+                    bigFishExtraScale={bigFishExtraScale}
+                    bigFishStaticPose={bigFishStaticPose}
+                    includeJellyfish={includeJellyfish}
+                    frozen={icePowerActive}
+                  />
+                  {bloodWaterLocked && !reduceEffects ? (
+                    <BloodyWaterTint size={size} radius={radius} count={value} />
+                  ) : null}
+                </>
+              )}
+              </div>
+              {showAquamarineShell ? (
+                <div
+                  className="absolute pointer-events-none z-[2]"
+                  style={{
+                    backgroundImage: `url(${assetUrl(aqua.spriteUrl)})`,
+                    opacity: 0.7,
+                    mixBlendMode: "multiply",
+                    ...shellStyle,
+                  }}
+                />
+              ) : null}
               {/* Glass rim — thickness */}
               <div
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
-                  borderRadius: radius,
                   boxShadow:
-                    "inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 -6px 12px rgba(0,0,0,0.2), inset 0 4px 8px rgba(255,255,255,0.35)",
+                    "inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.35)",
                 }}
               />
             </>
           );
         })()}
 
+        {/* Default power move for skins without dedicated power visuals — bloody water */}
+        {showBloodPowerFx ? (
+          <BloodPowerFx
+            size={size}
+            radius={radius}
+            count={value}
+            locked={bloodWaterLocked}
+            onSettled={onBloodWaterSettled}
+          />
+        ) : null}
+
         {/* Experimental / preview dice bodies */}
         {skin.experimental && skin.style && (
           <ExperimentalDieBody
             style={skin.style}
-            radius={radius}
             scoreFill={scoreFill}
             layout={layout}
             size={size}
             dieSeed={effectDieSeed}
+            frozen={icePowerActive}
           />
         )}
 
-        {/* Sprite sheet texture or pip grid */}
-        {skin.id !== "blue_gel" && skin.id !== "snow_globe" && skin.spriteUrl ?
+        {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
+        {showSpriteLayer ?
         (() => {
-          const cellW = size * 1.7;
-          const cellH = size * 1.32;
-          const cols = skin.spriteGrid?.cols ?? 3;
-          const rows = skin.spriteGrid?.rows ?? 2;
-          const col = (value - 1) % cols;
-          const row = Math.floor((value - 1) / cols);
-          // Per-face nudges (in px) — corrects misaligned sprite cells
-          const FACE_X_OFFSET = { 2: -size * 0.015, 3: -size * 0.022, 5: -size * 0.022, 6: -size * 0.032 };
-          const FACE_Y_OFFSET = { 1: -size * 0.01, 2: -size * 0.01, 3: -size * 0.01, 4: -size * 0.04, 5: -size * 0.05, 6: -size * 0.045 };
-          // Classic White needs slightly different per-face Y tuning
-          const CLASSIC_WHITE_Y_OFFSET = { 1: size * 0.012, 2: size * 0.012, 3: size * 0.018, 4: -size * 0.045, 6: -size * 0.05 };
-          // Gold needs slightly different per-face Y tuning
-          const GOLD_Y_OFFSET = { 5: -size * 0.03 };
-          // Damascus (obsidian) per-face Y tuning
-          const OBSIDIAN_Y_OFFSET = { 5: -size * 0.03 };
-          // Burl Wood per-face tuning
-          const WOOD_Y_OFFSET = { 1: -size * 0.02, 2: -size * 0.02, 3: -size * 0.025, 5: -size * 0.035, 6: -size * 0.02 };
-          const WOOD_X_OFFSET = { 3: size * 0.02, 5: size * 0.02, 6: size * 0.02 };
-          const SILVER_X_OFFSET = { 1: size * 0.02, 2: size * 0.02, 3: size * 0.02, 4: size * 0.02, 5: size * 0.02, 6: size * 0.02 };
-          const GALAXY_X_OFFSET = { 1: size * 0.01, 2: size * 0.02, 3: size * 0.025, 4: size * 0.01, 5: size * 0.02, 6: size * 0.025 };
-          const DRAGON_X_OFFSET = { 2: size * 0.015, 3: size * 0.015, 5: size * 0.01, 6: size * 0.015 };
-          const AMETHYST_X_OFFSET = { 2: size * 0.015, 3: -size * 0.005, 6: size * 0.015 };
-          const LAVA_X_OFFSET = { 2: -size * 0.005, 3: -size * 0.005, 5: 0, 6: 0 };
-          const MOONSTONE_X_OFFSET = { 1: size * 0.03, 2: size * 0.035, 3: size * 0.035, 4: size * 0.04, 5: size * 0.035, 6: size * 0.035 };
-          const MOONSTONE_Y_OFFSET = { 1: size * 0.01, 2: size * 0.005, 3: size * 0.0075, 4: size * 0.003, 5: size * 0.003, 6: size * 0.003 };
-          const SILVER_Y_OFFSET = { 1: -size * 0.015, 2: -size * 0.015, 3: -size * 0.015 };
-          const GALAXY_Y_OFFSET = { 1: size * 0.005, 2: size * 0.005, 3: size * 0.005, 4: -size * 0.005, 5: -size * 0.005, 6: -size * 0.005 };
-          const DRAGON_Y_OFFSET = { 5: -size * 0.025 };
-          const AMETHYST_Y_OFFSET = { 1: -size * 0.025, 2: -size * 0.025, 3: -size * 0.025, 4: -size * 0.035, 5: -size * 0.035, 6: -size * 0.035 };
-          const PLASMA_X_OFFSET = { 1: -size * 0.03, 2: -size * 0.06, 3: -size * 0.11, 4: -size * 0.02, 5: -size * 0.085, 6: -size * 0.12 };
-          const PLASMA_Y_OFFSET = { 1: size * 0.01, 2: size * 0.02, 3: size * 0.02, 4: -size * 0.06, 5: -size * 0.06, 6: -size * 0.045 };
-          const PAPER_X_OFFSET = { 1: -2, 2: size * 0.01 - 11, 3: size * 0.01 - 18, 4: -3, 5: size * 0.01 - 12, 6: size * 0.01 - 19 };
-          const PAPER_Y_OFFSET = { 1: -size * 0.015 + 2, 2: -size * 0.015 + 3, 3: -size * 0.02 + 3, 4: -size * 0.04 - 3, 5: -size * 0.04 - 3, 6: -size * 0.04 - 4 };
-          const TEAL2_X_OFFSET = { 2: size * 0.01, 3: size * 0.01, 5: size * 0.01, 6: size * 0.01 };
-          const TEAL2_Y_OFFSET = { 1: -size * 0.015, 2: -size * 0.015, 3: -size * 0.02, 4: -size * 0.04, 5: -size * 0.04, 6: -size * 0.04 };
-          const COPPER2_X_OFFSET = { 2: size * 0.01, 3: size * 0.01, 5: size * 0.01, 6: size * 0.01 };
-          const COPPER2_Y_OFFSET = { 1: -size * 0.015, 2: -size * 0.015, 3: -size * 0.02, 4: -size * 0.04, 5: -size * 0.04, 6: -size * 0.04 };
-          const LOVE_X_OFFSET = { 2: -size * 0.11, 3: -size * 0.23, 4: -size * 0.01, 5: size * 0.01 - 15, 6: size * 0.01 - 24 };
-          const LOVE_Y_OFFSET = { 1: -size * 0.005, 2: -size * 0.005, 3: -size * 0.005, 4: -size * 0.05, 5: -size * 0.05, 6: -size * 0.04 };
-          const CRYSTAL_CUT_X_OFFSET = { 2: -size * 0.0925, 3: -size * 0.175, 4: -size * 0.03, 5: -size * 0.105, 6: -size * 0.19 };
-          const CRYSTAL_CUT_Y_OFFSET = { 4: -size * 0.06, 5: -size * 0.0525, 6: -size * 0.0525 };
-          // Football (leather) per-face tuning
-          const LEATHER_X_OFFSET = { 1: -size * 0.01, 2: -size * 0.13, 3: -size * 0.255, 4: -size * 0.025, 5: -size * 0.14, 6: -size * 0.26 };
-          const LEATHER_Y_OFFSET = { 1: size * 0.01, 2: size * 0.02, 3: size * 0.035, 4: -size * 0.065, 5: -size * 0.06, 6: -size * 0.07 };
-          // Frozen Ice per-face tuning — start with default + half-nudge down on all faces
-          const ICE_Y_OFFSET = { 1: -size * 0.005, 2: -size * 0.005, 3: -size * 0.005, 4: -size * 0.035, 5: -size * 0.045, 6: -size * 0.04 };
-          const ICE_X_OFFSET = { 3: -size * 0.03, 6: -size * 0.03 };
-          // Aquamarine per-face tuning
-          const AQUA_X_OFFSET = { 3: -size * 0.03, 4: -size * 0.01, 5: -size * 0.03, 6: -size * 0.04 };
-          const AQUA_Y_OFFSET = { 1: 0, 3: size * 0.01, 4: -size * 0.04 };
-          // Baseball per-face tuning
-          const BASEBALL_X_OFFSET = { 1: -size * 0.03, 2: -size * 0.15, 3: -size * 0.27, 4: -size * 0.02, 5: -size * 0.1, 6: -size * 0.15 };
-          const BASEBALL_Y_OFFSET = { 1: size * 0.01, 2: size * 0.01, 3: size * 0.02, 4: -size * 0.02 };
-          // Aquamarine Ice per-face tuning
-          const AQUA_LIGHT_X_OFFSET = { 1: size * 0.005, 2: -size * 0.02, 3: -size * 0.03, 4: -size * 0.01, 5: -size * 0.025, 6: -size * 0.035 };
-          const AQUA_LIGHT_Y_OFFSET = { 1: 0, 2: 0, 3: 0, 4: -size * 0.05, 5: -size * 0.045, 6: -size * 0.05 };
-          // Pride per-face tuning
-          const PRIDE_X_OFFSET = { 1: -size * 0.01, 2: -size * 0.14, 3: -size * 0.26, 4: -size * 0.02, 5: -size * 0.15, 6: -size * 0.24 };
-          const PRIDE_Y_OFFSET = { 2: size * 0.02, 3: size * 0.03, 4: -size * 0.07, 5: -size * 0.06, 6: -size * 0.06 };
-          // Tennis Ball (yellow_felt) per-face tuning
-          const TENNIS_X_OFFSET = { 1: -size * 0.02, 2: -size * 0.13, 3: -size * 0.25, 4: -size * 0.05, 5: -size * 0.15, 6: -size * 0.27 };
-          const TENNIS_Y_OFFSET = { 4: -size * 0.07, 5: -size * 0.08, 6: -size * 0.07 };
-          // Circuit Board per-face tuning
-          const CIRCUIT_X_OFFSET = { 1: -3, 2: -18, 3: -31, 4: -2, 5: -17, 6: -29 };
-          const CIRCUIT_Y_OFFSET = { 1: 5, 2: 4, 3: 4, 4: -7, 5: -10, 6: -9 };
-          // Amber Wasp per-face tuning
-          const AMBER_WASP_X_OFFSET = { 1: 4, 2: 4, 3: 4, 4: 4, 5: 3.5, 6: 5 };
-          const AMBER_WASP_Y_OFFSET = { 1: 2, 2: 2, 3: 2, 4: 0.5, 5: 1, 6: 1 };
-          // Radiation (toxic_plasma_v2) per-face tuning
-          const TOXIC2_X_OFFSET = { 2: -4, 3: -7, 4: -1, 5: -4, 6: -7 };
-          const TOXIC2_Y_OFFSET = { 4: -4 };
-          // Cash per-face tuning
-          const CASH_X_OFFSET = { 1: -1, 2: -9, 3: -17, 4: -2, 5: -9, 6: -18 };
-          const CASH_Y_OFFSET = { 1: 1, 2: 1, 3: 2, 4: -7, 5: -6, 6: -6 };
-          // Bullet Holes per-face tuning
-          const BULLET_HOLES_X_OFFSET = { 3: -3, 4: 0, 5: -2.5, 6: -3.5 };
-          const BULLET_HOLES_Y_OFFSET = { 1: 1, 2: 1, 3: 1, 4: -5 };
-          // Shattered (cracked) per-face tuning
-          const CRACKED_X_OFFSET = { 3: -3, 4: 0 };
-          const CRACKED_Y_OFFSET = { 1: 1, 2: 1, 3: 1, 4: -4 };
-          // Bloodstone per-face tuning
-          const BLOODSTONE_X_OFFSET = { 1: -size * 0.044, 2: -size * 0.156, 3: -size * 0.278, 4: -size * 0.044, 5: -size * 0.189, 6: -size * 0.300 };
-          const BLOODSTONE_Y_OFFSET = { 4: -size * 0.078, 5: -size * 0.078, 6: -size * 0.067 };
-          // Labradorite per-face tuning
-          const LABRADORITE_X_OFFSET = { 2: 2, 3: 4, 4: 2, 5: 2, 6: 2 };
-          const LABRADORITE_Y_OFFSET = {};
-          // Labradorite Polished per-face tuning
-          const LABRADORITE_POLISHED_X_OFFSET = { 2: -10, 3: -18, 4: -2, 5: -10, 6: -18 };
-          const LABRADORITE_POLISHED_Y_OFFSET = { 4: -8, 5: -8, 6: -8 };
-          // Blue Gel per-face tuning
-          const BLUE_GEL_X_OFFSET = { 1: -1, 3: -size * 0.01 };
-          const BLUE_GEL_Y_OFFSET = { 1: 1, 2: size * 0.01 };
-          // Ruby per-face tuning
-          const RUBY_X_OFFSET = {};
-          const RUBY_Y_OFFSET = { 1: -size * 0.01 - 1, 2: -size * 0.01 - 1, 3: -size * 0.01 - 1, 4: -size * 0.04 - 1, 5: -size * 0.05 - 1, 6: -size * 0.045 - 1 };
-          // Neon Grid per-face tuning
-          const NEON_GRID_X_OFFSET = { 1: -3, 2: -16, 3: -25, 4: -4, 5: -15, 6: -25 };
-          const NEON_GRID_Y_OFFSET = { 4: -8, 5: -7, 6: -7 };
-
-          const xNudge = skin.id === "wood"
-            ? (WOOD_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "silver"
-            ? (SILVER_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "galaxy"
-            ? (GALAXY_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "dragon_scale"
-            ? (DRAGON_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "amethyst"
-            ? (AMETHYST_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "moonstone"
-            ? (MOONSTONE_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "lava"
-            ? (LAVA_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "plasma"
-            ? (PLASMA_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "paper"
-            ? (PAPER_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "teal_crackle_v2"
-            ? (TEAL2_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "copper_v2"
-            ? (COPPER2_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "love_is_love"
-            ? (LOVE_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "crystal_cut"
-            ? (CRYSTAL_CUT_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "leather"
-            ? (LEATHER_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "ice"
-            ? (ICE_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "aquamarine"
-            ? (AQUA_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "baseball"
-            ? (BASEBALL_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "aquamarine_light"
-            ? (AQUA_LIGHT_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "pride"
-            ? (PRIDE_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "yellow_felt"
-            ? (TENNIS_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "circuit_board"
-            ? (CIRCUIT_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "amber_wasp"
-            ? (AMBER_WASP_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "toxic_plasma_v2"
-            ? (TOXIC2_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "cash"
-            ? (CASH_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "bullet_holes"
-            ? (BULLET_HOLES_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "cracked"
-            ? (CRACKED_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "bloodstone"
-            ? (BLOODSTONE_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "labradorite"
-            ? (LABRADORITE_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "labradorite_polished"
-            ? (LABRADORITE_POLISHED_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "ruby"
-            ? (RUBY_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "blue_gel"
-            ? (BLUE_GEL_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : skin.id === "neon_grid"
-            ? (NEON_GRID_X_OFFSET[value] ?? (FACE_X_OFFSET[value] || 0))
-            : (FACE_X_OFFSET[value] || 0);
-          const yNudge = skin.id === "classic_white"
-            ? (CLASSIC_WHITE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "gold"
-            ? (GOLD_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "obsidian"
-            ? (OBSIDIAN_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "wood"
-            ? (WOOD_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "silver"
-            ? (SILVER_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "galaxy"
-            ? (GALAXY_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "dragon_scale"
-            ? (DRAGON_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "amethyst"
-            ? (AMETHYST_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "moonstone"
-            ? (MOONSTONE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "plasma"
-            ? (PLASMA_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "paper"
-            ? (PAPER_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "teal_crackle_v2"
-            ? (TEAL2_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "copper_v2"
-            ? (COPPER2_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "love_is_love"
-            ? (LOVE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "crystal_cut"
-            ? (CRYSTAL_CUT_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "leather"
-            ? (LEATHER_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "ice"
-            ? (ICE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "aquamarine"
-            ? (AQUA_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "baseball"
-            ? (BASEBALL_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "aquamarine_light"
-            ? (AQUA_LIGHT_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "pride"
-            ? (PRIDE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "yellow_felt"
-            ? (TENNIS_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "circuit_board"
-            ? (CIRCUIT_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "amber_wasp"
-            ? (AMBER_WASP_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "toxic_plasma_v2"
-            ? (TOXIC2_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "cash"
-            ? (CASH_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "bullet_holes"
-            ? (BULLET_HOLES_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "cracked"
-            ? (CRACKED_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "bloodstone"
-            ? (BLOODSTONE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "labradorite"
-            ? (LABRADORITE_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "labradorite_polished"
-            ? (LABRADORITE_POLISHED_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "ruby"
-            ? (RUBY_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "blue_gel"
-            ? (BLUE_GEL_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : skin.id === "neon_grid"
-            ? (NEON_GRID_Y_OFFSET[value] ?? (FACE_Y_OFFSET[value] || 0))
-            : (FACE_Y_OFFSET[value] || 0);
-          const MOONSTONE_EXTRA_STRETCH = { 3: size * 0.015, 4: size * 0.015, 5: size * 0.015, 6: size * 0.015 };
-          const AMBER_WASP_STRETCH = { 1: size * 0.065, 2: size * 0.065, 3: size * 0.065, 4: size * 0.065, 5: size * 0.065, 6: size * 0.065 };
-          const spriteCropStretch = skin.spriteCrop?.stretch ? size * skin.spriteCrop.stretch : 0;
-          const spriteCropBgY = skin.spriteCrop?.offsetY ? size * skin.spriteCrop.offsetY : 0;
-          const stretch = spriteCropStretch
-            ? spriteCropStretch
-            : skin.id === "moonstone"
-            ? size * 0.0375 + (MOONSTONE_EXTRA_STRETCH[value] || 0)
-            : skin.id === "amber_wasp"
-            ? (AMBER_WASP_STRETCH[value] || 0)
-            : skin.id === "galaxy"
-            ? size * 0.04
-            : 0;
+          const spriteSkin = {
+            ...skin,
+            spriteUrl: displaySpriteLayer.spriteUrl,
+            spriteCrop: displaySpriteLayer.spriteCrop,
+          };
+          const faceOffset = getSkinFaceOffset(skin, value, spriteOffsetMode);
+          const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
+          const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
+          const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
           return (
             <div
-              className="absolute pointer-events-none"
+              className="absolute pointer-events-none z-[1]"
               style={{
-                top: `${-size * 0.14 + yNudge - stretch}px`,
-                bottom: `${-size * 0.8 + yNudge - stretch}px`,
-                left: `${-size * 0.35 + xNudge - stretch}px`,
-                right: `${-size * 0.35 + xNudge - stretch}px`,
-                borderRadius: radius,
-                backgroundImage: `url(${skin.spriteUrl})`,
-                backgroundSize: `${cellW * cols + stretch * 2}px ${cellH * rows + stretch * 2}px`,
-                backgroundPosition: `${-(col * (cellW + stretch * 2 / cols))}px ${-(row * (cellH + stretch * 2 / rows)) - spriteCropBgY}px`,
-                backgroundRepeat: 'no-repeat',
-              }} />
+                backgroundImage: `url(${assetUrl(displaySpriteLayer.spriteUrl)})`,
+                backgroundColor: "transparent",
+                ...sheetStyle,
+              }}
+            />
           );
         })() :
 
-        (skin.experimental || (skin.id !== "blue_gel" && skin.id !== "snow_globe" && !skin.spriteUrl)) && renderPipGrid()}
+        (skin.experimental || showPipFallback) && renderPipGrid()}
 
-        {/* Radiation — pulsing pip glow overlay on sprite */}
-        {skin.id === "toxic_plasma_v2" && renderPipGrid()}
-
-        {/* Matrix — code rain overlay */}
-        {skin.id === "matrix" && !reduceEffects && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-70 mix-blend-screen" style={{ borderRadius: radius }}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute font-mono text-[6px] text-green-400 font-bold"
-                style={{ left: `${i * 12 + 2}%`, textShadow: "0 0 4px #22c55e" }}
-                animate={{ top: ["-20%", "120%"] }}
-                transition={{ duration: 0.5 + i * 0.06, repeat: Infinity, delay: i * 0.05, ease: "linear" }}
-              >
-                {Array.from({ length: 10 }).map((__, j) => (
-                  <div key={j}>{(i + j) % 2 ? "1" : "0"}</div>
-                ))}
-              </motion.div>
-            ))}
-          </div>
+        {/* Matrix — animated code rain in power mode only (hidden when power video plays) */}
+        {skin.id === "matrix" && powerMode && !reducePowerPresentation && !activeVideoUrl && (
+          <>
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                boxShadow: `inset 0 0 ${Math.round(size * 0.22)}px rgba(34,197,94,0.55), 0 0 ${Math.round(size * 0.18)}px rgba(34,197,94,0.65)`,
+              }}
+            />
+            <div
+              className="absolute inset-0 pointer-events-none overflow-hidden mix-blend-screen opacity-95"
+            >
+              {Array.from({ length: 12 }).map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute font-mono font-bold text-[5px] text-green-200"
+                  style={{
+                    left: `${i * (100 / 12) + 1}%`,
+                    textShadow: "0 0 6px #4ade80, 0 0 14px #22c55e",
+                  }}
+                  animate={{ top: ["-20%", "120%"] }}
+                  transition={{
+                    duration: 0.18 + i * 0.02,
+                    repeat: Infinity,
+                    delay: i * 0.02,
+                    ease: "linear",
+                  }}
+                >
+                  {Array.from({ length: 14 }).map((__, j) => (
+                    <div key={j}>{(i + j) % 2 ? "1" : "0"}</div>
+                  ))}
+                </motion.div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Corner shadow vignette — Chrome Silver only */}
@@ -737,7 +774,6 @@ function Die({
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              borderRadius: radius,
               background:
                 "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.35) 90%, rgba(0,0,0,0.55) 100%)",
             }}
@@ -750,7 +786,6 @@ function Die({
             <div
             className="absolute inset-0 pointer-events-none opacity-80 mix-blend-overlay"
             style={{
-              borderRadius: radius,
               background:
               "conic-gradient(from 45deg at 50% 50%, rgba(255,255,255,0.9) 0deg, rgba(186,230,253,0.2) 60deg, rgba(255,255,255,0.8) 120deg, rgba(125,211,252,0.3) 180deg, rgba(255,255,255,0.9) 240deg, rgba(186,230,253,0.2) 300deg, rgba(255,255,255,0.9) 360deg)"
             }} />
@@ -760,7 +795,6 @@ function Die({
             animate={{ opacity: [0.3, 0.9, 0.3] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
             style={{
-              borderRadius: radius,
               background:
               "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.95) 0%, transparent 40%), radial-gradient(circle at 75% 70%, rgba(186,230,253,0.7) 0%, transparent 35%)"
             }} />
@@ -768,6 +802,26 @@ function Die({
           </>
         }
 
+        </div>
+
+        {/* Ice overlay OUTSIDE squircle clip — drips / edge frost can overhang the die. */}
+        {icePowerActive && (
+          <IcePowerOverlay value={value} size={size} radius={radius} allowOverflow skinId={skin.id} />
+        )}
+
+        {valueHidden && (
+          <div
+            className="absolute inset-0 z-[25] flex items-center justify-center pointer-events-none"
+            style={{
+              backdropFilter: "blur(6px)",
+              background: "rgba(8,12,24,0.72)",
+              borderRadius: radius,
+            }}
+            aria-hidden
+          >
+            <span className="text-lg font-black text-slate-500">?</span>
+          </div>
+        )}
       </button>
       </PortfolioDieProvider>
     </motion.div>);
@@ -775,6 +829,15 @@ function Die({
 }
 
 function diePropsAreEqual(prev, next) {
+  if (prev.devSkin !== next.devSkin) return false;
+  if (prev.snowGlobeShellSettings !== next.snowGlobeShellSettings) return false;
+  if (prev.blueGelShellSettings !== next.blueGelShellSettings) return false;
+  if (prev.powerMode !== next.powerMode) return false;
+  if (prev.powerModeSubtle !== next.powerModeSubtle) return false;
+  if (prev.allowXrayMorph !== next.allowXrayMorph) return false;
+  if (prev.fishFeastMode !== next.fishFeastMode) return false;
+  if (prev.valueHidden !== next.valueHidden) return false;
+  if (prev.iceFrozenOverlay !== next.iceFrozenOverlay) return false;
   return (
     prev.value === next.value &&
     prev.held === next.held &&
@@ -785,10 +848,16 @@ function diePropsAreEqual(prev, next) {
     prev.scoreFill === next.scoreFill &&
     prev.bigFishVariantIndex === next.bigFishVariantIndex &&
     prev.bigFishExtraScale === next.bigFishExtraScale &&
+    prev.bigFishStaticPose === next.bigFishStaticPose &&
+    prev.includeJellyfish === next.includeJellyfish &&
     prev.heldStyleId === next.heldStyleId &&
     prev.dieId === next.dieId &&
     prev.dieSeed === next.dieSeed &&
     prev.lowPower === next.lowPower &&
+    prev.sharkBiteFx === next.sharkBiteFx &&
+    prev.fishFeastMode === next.fishFeastMode &&
+    prev.bloodWaterLocked === next.bloodWaterLocked &&
+    prev.onBloodWaterSettled === next.onBloodWaterSettled &&
     prev.onToggleDie === next.onToggleDie &&
     prev.onClick === next.onClick
   );

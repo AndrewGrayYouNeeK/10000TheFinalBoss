@@ -1,15 +1,15 @@
 // YouNeeK 10,000 — Powers System
 // Each equipped dice skin carries one secret power.
 //
-// CHARGE:  Hit your 3rd Hot Dice in a single turn → earn one power charge.
-// HOLD:    Keep the charge across turns; banking never costs it.
-// FIRE:    Activate anytime on your turn while holding a charge.
-// BUST:    Bust before using the charge → lose it.
-//          Fire then bust on the same turn → sabotage effects you cast are lost.
-// DURATION: Power effects last for the rest of that round (turn until bank/bust).
+// CHARGE:  Hit your 1st Hot Dice in a single turn → earn one power charge. (TESTING: was 3rd)
+// HOLD:    Keep the charge across banks, busts, and turns — power-mode dice stay on until fire.
+// FIRE:    Activate anytime on your turn while holding a charge (consumes the charge).
+// BUST:    Bust without firing → charge is kept; power-mode returns on your next turn.
+//          Fire then bust on the same turn → charge already spent; sabotage effects you cast are lost.
+// DURATION: Sabotage debuffs on the opponent last for their turn; your charge lasts until fire.
 
-/** Hot dice clears required in one turn to earn a power charge (3rd hot dice). */
-export const POWER_MODE_HOT_DICE = 3;
+/** Hot dice clears required in one turn to earn a power charge (TESTING: 1; production default was 3). */
+export const POWER_MODE_HOT_DICE = 1;
 
 export const MAX_POWER = 100;
 
@@ -93,6 +93,17 @@ export const POWERS = [
     description: "Steal 10% of the leader's banked score (max 500).",
     tagline: "Take the throne.",
   },
+  {
+    id: "plasma_cut",
+    name: "Plasma Cut",
+    kind: "self",
+    cost: 35,
+    icon: "✂️",
+    color: "#a855f7",
+    description:
+      "On your turn, pick one active die and cut pips off — lower its face to fix a bad roll (6→4/2, 5→4/3/1). Can rescue a bust.",
+    tagline: "Cut the problem out.",
+  },
 
   // ─── 4 SABOTAGE POWERS ──────────────────────────────────────────────────────
   {
@@ -104,6 +115,28 @@ export const POWERS = [
     color: "#00d4ff",
     description: "Drain opponent's Power bar to 0 for the rest of their turn.",
     tagline: "Ice in their veins.",
+  },
+  {
+    id: "freeze_score",
+    name: "Score Freeze",
+    kind: "sabo",
+    cost: 50,
+    icon: "🧊",
+    color: "#7dd3fc",
+    description:
+      "Lock the opponent's banked score for the rest of their turn — they can still roll, but banking cannot change their score.",
+    tagline: "Glacier lock.",
+  },
+  {
+    id: "frosty_ice",
+    name: "Frozen Ice",
+    kind: "sabo",
+    cost: 50,
+    icon: "❄️",
+    color: "#7dd3fc",
+    description:
+      "Story mode — freeze the enemy's dice, skip their turn, and bank freely until you bust.",
+    tagline: "Ice them out.",
   },
   {
     id: "lockout",
@@ -142,7 +175,7 @@ export const POWERS = [
     cost: 45,
     icon: "🔬",
     color: "#38bdf8",
-    description: "Scan opponents — reveals disguises, secret powers, hidden dice traits, and active concealment.",
+    description: "Scan opponents — reveals Ghost vs real skin, secret powers, hidden dice traits, and active debuffs.",
     tagline: "Nothing stays hidden.",
   },
   {
@@ -154,6 +187,28 @@ export const POWERS = [
     color: "#f97316",
     description: "Wipe every player's banked score to 0 — everyone must bank 1,000 again to get on the board.",
     tagline: "Back to zero.",
+  },
+  {
+    id: "prison_dice",
+    name: "Prison Dice",
+    kind: "sabo",
+    cost: 55,
+    icon: "⛓️",
+    color: "#78716c",
+    description:
+      "Transform opponent's dice into prison scraps for their turns. Lock breaks when you roll three 6s.",
+    tagline: "Lock them down.",
+  },
+  {
+    id: "shark_bite",
+    name: "Shark Bite",
+    kind: "sabo",
+    cost: 50,
+    icon: "🦈",
+    color: "#0ea5e9",
+    description:
+      "Shark Bite: mark the next player — when they bank, a shark eats that round's points. Feeding Frenzy: if they use aquarium / Angelfish dice, sharks feast instantly and wipe their score to 0.",
+    tagline: "Hunt. Mark. Bite.",
   },
 ];
 

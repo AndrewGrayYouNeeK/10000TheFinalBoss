@@ -6,6 +6,16 @@ import { scoreSelection, hasAnyScore } from "./scoring";
 const TARGET_SCORE = 10000;
 const ENTRY_THRESHOLD = 1000;
 
+function activeDice(state) {
+  return state.dice.filter((d) => !d.used);
+}
+
+/** All scoring dice held — must roll again (hot dice), never bank. */
+function pendingHotDice(state) {
+  const active = activeDice(state);
+  return active.length > 0 && active.every((d) => d.held);
+}
+
 // Find the best "minimum" scoring selection: keep only the highest-value scoring combo
 // from currently rolled dice. Used by less-greedy AIs.
 function findMinimalScoringSelection(activeDice) {
@@ -78,10 +88,15 @@ export function chooseDiceToHold(state, difficulty) {
 // Decide whether to bank or roll again, given the current state.
 // Returns "bank" | "roll".
 export function chooseBankOrRoll(state, difficulty, player) {
+  if (state?.storyIceFreeze) return "bank";
+
   const turnScore = state.turnScore || 0;
   const playerScore = player?.score ?? 0;
   const needsEntry = !player?.onBoard;
-  const diceRemaining = state.dice.filter((d) => !d.used).length;
+  const diceRemaining = activeDice(state).length;
+
+  // Hot dice — all active dice are held; must re-roll, not bank.
+  if (pendingHotDice(state)) return "roll";
 
   // Don't bank if you can't even get on the board yet
   if (needsEntry && turnScore < ENTRY_THRESHOLD) return "roll";

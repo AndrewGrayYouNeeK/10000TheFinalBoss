@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dices, PiggyBank } from "lucide-react";
+import { Dices, PiggyBank, Film, Sparkles, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
+import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
 import {
   createInitialState,
   rollDice,
@@ -12,9 +13,12 @@ import {
   confirmAndReroll,
   bankAndPass,
   passAfterFarkle,
+  clearSharkBiteFx,
+  restoreSharkDice,
   ENTRY_THRESHOLD,
   getObscuredScoreIndices,
   consumeSkinPower,
+  isPlayerPowerModeActive,
 } from "@/lib/gameLogic";
 import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import DiceTray from "@/components/game/DiceTray";
@@ -23,72 +27,270 @@ import TurnBanner from "@/components/game/TurnBanner";
 import GameOverDialog from "@/components/game/GameOverDialog";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import RulesSheet from "@/components/game/RulesSheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import BigPopup from "@/components/game/BigPopup";
 import CyberBackground from "@/components/game/CyberBackground";
-import GlitchNeonBanner from "@/components/game/GlitchNeonBanner";
+import GameplayBillboard from "@/components/game/GameplayBillboard";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { XP_REWARDS } from "@/lib/progression";
+import { getHotDicePowerConfirmOptions } from "@/lib/devConfig";
 import { useDiceSound } from "@/lib/useDiceSound";
 import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel } from "@/lib/ghostDisguise";
+import {
+  buildGamePlayerSkins,
+  resolvePlayerPower,
+  getSkinLabel,
+  getDisplaySkinId,
+  GHOST_SKIN_ID,
+  pickTrueSkinForGhost,
+  readSessionPlayerDisguiseIds,
+  readSessionPlayerSkinIds,
+  SESSION_PLAYER_SKINS_KEY,
+  SESSION_PLAYER_DISGUISES_KEY,
+} from "@/lib/ghostDisguise";
+import { applySkinPower } from "@/lib/powerEffects";
+import { canAfford, getPower } from "@/lib/powers";
+import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
+import PlasmaCutModal from "@/components/game/PlasmaCutModal";
+import {
+  SharkBiteScreenFX,
+} from "@/components/game/BlueGelPowerFX";
+import { getPrisonTraySkinId } from "@/lib/prisonDice";
+import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
+import PowerModePracticeBar, {
+  skinPracticeVariant,
+  practicePreviewSkinId,
+} from "@/components/game/PowerModePracticeBar";
+import TurnOrderRollOff from "@/components/game/TurnOrderRollOff";
+import PassPlayHandoffOverlay from "@/components/game/PassPlayHandoffOverlay";
+import PassPlayPrivacySettings from "@/components/game/PassPlayPrivacySettings";
+import OnlinePrivacySettings from "@/components/online/OnlinePrivacySettings";
+import { isLowPowerDevice } from "@/lib/platform";
+import { loadPassPlayPrivacy, savePassPlayPrivacy } from "@/lib/passPlayPrivacy";
+import {
+  readOnlineMockSession,
+  readProfileOnlineVisibility,
+  saveProfileOnlineVisibility,
+} from "@/lib/onlineVisibility";
+import { useOnlineGameView } from "@/hooks/useOnlineGameView";
+import { redactDiceForOpponent } from "@/lib/onlineGameState";
+import { xrayRevealsVisible } from "@/lib/xrayScan";
+import { Link } from "react-router-dom";
 
 export default function Game() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const previewSharkBite = searchParams.get("previewSharkBite") === "1";
   const [state, setState] = useState(null);
+  const [rollOffSetup, setRollOffSetup] = useState(null);
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null); // { word, variant }
+  const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
+  const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
+  const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+
+  useEffect(() => {
+    if (state?.sharkFishFeast && hasSharkBiteChompVideoSync() && state?.sharkBiteFx) {
+      lockBloodWater();
+    }
+  }, [state?.sharkFishFeast, state?.sharkBiteFx, lockBloodWater]);
+
+  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
+  const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
-  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId } = useCosmetics();
+  const [privacySettings, setPrivacySettings] = useState(() => loadPassPlayPrivacy());
+  const [onlineVisibilitySettings, setOnlineVisibilitySettings] = useState(() =>
+    readProfileOnlineVisibility()
+  );
+  const onlineSession = readOnlineMockSession();
+  const onlineMockActive = !!onlineSession;
+  /** Turn index the active player has acknowledged via handoff overlay (pass-and-play). */
+  const [revealedTurnKey, setRevealedTurnKey] = useState(null);
+  const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
   const playDiceSound = useDiceSound();
   const prevBustRef = React.useRef(0);
   const winnerAwardedRef = React.useRef(false);
+  const previewBiteFiredRef = React.useRef(false);
+  const gameInitRef = React.useRef(false);
+  /** Sync guard — blocks double tap before rollAnim state commits. */
+  const rollLockRef = React.useRef(false);
+  const lastProcessedShakeRef = React.useRef(0);
 
   const buildSkins = React.useCallback(
-    (playerCount) => buildGamePlayerSkins(playerCount, equippedSkinId, ownedSkins, ghostDisguiseId),
+    (playerCount, skinIds = null, disguiseIds = null) =>
+      buildGamePlayerSkins(
+        playerCount,
+        equippedSkinId,
+        ownedSkins,
+        ghostDisguiseId,
+        skinIds,
+        disguiseIds,
+      ),
     [equippedSkinId, ownedSkins, ghostDisguiseId]
   );
 
-  const resolvedPower = state ? resolvePlayerPower(state, state.currentIndex) : null;
+  const ghostOptions = React.useMemo(
+    () => ({ ghostDisguiseId, ownedSkins }),
+    [ghostDisguiseId, ownedSkins]
+  );
+
+  // Prefer the current seat's power; if they banked a charge for later, keep showing
+  // the first seated player who still holds a charge (power stays on until fire).
+  const powerUiPlayerIndex = (() => {
+    if (!state?.players?.length) return 0;
+    const cur = state.currentIndex ?? 0;
+    if (state.players[cur]?.powerCharge) return cur;
+    const held = state.players.findIndex((p) => p?.powerCharge);
+    return held >= 0 ? held : cur;
+  })();
+  const resolvedPower = state
+    ? resolvePlayerPower(state, powerUiPlayerIndex, ghostOptions)
+    : null;
   const skinPower = resolvedPower?.power ?? null;
+  const canFirePowerNow =
+    !!state && powerUiPlayerIndex === state.currentIndex;
+
+  const onlineView = useOnlineGameView({
+    enabled: onlineMockActive,
+    gameState: state,
+    viewerPlayerIndex: onlineSession?.viewerPlayerIndex ?? 0,
+    visibilitySettings: onlineVisibilitySettings,
+  });
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("dice10k_players");
+    if (isLoading || gameInitRef.current) return;
+    gameInitRef.current = true;
+    let stored = sessionStorage.getItem("dice10k_players");
+    // Preview mode: jump straight onto the real gameplay screen with 2 players.
+    if (!stored && previewSharkBite) {
+      stored = JSON.stringify(["You", "Rival"]);
+      sessionStorage.setItem("dice10k_players", stored);
+    }
     if (!stored) {
       navigate("/setup");
       return;
     }
     const names = JSON.parse(stored);
-    const playerSkins = buildSkins(names.length);
-    setState(createInitialState(names, { playerSkins }));
+    const skinIds = readSessionPlayerSkinIds();
+    const disguiseIds = readSessionPlayerDisguiseIds();
+    // Slot 0 is this device — always match the shop equipped skin (stale session may still say ice).
+    const syncedSkinIds = skinIds ? [...skinIds] : null;
+    if (syncedSkinIds?.length) {
+      syncedSkinIds[0] = equippedSkinId;
+      sessionStorage.setItem(SESSION_PLAYER_SKINS_KEY, JSON.stringify(syncedSkinIds));
+    }
+    // Slot 0 Ghost disguise follows profile (shop picker), not a stale Setup session.
+    const syncedDisguiseIds = disguiseIds ? [...disguiseIds] : null;
+    if (syncedDisguiseIds?.length && equippedSkinId === GHOST_SKIN_ID) {
+      syncedDisguiseIds[0] = ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
+      sessionStorage.setItem(SESSION_PLAYER_DISGUISES_KEY, JSON.stringify(syncedDisguiseIds));
+    }
+    const playerSkins = buildSkins(names.length, syncedSkinIds, syncedDisguiseIds ?? disguiseIds);
+    const onlineMock = readOnlineMockSession();
+    if (previewSharkBite || names.length < 2 || onlineMock) {
+      setRollOffSetup(null);
+      setState(createInitialState(names, { playerSkins }));
+    } else {
+      setState(null);
+      setRollOffSetup({ names, playerSkins });
+    }
     prevBustRef.current = 0;
     winnerAwardedRef.current = false;
-  }, [navigate, buildSkins]);
+    previewBiteFiredRef.current = false;
+  }, [navigate, buildSkins, isLoading, previewSharkBite, equippedSkinId]);
+
+  // Keep local player (slot 0) aligned when equipped skin changes mid-session.
+  useEffect(() => {
+    if (isLoading || !state?.players?.length || !equippedSkinId) return;
+    setState((s) => {
+      if (!s?.players?.length) return s;
+      const p0 = s.players[0];
+      if (!p0 || p0.skinId === GHOST_SKIN_ID || p0.skinId === equippedSkinId) return s;
+      return {
+        ...s,
+        players: s.players.map((p, i) => (i === 0 ? { ...p, skinId: equippedSkinId } : p)),
+      };
+    });
+  }, [equippedSkinId, isLoading]);
+
+  const beginGame = useCallback((firstPlayerIndex, setup) => {
+    if (!setup) return;
+    setRevealedTurnKey(null);
+    setState(createInitialState(setup.names, {
+      playerSkins: setup.playerSkins,
+      firstPlayerIndex,
+    }));
+    setRollOffSetup(null);
+  }, []);
+
+  // Auto-play Shark Bite FX once on the real game screen (?previewSharkBite=1).
+  useEffect(() => {
+    if (!previewSharkBite || !state || previewBiteFiredRef.current) return undefined;
+    previewBiteFiredRef.current = true;
+    practiceSharkBiteRef.current = true;
+    const t = setTimeout(() => {
+      setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [previewSharkBite, state]);
+
+  const replaySharkBitePreview = useCallback(() => {
+    practiceSharkBiteRef.current = true;
+    setState((s) => (s ? { ...s, sharkBiteFx: true, sharkDiceHidden: true } : s));
+  }, []);
+
+  // Practice "Shark vid" — one-shot bite FX only (never a looping bite during charge).
+  const onPracticeSharkVideo = useCallback(() => {
+    replaySharkBitePreview();
+  }, [replaySharkBitePreview]);
+
+  // Keep slot-0 Ghost disguise in sync with profile (set in Shop before play).
+  useEffect(() => {
+    if (isLoading || !state || equippedSkinId !== GHOST_SKIN_ID) return;
+    const disguise = ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
+    setState((s) => {
+      const p0 = s?.players?.[0];
+      if (!p0 || p0.skinId !== GHOST_SKIN_ID || p0.trueSkinId === disguise) return s;
+      return {
+        ...s,
+        players: s.players.map((p, i) => (i === 0 ? { ...p, trueSkinId: disguise } : p)),
+      };
+    });
+  }, [isLoading, ghostDisguiseId, equippedSkinId, ownedSkins]);
 
   React.useLayoutEffect(() => {
     const leave = enterGamePlaySession();
     return leave;
   }, []);
 
-  // Show big pop-up when bust count increases
+  // Full-screen YEEEET! / SKRRRT! on bust (opening roll or re-roll)
   useEffect(() => {
-    if (!state) return;
-    if ((state.bustCount || 0) > prevBustRef.current && state.lastBustWord) {
-      setPopup({ word: state.lastBustWord, variant: "danger" });
-      prevBustRef.current = state.bustCount;
-    }
-  }, [state]);
+    if (!state?.farkle || !state.lastBustWord) return;
+    const n = state.bustCount || 0;
+    if (n <= prevBustRef.current) return;
+    prevBustRef.current = n;
+    setPopup({ word: state.lastBustWord, variant: "bust", burstKey: n });
+  }, [state?.farkle, state?.lastBustWord, state?.bustCount]);
 
-  // Auto-pass after farkle — turns swap without a manual button
+  // Shark Bite FX cleared via SharkBiteScreenFX onComplete (video or SVG)
+  // (popup fires on chomp from the same component)
+
+  // Auto-pass after farkle — longer window if Plasma Cut can rescue the turn
   useEffect(() => {
-    if (!state?.farkle || state.winner) return;
+    if (!state?.farkle || state.winner || plasmaCutOpen) return;
+    const canRescue =
+      skinPower?.id === "plasma_cut" &&
+      !!state.players[state.currentIndex]?.powerCharge &&
+      canUsePlasmaCut(state);
+    const delay = canRescue ? 5000 : 1650;
     const timer = setTimeout(() => {
       setState((s) => (s?.farkle ? passAfterFarkle(s) : s));
-    }, 1400);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner]);
+  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner, skinPower?.id, plasmaCutOpen, state]);
 
   // Award coins + XP on game end (and record win / games_finished)
   useEffect(() => {
@@ -118,11 +320,11 @@ export default function Game() {
   // Hot dice XP — award once per hot-dice event (tracked in game state)
   const prevHotDiceRef = React.useRef(0);
 
-  // Sync hot-dice tracker when the active player changes
+  // Sync hot-dice tracker when the active player changes (not on every hot-dice tick).
   useEffect(() => {
     if (!state) return;
     prevHotDiceRef.current = state.hotDiceCount || 0;
-  }, [state?.currentIndex, state]);
+  }, [state?.currentIndex]);
   useEffect(() => {
     if (!state) return;
     const count = state.hotDiceCount || 0;
@@ -133,10 +335,20 @@ export default function Game() {
   }, [state?.hotDiceCount, state?.farkle, addXp, state]);
 
   const onFireSkinPower = () => {
-    if (!state || !skinPower || !state.players[state.currentIndex]?.powerCharge) return;
+    if (!state || !skinPower || !canFirePowerNow) return;
+    if (!state.players[state.currentIndex]?.powerCharge) return;
     if (!canAfford(MAX_POWER, skinPower.id)) return;
     const debuffs = state.players[state.currentIndex]?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
+
+    if (skinPower.id === "plasma_cut") {
+      if (!canUsePlasmaCut(state)) {
+        setPopup({ word: "NO DICE TO CUT", variant: "warning" });
+        return;
+      }
+      setPlasmaCutOpen(true);
+      return;
+    }
 
     const result = applySkinPower(state, skinPower.id);
     if (result.variant === "warning") {
@@ -146,6 +358,25 @@ export default function Game() {
       return;
     }
     setState(consumeSkinPower(result.state));
+    // Power was spent — drop feast / bloody lock so dice return to normal.
+    setBloodWaterLocked(false);
+    if (result.message) {
+      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+    }
+  };
+
+  const onConfirmPlasmaCut = (dieId, newValue) => {
+    setPlasmaCutOpen(false);
+    if (!state) return;
+    const result = applyPlasmaCut(state, dieId, newValue);
+    if (result.variant === "warning") {
+      if (result.message) {
+        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
+      }
+      return;
+    }
+    setState(consumeSkinPower(result.state));
+    setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
@@ -208,7 +439,8 @@ export default function Game() {
   }, [state, opponentSfxMuted, playDiceSound]);
 
   const doRoll = useCallback(() => {
-    if (!state) return;
+    if (!state || state.sharkBiteFx || rollAnim || rollLockRef.current) return;
+    rollLockRef.current = true;
     setRollAnim(true);
     playRollSound();
     const rolled = rollDice(state);
@@ -216,32 +448,76 @@ export default function Game() {
     setTimeout(() => {
       setRollAnim(false);
       setState(s => evaluateRoll(s));
+      rollLockRef.current = false;
     }, 900);
-  }, [state, playRollSound]);
+  }, [state, rollAnim, playRollSound]);
 
   const onToggleDie = useCallback((dieId) => {
     setState((s) => toggleHold(s, dieId));
   }, []);
 
   const onRollAgain = useCallback(() => {
-    if (!state || rollAnim) return;
+    if (!state || rollAnim || rollLockRef.current) return;
     const info = getHeldInfo(state);
     if (!info.valid || heldSelectionPoints(info, state.perfectTenKPending) === 0) return;
-    const { state: next, instantWin } = confirmAndReroll(state);
-    if (instantWin) setPopup({ word: "PERFECT 10,000!", variant: "success" });
+    const { state: next, instantWin } = confirmAndReroll(state, getHotDicePowerConfirmOptions());
+    if (instantWin) setPopup({ word: "SIX OF A KIND — YOU WIN!", variant: "success" });
     if (next.winner) {
       setState(next);
       return;
     }
+    rollLockRef.current = true;
     setRollAnim(true);
     playRollSound();
     setState(next);
-    setTimeout(() => setRollAnim(false), 900);
+    setTimeout(() => {
+      setRollAnim(false);
+      rollLockRef.current = false;
+    }, 900);
   }, [state, rollAnim, playRollSound]);
 
   useEffect(() => {
+    rollLockRef.current = false;
+  }, [state?.currentIndex]);
+
+  const multiPlayer = (state?.players?.length ?? 0) >= 2;
+  const onlineUi = onlineView.ui;
+  // Same-device pass-and-play uses handoff overlay — not online opponent-view blocking.
+  const passPlayPrivacyActive = privacySettings.enabled && multiPlayer;
+  const onlineActive = onlineMockActive && !passPlayPrivacyActive && onlineView.active;
+  const shieldUp = onlineActive
+    ? onlineUi.opponentTurnShield
+    : passPlayPrivacyActive && revealedTurnKey !== state?.currentIndex;
+
+  useEffect(() => {
+    if (!passPlayPrivacyActive && state) {
+      setRevealedTurnKey(state.currentIndex);
+    }
+  }, [passPlayPrivacyActive, state?.currentIndex, state]);
+
+  const onPrivacySettingsChange = useCallback(
+    (next) => {
+      const saved = savePassPlayPrivacy(next, { persistProfile: true });
+      setPrivacySettings(saved);
+      if (!saved.enabled) setRevealedTurnKey(state?.currentIndex ?? 0);
+    },
+    [state?.currentIndex]
+  );
+
+  const onOnlineVisibilityChange = useCallback((next) => {
+    const saved = saveProfileOnlineVisibility(next);
+    setOnlineVisibilitySettings(saved);
+  }, []);
+
+  const onTurnReady = useCallback(() => {
+    setRevealedTurnKey(state?.currentIndex ?? 0);
+  }, [state?.currentIndex]);
+
+  useEffect(() => {
     if (shakeTriggered === 0) return;
-    if (!state || state.farkle || state.winner || rollAnim) return;
+    if (shakeTriggered === lastProcessedShakeRef.current) return;
+    if (!state || state.farkle || state.winner || rollAnim || rollLockRef.current) return;
+    lastProcessedShakeRef.current = shakeTriggered;
     if (!state.hasRolled) {
       doRoll();
     } else {
@@ -251,48 +527,192 @@ export default function Game() {
   }, [shakeTriggered, state, doRoll, onRollAgain, rollAnim]);
 
   const onBank = () => {
-    const prevScore = state.players[state.currentIndex].score;
-    const prevName = state.players[state.currentIndex].name;
-    const next = bankAndPass(state);
-    const after = next.players.find(p => p.name === prevName);
-    const gained = (after?.score ?? prevScore) - prevScore;
-    if (gained > 0) addCoins(Math.floor(gained / 1000));
-    setState(next);
+    if (!state || rollAnim || state.sharkBiteFx) return;
+    setState((s) => {
+      if (!s || s.sharkBiteFx || s.farkle || s.winner) return s;
+      const info = getHeldInfo(s);
+      const points = heldSelectionPoints(info, s.perfectTenKPending);
+      const player = s.players[s.currentIndex];
+      const potential = (s.turnScore ?? 0) + points;
+      const allowed =
+        s.hasRolled &&
+        !s.farkle &&
+        info.valid &&
+        points > 0 &&
+        (player.onBoard || potential >= ENTRY_THRESHOLD);
+      if (!allowed) {
+        if (!player.onBoard && points > 0 && potential < ENTRY_THRESHOLD) {
+          return {
+            ...s,
+            message: `Need 1,000 to get on the board — keep rolling!`,
+            messageVariant: "warning",
+          };
+        }
+        return s;
+      }
+      const prevScore = player.score;
+      const prevName = player.name;
+      const next = bankAndPass(s);
+      const after = next.players.find((p) => p.name === prevName);
+      const gained = (after?.score ?? prevScore) - prevScore;
+      if (gained > 0) addCoins(Math.floor(gained / 1000));
+      return next;
+    });
   };
 
   const playAgain = () => {
     const stored = sessionStorage.getItem("dice10k_players");
     if (stored) {
       const names = JSON.parse(stored);
-      setState(createInitialState(names, { playerSkins: buildSkins(names.length) }));
+      const skinIds = readSessionPlayerSkinIds();
+      const disguiseIds = readSessionPlayerDisguiseIds();
+      const syncedSkinIds = skinIds ? [...skinIds] : null;
+      if (syncedSkinIds?.length) syncedSkinIds[0] = equippedSkinId;
+      const playerSkins = buildSkins(names.length, syncedSkinIds, disguiseIds);
+      winnerAwardedRef.current = false;
+      prevBustRef.current = 0;
+      if (names.length < 2) {
+        setRollOffSetup(null);
+        setRevealedTurnKey(0);
+        setState(createInitialState(names, { playerSkins }));
+      } else {
+        setState(null);
+        setRevealedTurnKey(null);
+        setRollOffSetup({ names, playerSkins });
+      }
     }
   };
 
+  if (rollOffSetup) {
+    return (
+      <TurnOrderRollOff
+        playerNames={rollOffSetup.names}
+        onComplete={(firstPlayerIndex) => beginGame(firstPlayerIndex, rollOffSetup)}
+      />
+    );
+  }
+
   if (!state) return null;
 
-  const info = getHeldInfo(state);
-  const currentPlayer = state.players[state.currentIndex];
-  const activeSkinId = currentPlayer?.skinId || equippedSkinId;
-  const heldPoints = heldSelectionPoints(info, state.perfectTenKPending);
-  const potentialTotal = state.turnScore + (info.valid ? heldPoints : 0);
+  const displayState = onlineActive ? onlineView.renderState : state;
+  const effectiveTurnScore = displayState.turnScore ?? 0;
+  const info = getHeldInfo(displayState);
+  const currentPlayer = displayState.players[displayState.currentIndex];
+  const activeSkinId = getPrisonTraySkinId(
+    displayState,
+    displayState.currentIndex,
+    getDisplaySkinId(currentPlayer, ghostOptions)
+  );
+  const heldPoints = heldSelectionPoints(info, displayState.perfectTenKPending);
+  const potentialTotal = effectiveTurnScore + (info.valid ? heldPoints : 0);
   const needsEntry = !currentPlayer.onBoard;
   const wouldOvershoot = currentPlayer.score + potentialTotal > 10000;
-  const canBank = state.hasRolled && !state.farkle && info.valid && heldPoints > 0 &&
+  const canBank =
+    !rollAnim &&
+    displayState.hasRolled &&
+    !displayState.farkle &&
+    info.valid &&
+    heldPoints > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
-  const scoreFill = Math.min(1, (currentPlayer.score + state.turnScore) / 10000);
-  const obscuredScores = getObscuredScoreIndices(state);
-  const powerLocked = (currentPlayer.debuffs || []).some(
+  const scoreFill = Math.min(1, (currentPlayer.score + effectiveTurnScore) / 10000);
+  const obscuredScores = getObscuredScoreIndices(displayState);
+  const powerPanelPlayer = displayState.players[powerUiPlayerIndex] || currentPlayer;
+  const powerLocked = (powerPanelPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "lockout"
   );
-  const powerFrozen = (currentPlayer.debuffs || []).some(
+  const powerFrozen = (powerPanelPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze"
   );
-  const powerModeActive =
+  const plasmaCutRescue =
+    skinPower?.id === "plasma_cut" &&
     !!currentPlayer?.powerCharge &&
-    !state.farkle &&
-    !state.winner;
+    state.farkle &&
+    canFirePowerNow;
+  // Panel stays on while anyone holds a saved charge; tray VFX only on the active seat's dice.
+  const powerModeActive = isPlayerPowerModeActive(displayState, powerUiPlayerIndex);
+  const traySeatPowerMode = isPlayerPowerModeActive(
+    displayState,
+    displayState.currentIndex
+  );
 
   const lowPower = isLowPowerDevice();
+  const practiceVariant =
+    skinPracticeVariant(activeSkinId) || (previewSharkBite ? "marlin" : null);
+  const previewSkinId = practicePreviewSkinId(practiceVariant);
+  const practiceTraySkinId =
+    practicePowerPreview && previewSkinId ? previewSkinId : activeSkinId;
+  const practiceSkinPower =
+    practiceVariant === "marlin"
+      ? getPower("shark_bite")
+      : practiceVariant === "gq"
+        ? getPower("siphon")
+        : practiceVariant === "ice"
+          ? getPower("freeze_score")
+          : null;
+  // Dice tray power VFX when the active seat is charged (or practice preview).
+  const trayPowerMode =
+    traySeatPowerMode ||
+    (practicePowerPreview && !!practiceVariant);
+  const trayIceFrozen = (currentPlayer.debuffs || []).some(
+    (d) => (typeof d === "string" ? d : d.id) === "freeze_score"
+  );
+  const panelPowerMode = powerModeActive || practicePowerPreview;
+  const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
+  // Feeding Frenzy — only when fish dice were targeted (separate from Shark Bite charge).
+  const fishFeastOnTray = !!state.sharkFishFeast;
+  const feastTargetIdx = state.sharkFishFeastTargetIdx;
+  const feastTraySkinId =
+    fishFeastOnTray && typeof feastTargetIdx === "number" && state.players[feastTargetIdx]
+      ? getPrisonTraySkinId(
+          state,
+          feastTargetIdx,
+          getDisplaySkinId(state.players[feastTargetIdx], ghostOptions)
+        )
+      : null;
+  const diceTraySkinId = feastTraySkinId || practiceTraySkinId;
+  const hidePowerPanelNow = onlineActive
+    ? onlineUi.hidePowerPanel
+    : shieldUp && privacySettings.hidePowerPanel;
+  const hideTurnScoreNow = onlineActive
+    ? onlineUi.hideTurnScore
+    : shieldUp && privacySettings.hideTurnScore;
+  const showPowerPanel = panelPowerMode && !hidePowerPanelNow;
+  const subtlePowerUi = onlineActive
+    ? onlineUi.subtlePowerVfx
+    : passPlayPrivacyActive &&
+      privacySettings.subtlePowerVfx &&
+      revealedTurnKey === displayState.currentIndex;
+  const hideDiceNow = onlineActive
+    ? onlineUi.hideDice
+    : shieldUp && privacySettings.hideDice;
+  const trayDice =
+    hideDiceNow && !onlineActive
+      ? redactDiceForOpponent(displayState.dice)
+      : displayState.dice;
+  const trayPowerVisible =
+    trayPowerMode &&
+    !(onlineActive
+      ? onlineUi.hidePowerPanel
+      : shieldUp && privacySettings.hideDice);
+  const hideChargeBadge =
+    (onlineActive ? onlineUi.hidePowerChargeBadge : shieldUp && privacySettings.hidePowerChargeBadge)
+      ? new Set([displayState.currentIndex])
+      : null;
+  const scoreXrayReveals = (() => {
+    if (onlineActive ? onlineUi.hideXrayReveals : shieldUp && privacySettings.hideXrayReveals) {
+      return {};
+    }
+    return xrayRevealsVisible(displayState.xrayReveals, {
+      scannerIndex: displayState.xrayScannerIndex,
+      currentIndex: displayState.currentIndex,
+      viewerIndex: onlineActive ? (onlineSession?.viewerPlayerIndex ?? 0) : null,
+    });
+  })();
+  const diceInputBlocked = shieldUp || (onlineActive && onlineUi.diceInteractionDisabled);
+  // Never loop the bite clip during power charge — one-shot only via SharkBiteScreenFX.
+  // Charged Shark Bite uses in-die BlueGelSharkBiteCharge + panel, not a repeating fullscreen bite.
+  const trayBloodWater =
+    bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-6 relative">
@@ -314,23 +734,90 @@ export default function Game() {
           label="Back"
           confirmMessage={state.winner ? undefined : "Leave this game and go home?"}
         />
-        <RulesSheet />
+        <div className="flex items-center gap-1">
+          {state.players.length >= 2 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={`shrink-0 hover:bg-white/10 ${onlineActive || passPlayPrivacyActive ? "text-cyan-300 hover:text-cyan-200" : "text-slate-400 hover:text-slate-200"}`}
+                  aria-label={onlineActive ? "Online privacy" : "Pass-and-play privacy"}
+                  title={onlineActive ? "Online privacy" : "Pass-and-play privacy"}
+                >
+                  <EyeOff className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-[min(20rem,calc(100vw-1.5rem))] border-cyan-500/30 bg-slate-950/95 p-0"
+              >
+                {onlineActive ? (
+                  <OnlinePrivacySettings
+                    settings={onlineVisibilitySettings}
+                    onChange={onOnlineVisibilityChange}
+                  />
+                ) : (
+                  <PassPlayPrivacySettings
+                    settings={privacySettings}
+                    onChange={onPrivacySettingsChange}
+                  />
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
+          {state.players.length >= 2 && (
+            <GameAudioControls
+              compact
+              sfxMuted={sfxMuted}
+              opponentSfxMuted={opponentSfxMuted}
+              onToggleSfx={() => setSfxMuted(!sfxMuted)}
+              onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
+            />
+          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-amber-300 hover:text-amber-200 hover:bg-white/10"
+                aria-label="Held dice glow styles"
+                title="Held dice glow"
+              >
+                <Sparkles className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-[min(20rem,calc(100vw-1.5rem))] border-amber-500/30 bg-slate-950/95 p-0"
+            >
+              <HeldDiceStylePicker value={heldDiceStyleId} onChange={setHeldDiceStyle} />
+            </PopoverContent>
+          </Popover>
+          <Link
+            to="/video-assets"
+            className="text-slate-400 hover:text-cyan-300 p-1"
+            title="Video settings"
+            aria-label="Video settings"
+          >
+            <Film className="w-4 h-4" />
+          </Link>
+          <RulesSheet />
+        </div>
       </div>
 
-      {/* YouNeeK 10000 sign banner */}
+      {/* YouNeeK 10000 sign banner — static neon sign (no loop video) */}
       <div className="px-3 pt-3">
         <div
-          className="rounded-2xl overflow-hidden border-2"
+          className="relative w-full h-28 sm:h-36 max-h-[22vh] rounded-2xl overflow-hidden border-2"
           style={{
             borderColor: "#ff00ea",
             boxShadow: "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6)",
           }}
         >
-          <GlitchNeonBanner
-            src="/assets/354eae8fe_generated_image.png"
-            alt="YouNeeK 10000 sign"
-            objectPosition="center 30%"
-          />
+          <GameplayBillboard source="static" />
         </div>
       </div>
 
@@ -340,37 +827,31 @@ export default function Game() {
           players={state.players}
           currentIndex={state.currentIndex}
           obscuredIndices={obscuredScores}
-          xrayReveals={state.xrayReveals}
+          xrayReveals={scoreXrayReveals}
+          showPlayerAvatars
+          hidePowerChargeForIndices={hideChargeBadge}
         />
-        <HeldDiceStylePicker
-          value={heldDiceStyleId}
-          onChange={setHeldDiceStyle}
-        />
-        {state.players.length >= 2 && (
-          <GameAudioControls
-            sfxMuted={sfxMuted}
-            opponentSfxMuted={opponentSfxMuted}
-            onToggleSfx={() => setSfxMuted(!sfxMuted)}
-            onToggleOpponent={() => setOpponentSfxMuted(!opponentSfxMuted)}
-          />
-        )}
       </div>
 
       {/* Banner */}
       <div className="px-3 mb-2 space-y-2">
         <TurnBanner message={state.message} variant={state.messageVariant} />
+        <PrisonDiceStatus state={state} currentIndex={state.currentIndex} />
         <SkinPowerPanel
           power={MAX_POWER}
-          skinPower={skinPower}
-          powerMode={powerModeActive}
+          skinPower={panelSkinPower}
+          powerMode={showPowerPanel}
           used={false}
           locked={powerLocked}
-          disabled={powerFrozen}
+          disabled={powerFrozen || practicePowerPreview || !canFirePowerNow}
           frozen={powerFrozen}
-          onFire={onFireSkinPower}
+          onFire={
+            practicePowerPreview || !canFirePowerNow ? undefined : onFireSkinPower
+          }
           isGhostMimic={resolvedPower?.isMimic}
           mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
           mimicFromName={resolvedPower?.sourcePlayerName}
+          subtle={subtlePowerUi}
         />
       </div>
 
@@ -402,14 +883,20 @@ export default function Game() {
                 textShadow: "0 0 12px rgba(0,255,200,0.7), 0 0 4px rgba(255,255,255,0.6)",
               }}
             >
-              {state.turnScore.toLocaleString()}
-              {info.valid && heldPoints > 0 && (
-                <span
-                  className="text-xl ml-1"
-                  style={{ color: "#7effc4", textShadow: "0 0 10px rgba(0,255,170,0.9)" }}
-                >
-                  +{heldPoints.toLocaleString()}
-                </span>
+              {hideTurnScoreNow ? (
+                <span className="text-slate-500 text-2xl tracking-widest">•••</span>
+              ) : (
+                <>
+                  {effectiveTurnScore.toLocaleString()}
+                  {info.valid && heldPoints > 0 && (
+                    <span
+                      className="text-xl ml-1"
+                      style={{ color: "#7effc4", textShadow: "0 0 10px rgba(0,255,170,0.9)" }}
+                    >
+                      +{heldPoints.toLocaleString()}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -424,39 +911,72 @@ export default function Game() {
           {!needsEntry && wouldOvershoot && info.valid && heldPoints > 0 && (
             <div className="text-right text-xs">
               <div className="text-rose-400 font-bold">⚠️ Over 10,000!</div>
-              <div className="text-slate-400">Need exactly {(10000 - currentPlayer.score - state.turnScore).toLocaleString()}</div>
+              <div className="text-slate-400">Need exactly {(10000 - currentPlayer.score - effectiveTurnScore).toLocaleString()}</div>
             </div>
           )}
         </motion.div>
       </div>
 
+      {onlineActive && onlineUi.showOpponentWaitingBanner && (
+        <div className="px-3 pt-2">
+          <div
+            className="rounded-xl border px-3 py-2 text-center text-xs text-slate-300"
+            style={{
+              borderColor: "rgba(0,255,200,0.35)",
+              background: "rgba(0,40,50,0.5)",
+            }}
+          >
+            Opponent&apos;s private turn — you see redacted dice until they bank or pass.
+          </div>
+        </div>
+      )}
+
       {/* Dice tray */}
       <div className="px-3 flex-[0.85] flex items-center justify-center">
-        <div
-          className="w-full rounded-2xl p-2"
-          style={{
+        <div className="w-full rounded-2xl p-2 space-y-2" style={{
             border: "2px solid #ff00ea",
             boxShadow:
               "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6), inset 0 0 0 1px rgba(255,255,255,0.06)",
             background: "rgba(8,2,20,0.45)",
-          }}
-        >
+          }}>
+          {practiceVariant && (
+            <PowerModePracticeBar
+              variant={practiceVariant}
+              disabled={!!state.winner || rollAnim}
+              powerPreview={practicePowerPreview}
+              onPowerPreviewChange={setPracticePowerPreview}
+              sharkVideoPreview={!!state.sharkBiteFx}
+              onSharkVideoPreviewChange={onPracticeSharkVideo}
+              onReplaySharkBite={replaySharkBitePreview}
+              sharkBiteActive={!!state.sharkBiteFx}
+            />
+          )}
           <DiceTray
-            dice={state.dice}
+            dice={trayDice}
             rolling={rollAnim}
             onToggle={onToggleDie}
-            disabled={!state.hasRolled || state.farkle || !!state.winner}
-            skinId={activeSkinId}
+            disabled={!displayState.hasRolled || displayState.farkle || !!displayState.winner || diceInputBlocked}
+            skinId={diceTraySkinId}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}
             lowPower={lowPower}
+            powerMode={trayPowerVisible}
+            powerModeSubtle={subtlePowerUi}
+            iceFrozenOverlay={trayIceFrozen}
+            fishFeastMode={fishFeastOnTray && !hasSharkBiteChompVideoSync()}
+            sharkBiteFx={!!state.sharkBiteFx}
+            sharkDiceHidden={!!state.sharkDiceHidden}
+            bloodWaterLocked={trayBloodWater}
+            onBloodWaterSettled={
+              fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
+            }
           />
-          {info.held.length > 0 && (
+          {info.held.length > 0 && !hideDiceNow && (
             <div className="mt-2 text-center text-sm">
               {info.valid ? (
                 <span className="text-emerald-400 font-semibold">
-                  {heldSelectionLabel(info, state.perfectTenKPending)}
+                  {heldSelectionLabel(info, displayState.perfectTenKPending)}
                 </span>
               ) : (
                 <span className="text-rose-400 font-semibold">Selection includes non-scoring dice</span>
@@ -476,20 +996,45 @@ export default function Game() {
           boxShadow: "0 -1px 0 rgba(255,0,170,0.25), 0 -8px 24px rgba(0,255,200,0.08)",
         }}
       >
-        {state.farkle ? (
+        {state.winner ? (
           <div
-            className="w-full h-14 flex items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-rose-200"
+            className="w-full h-14 flex items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-emerald-200"
             style={{
-              borderColor: "#ff2858",
-              background: "linear-gradient(135deg, rgba(255,0,90,0.2), rgba(120,0,50,0.35))",
-              boxShadow: "0 0 20px rgba(255,40,90,0.4)",
+              borderColor: "#00ffc8",
+              background: "linear-gradient(135deg, rgba(0,255,200,0.2), rgba(0,140,110,0.35))",
+              boxShadow: "0 0 20px rgba(0,255,200,0.4)",
             }}
           >
-            Next player&apos;s turn…
+            🎯 {state.winner.name} wins!
+          </div>
+        ) : state.farkle ? (
+          <div
+            className="w-full min-h-14 py-2 flex flex-col items-center justify-center rounded-xl border-2 text-sm font-bold uppercase tracking-widest text-rose-200 px-3 text-center"
+            style={{
+              borderColor: plasmaCutRescue && canUsePlasmaCut(state) ? "#a855f7" : "#ff2858",
+              background: plasmaCutRescue && canUsePlasmaCut(state)
+                ? "linear-gradient(135deg, rgba(168,85,247,0.25), rgba(120,0,50,0.35))"
+                : "linear-gradient(135deg, rgba(255,0,90,0.2), rgba(120,0,50,0.35))",
+              boxShadow: plasmaCutRescue && canUsePlasmaCut(state)
+                ? "0 0 20px rgba(168,85,247,0.45)"
+                : "0 0 20px rgba(255,40,90,0.4)",
+            }}
+          >
+            {plasmaCutRescue && canUsePlasmaCut(state) ? (
+              <>
+                <span>Bust — Plasma Cut can save you!</span>
+                <span className="text-[10px] normal-case tracking-normal text-violet-200/90 mt-0.5">
+                  Fire ✂️ Plasma Cut above before time runs out
+                </span>
+              </>
+            ) : (
+              "Next player"
+            )}
           </div>
         ) : !state.hasRolled ? (
           <Button
             onClick={doRoll}
+            disabled={rollAnim || diceInputBlocked}
             size="lg"
             className="w-full h-14 text-lg text-white font-black uppercase tracking-widest border-2 relative overflow-hidden"
             style={{
@@ -505,7 +1050,7 @@ export default function Game() {
           <div className="grid grid-cols-2 gap-2">
             <Button
               onClick={onRollAgain}
-              disabled={!info.valid || heldPoints === 0 || rollAnim}
+              disabled={!info.valid || heldPoints === 0 || rollAnim || diceInputBlocked}
               size="lg"
               className="h-14 text-white font-black uppercase tracking-wider border-2 disabled:opacity-30 disabled:grayscale"
               style={{
@@ -519,7 +1064,7 @@ export default function Game() {
             </Button>
             <Button
               onClick={onBank}
-              disabled={!canBank}
+              disabled={!canBank || diceInputBlocked}
               size="lg"
               className="h-14 text-white font-black uppercase tracking-wider border-2 disabled:opacity-30 disabled:grayscale"
               style={{
@@ -536,17 +1081,41 @@ export default function Game() {
       </div>
       </div>
 
+      <PassPlayHandoffOverlay
+        open={passPlayPrivacyActive && shieldUp}
+        playerName={currentPlayer?.name ?? "Player"}
+        onReady={onTurnReady}
+      />
+
       <GameOverDialog
         open={!!state.winner}
         winner={state.winner}
         onPlayAgain={playAgain}
       />
 
+      <SharkBiteScreenFX
+        active={!!state.sharkBiteFx}
+        onComplete={() => {
+          // Bite finished — always restore tray dice + skins.
+          setBloodWaterLocked(false);
+          practiceSharkBiteRef.current = false;
+          setState((s) => restoreSharkDice(clearSharkBiteFx(s)));
+        }}
+      />
+
       <BigPopup
         open={!!popup}
         word={popup?.word}
         variant={popup?.variant}
+        burstKey={popup?.burstKey}
         onClose={() => setPopup(null)}
+      />
+
+      <PlasmaCutModal
+        open={plasmaCutOpen}
+        dice={state.dice}
+        onConfirm={onConfirmPlasmaCut}
+        onCancel={() => setPlasmaCutOpen(false)}
       />
     </div>
   );

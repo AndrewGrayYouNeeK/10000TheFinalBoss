@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 
-const BASE = process.env.BASE_URL || "http://127.0.0.1:4173";
-const routes = ["/", "/shop", "/setup", "/rules"];
+const BASE = process.env.BASE_URL || "http://127.0.0.1:4173"; // preview; dev: BASE_URL=http://localhost:5173
+const routes = ["/", "/shop", "/setup", "/rules", "/story"];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();

@@ -11,6 +11,7 @@ import {
 import { isPreviewSkin, isCustomDiceSkin, withPreviewOwned } from "@/lib/previewSkins";
 import { isDevUnlockAll } from "@/lib/devUnlock";
 import { DEFAULT_HELD_DICE_STYLE, isValidHeldDiceStyle } from "@/lib/heldDiceStyles";
+import { SESSION_PLAYER_SKINS_KEY } from "@/lib/ghostDisguise";
 
 export function useCosmetics() {
   const queryClient = useQueryClient();
@@ -111,6 +112,20 @@ export function useCosmetics() {
       const pool = owned.filter((id) => id && id !== "ghost");
       if (pool.length) patch.ghost_disguise = pool[0];
     }
+    if (type === "skin" && typeof sessionStorage !== "undefined") {
+      try {
+        const raw = sessionStorage.getItem(SESSION_PLAYER_SKINS_KEY);
+        if (raw) {
+          const ids = JSON.parse(raw);
+          if (Array.isArray(ids) && ids.length > 0) {
+            ids[0] = itemId;
+            sessionStorage.setItem(SESSION_PLAYER_SKINS_KEY, JSON.stringify(ids));
+          }
+        }
+      } catch {
+        /* ignore corrupt session skin picks */
+      }
+    }
     updateMe.mutate(patch);
   };
 
@@ -167,6 +182,7 @@ export function useCosmetics() {
     setSfxMuted,
     setOpponentSfxMuted,
     grantReward,
+    updateMe,
     isDevUnlockAll: isDevUnlockAll(),
     getSkinEffectivePrice: (skin) => (isDevUnlockAll() ? 0 : getSkinEffectivePrice(skin, xp)),
     isSkinUnlockedByTier: (skinId) => isDevUnlockAll() || isSkinUnlockedByTier(skinId, xp),

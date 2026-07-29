@@ -9,7 +9,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:5173` and **leave that Terminal window open** while you work.
+
+If you use Cursor agents to edit code, run `npm run dev` yourself in a normal Terminal — not inside an agent session. Agent-started dev servers stop when the agent finishes, which looks like “localhost stopped working after every code change.”
 
 Optional: copy `.env.example` to `.env.local` for local overrides (not required).
 

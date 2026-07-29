@@ -1,9 +1,12 @@
 import { TARGET_SCORE } from "@/lib/gameLogic";
 import { formatXraySummary, scanAllOpponents } from "@/lib/xrayScan";
+import { isFishDicePlayer } from "@/lib/fishDice";
 
 function opponentIndex(state) {
-  if (state.players.length <= 1) return state.currentIndex;
-  return (state.currentIndex + 1) % state.players.length;
+  const n = state.players?.length ?? 0;
+  if (n <= 1) return -1;
+  // Always the next seat — never the caster.
+  return (state.currentIndex + 1) % n;
 }
 
 function addDebuff(players, targetIdx, debuff, fromIdx) {
@@ -22,12 +25,30 @@ function addDebuff(players, targetIdx, debuff, fromIdx) {
 
 /** Apply a skin secret power to the current game state. */
 export function applySkinPower(state, powerId) {
-  if (!state || state.winner || state.farkle) {
+  if (!state || state.winner) {
+    return { state, message: "Can't use a power right now.", variant: "warning" };
+  }
+  if (state.farkle && powerId !== "plasma_cut") {
     return { state, message: "Can't use a power right now.", variant: "warning" };
   }
 
   const targetIdx = opponentIndex(state);
   const targetName = state.players[targetIdx]?.name || "opponent";
+  if (targetIdx < 0 || targetIdx === state.currentIndex) {
+    // Sabo powers need a real opponent; self powers still work below.
+    if (
+      powerId === "shark_bite" ||
+      powerId === "freeze" ||
+      powerId === "freeze_score" ||
+      powerId === "lockout" ||
+      powerId === "blackout" ||
+      powerId === "static" ||
+      powerId === "prison_dice" ||
+      powerId === "xray"
+    ) {
+      return { state, message: "Need an opponent for that power.", variant: "warning" };
+    }
+  }
 
   switch (powerId) {
     case "reroll": {
@@ -100,9 +121,27 @@ export function applySkinPower(state, powerId) {
         variant: "success",
       };
 
+    case "plasma_cut":
+      return {
+        state,
+        message: "Pick a die to cut.",
+        variant: "success",
+        needsPlasmaCutPicker: true,
+      };
+
     case "siphon": {
       const idx = state.currentIndex;
       const leader = [...state.players].sort((a, b) => b.score - a.score)[0];
+      const leaderFrozen = (leader?.debuffs || []).some(
+        (d) => (typeof d === "string" ? d : d.id) === "freeze_score"
+      );
+      if (leaderFrozen) {
+        return {
+          state,
+          message: `${leader.name}'s score is frozen — can't siphon.`,
+          variant: "warning",
+        };
+      }
       const steal = Math.min(500, Math.max(0, Math.floor(leader.score * 0.1)));
       if (steal <= 0) {
         return { state, message: "Nobody to siphon from yet.", variant: "warning" };
@@ -138,6 +177,26 @@ export function applySkinPower(state, powerId) {
           messageVariant: "success",
         },
         message: "Freeze cast!",
+        variant: "success",
+      };
+    }
+
+    case "freeze_score": {
+      const lockedScore = state.players[targetIdx]?.score ?? 0;
+      const players = addDebuff(
+        state.players,
+        targetIdx,
+        { id: "freeze_score", lockedScore },
+        state.currentIndex
+      );
+      return {
+        state: {
+          ...state,
+          players,
+          message: `🧊 ${targetName}'s banked score locked at ${lockedScore.toLocaleString()} for the rest of their turn!`,
+          messageVariant: "success",
+        },
+        message: "Score Freeze cast!",
         variant: "success",
       };
     }
@@ -189,24 +248,17 @@ export function applySkinPower(state, powerId) {
         return { state, message: "Need an opponent to scan.", variant: "warning" };
       }
 
-      const { reveals, scanned, hasAny } = scanAllOpponents(state);
-
-      if (!hasAny) {
-        return {
-          state,
-          message: "🔬 X-Ray — no hidden information detected.",
-          variant: "warning",
-        };
-      }
+      const { reveals, scanned } = scanAllOpponents(state);
 
       return {
         state: {
           ...state,
           xrayReveals: reveals,
+          xrayScannerIndex: state.currentIndex,
           message: `🔬 X-Ray — ${formatXraySummary(scanned)}`,
           messageVariant: "success",
         },
-        message: "Hidden info revealed!",
+        message: "Scan complete!",
         variant: "success",
       };
     }
@@ -230,6 +282,82 @@ export function applySkinPower(state, powerId) {
           messageVariant: "success",
         },
         message: "Overtime!",
+        variant: "success",
+      };
+    }
+
+    case "prison_dice": {
+      if (state.players.length <= 1) {
+        return { state, message: "Need an opponent for Prison Dice.", variant: "warning" };
+      }
+      if (state.prisonDice) {
+        return { state, message: "Prison lock already active.", variant: "warning" };
+      }
+      return {
+        state: {
+          ...state,
+          prisonDice: {
+            casterIdx: state.currentIndex,
+            targetIdx,
+            sixCount: 0,
+          },
+          message: `⛓️ ${targetName}'s dice locked in prison! Roll 3 sixes to release them.`,
+          messageVariant: "success",
+        },
+        message: "Prison Dice cast!",
+        variant: "success",
+      };
+    }
+
+    case "shark_bite": {
+      if (targetIdx < 0 || targetIdx === state.currentIndex) {
+        return { state, message: "Need an opponent for Shark Bite.", variant: "warning" };
+      }
+      const already = (state.players[targetIdx]?.debuffs || []).some(
+        (d) => (typeof d === "string" ? d : d.id) === "shark_bite"
+      );
+      if (already) {
+        return { state, message: `${targetName} is already marked for a shark bite.`, variant: "warning" };
+      }
+
+      // Feeding Frenzy — only when the TARGET has fish/aquarium dice (not the caster).
+      // Blue Gel's own Shark Bite power mode is separate (charge → mark → bank steal).
+      if (isFishDicePlayer(state, targetIdx) && targetIdx !== state.currentIndex) {
+        const wipedScore = state.players[targetIdx]?.score ?? 0;
+        const players = state.players.map((p, i) =>
+          i === targetIdx
+            ? { ...p, score: 0, onBoard: false, debuffs: [] }
+            : p
+        );
+        return {
+          state: {
+            ...state,
+            players,
+            sharkBiteFx: true,
+            sharkDiceHidden: true,
+            sharkFishFeast: true,
+            sharkFishFeastTargetIdx: targetIdx,
+            message:
+              wipedScore > 0
+                ? `🦈 Feeding Frenzy! Sharks devoured ${targetName}'s fish — score back to 0 (−${wipedScore.toLocaleString()}).`
+                : `🦈 Feeding Frenzy! Sharks devoured ${targetName}'s fish! The tank runs red.`,
+            messageVariant: "success",
+          },
+          message: "Feeding Frenzy!",
+          variant: "success",
+        };
+      }
+
+      // Shark Bite mark — opponent loses their next banked round (not Feeding Frenzy).
+      const players = addDebuff(state.players, targetIdx, "shark_bite", state.currentIndex);
+      return {
+        state: {
+          ...state,
+          players,
+          message: `🦈 Shark Bite — hunting ${targetName}. Their next bank will be eaten!`,
+          messageVariant: "success",
+        },
+        message: "Shark Bite cast!",
         variant: "success",
       };
     }

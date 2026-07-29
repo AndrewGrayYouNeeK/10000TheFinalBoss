@@ -2,14 +2,13 @@ import React from "react";
 import { motion } from "framer-motion";
 import { canAfford } from "@/lib/powers";
 
-// One equipped power button shown during a match.
-// Locked = used (one-charge) or disabled by Lockout debuff.
+// One equipped power button shown during a match — skinny bright pill.
 export default function PowerSlot({ power, currentPower = 0, used = false, locked = false, onFire }) {
   if (!power) {
     return (
       <div
-        className="aspect-square rounded-lg border border-dashed flex items-center justify-center text-xs opacity-40"
-        style={{ borderColor: "rgba(0,255,200,0.3)", color: "rgba(0,255,200,0.5)" }}
+        className="h-7 min-w-[4.5rem] px-2 rounded-full border border-dashed flex items-center justify-center text-[8px] opacity-40 shrink-0"
+        style={{ borderColor: "rgba(0,255,200,0.45)", color: "rgba(0,255,200,0.65)" }}
       >
         empty
       </div>
@@ -20,45 +19,51 @@ export default function PowerSlot({ power, currentPower = 0, used = false, locke
 
   return (
     <motion.button
-      whileTap={disabled ? {} : { scale: 0.92 }}
-      whileHover={disabled ? {} : { scale: 1.04 }}
+      whileTap={disabled ? {} : { scale: 0.96 }}
+      whileHover={disabled ? {} : { scale: 1.03 }}
       onClick={() => !disabled && onFire?.(power)}
       disabled={disabled}
-      className="relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-opacity"
+      className="relative h-7 min-w-[5.25rem] max-w-[7.5rem] px-2.5 rounded-full border flex flex-row items-center justify-center gap-1 shrink-0 transition-opacity"
       style={{
         background: disabled
-          ? "rgba(20,20,30,0.6)"
-          : `linear-gradient(135deg, ${power.color}22, ${power.color}44)`,
-        borderColor: disabled ? "rgba(255,255,255,0.15)" : power.color,
+          ? "rgba(20,20,30,0.65)"
+          : `linear-gradient(90deg, ${power.color}55, ${power.color}88)`,
+        borderColor: disabled ? "rgba(255,255,255,0.12)" : power.color,
         boxShadow: disabled
           ? "none"
-          : `0 0 12px ${power.color}66, inset 0 0 8px ${power.color}33`,
-        opacity: disabled ? 0.45 : 1,
+          : `0 0 14px ${power.color}aa, 0 0 4px ${power.color}, inset 0 0 10px ${power.color}44`,
+        opacity: disabled ? 0.4 : 1,
       }}
     >
-      <span className="text-2xl leading-none" style={{ filter: disabled ? "grayscale(1)" : "none" }}>
+      <span
+        className="text-sm leading-none shrink-0"
+        style={{ filter: disabled ? "grayscale(1)" : `drop-shadow(0 0 4px ${power.color})` }}
+      >
         {power.icon}
       </span>
       <span
-        className="text-[8px] font-black uppercase tracking-wider mt-1 leading-tight text-center"
-        style={{ color: disabled ? "#888" : "#fff", textShadow: disabled ? "none" : `0 0 4px ${power.color}` }}
+        className="text-[7px] font-black uppercase tracking-wide leading-none truncate"
+        style={{
+          color: disabled ? "#888" : "#fff",
+          textShadow: disabled ? "none" : `0 0 6px ${power.color}, 0 0 2px #fff`,
+        }}
       >
         {power.name}
       </span>
       <span
-        className="absolute top-0.5 right-1 text-[9px] font-black tabular-nums"
-        style={{ color: affordable && !disabled ? power.color : "#888" }}
+        className="text-[7px] font-black tabular-nums leading-none shrink-0"
+        style={{ color: affordable && !disabled ? "#fff" : "#666", textShadow: affordable && !disabled ? `0 0 4px ${power.color}` : "none" }}
       >
         {power.cost}
       </span>
       {locked && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-md">
-          <span className="text-lg">🔒</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full">
+          <span className="text-xs">🔒</span>
         </div>
       )}
       {used && !locked && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-md">
-          <span className="text-[10px] font-black text-rose-400 uppercase">Used</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-full">
+          <span className="text-[8px] font-black text-rose-300 uppercase">Used</span>
         </div>
       )}
     </motion.button>

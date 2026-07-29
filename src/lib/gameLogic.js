@@ -1,6 +1,7 @@
 // Core game state manipulation for Dice 10,000
-import { scoreSelection, hasAnyScore, isSixOfAKind } from "./scoring";
-import { POWER_MODE_HOT_DICE } from "./powers";
+import { scoreSelection, hasAnyScore, isSixOfAKind, heldSelectionPoints } from "./scoring";
+import { getPowerChargeHotDiceThreshold } from "./skinPowers";
+import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
 
 export const TARGET_SCORE = 10000;
 export const ENTRY_THRESHOLD = 1000;
@@ -8,9 +9,16 @@ export const ENTRY_THRESHOLD = 1000;
 export const PERFECT_TENK_ODDS = 1 / 10000;
 
 // Bust words — alternated on each bust for variety.
-const BUST_WORDS = ["YEEET!", "SKEERT!"];
+const BUST_WORDS = ["YEEEET!", "SKRRRT!"];
 function bustWord(count) {
   return BUST_WORDS[count % BUST_WORDS.length];
+}
+
+/** True for YEEEET / YEEET / SKRRRT / SKEERT style bust shouts. */
+export function isBustWord(word) {
+  if (!word || typeof word !== "string") return false;
+  const n = word.toUpperCase().replace(/[^A-Z]/g, "");
+  return /^Y+E+T$/.test(n) || /^SK+R+T$/.test(n);
 }
 
 /** Per-turn state cleared on bank or bust pass (power charge lives on the player). */
@@ -30,8 +38,9 @@ function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false 
   const p = players[playerIndex];
   if (!p) return players;
   const next = [...players];
-  // Charge survives banking. Only busting or firing consumes it.
-  const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
+  // Charge survives banking. Only firing consumes it (consumeSkinPower).
+  // Never drop a held charge on bank — skinPowerUsedThisTurn means they already fired.
+  const keepCharge = skinPowerUsedThisTurn ? false : !!p.powerCharge;
   next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
   return next;
 }
@@ -46,32 +55,94 @@ export function clearDebuffsFromCaster(players, casterIdx) {
   }));
 }
 
+function playerHasDebuff(player, debuffId) {
+  return (player?.debuffs || []).some((d) => (typeof d === "string" ? d : d.id) === debuffId);
+}
+
+/** Shark Bite mark entry (object with optional `from` caster index). */
+function getSharkBiteDebuff(player) {
+  const entry = (player?.debuffs || []).find(
+    (d) => (typeof d === "string" ? d : d.id) === "shark_bite"
+  );
+  if (!entry) return null;
+  return typeof entry === "string" ? { id: "shark_bite" } : entry;
+}
+
+/** Keep a pending Shark Bite mark across farkle clears (resolves only on bank). */
+function sharkBiteDebuffOnly(player) {
+  const entry = (player?.debuffs || []).find(
+    (d) => (typeof d === "string" ? d : d.id) === "shark_bite"
+  );
+  if (!entry) return [];
+  return [typeof entry === "string" ? { id: "shark_bite" } : entry];
+}
+
+/**
+ * Clear shark bite screen FX. Tray dice stay hidden until the next roll
+ * (see rollDice clearing sharkDiceHidden).
+ */
+export function clearSharkBiteFx(state) {
+  if (
+    !state?.sharkBiteFx &&
+    !state?.sharkFishFeast &&
+    state?.sharkFishFeastTargetIdx == null &&
+    !state?.sharkDiceHidden
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    sharkBiteFx: false,
+    sharkFishFeast: false,
+    sharkFishFeastTargetIdx: null,
+    // FX finished — put tray dice back immediately (do not leave skins vanished).
+    sharkDiceHidden: false,
+  };
+}
+
+/** Restore tray dice after a shark bite (preview / next round). */
+export function restoreSharkDice(state) {
+  if (!state?.sharkDiceHidden) return state;
+  return { ...state, sharkDiceHidden: false };
+}
+
 export function createInitialState(playerNames, options = {}) {
-  const { playerSkins = [] } = options;
+  const { playerSkins = [], startScores = null, firstPlayerIndex = 0 } = options;
+  const startIdx =
+    Number.isInteger(firstPlayerIndex) && firstPlayerIndex >= 0 && firstPlayerIndex < playerNames.length
+      ? firstPlayerIndex
+      : 0;
   return {
     players: playerNames.map((name, i) => {
       const skin = playerSkins[i] || { skinId: "classic_white" };
+      const startScore =
+        Array.isArray(startScores) && typeof startScores[i] === "number" && startScores[i] > 0
+          ? startScores[i]
+          : 0;
       return {
         name,
-        score: 0,
-        onBoard: false,
+        score: startScore,
+        onBoard: startScore >= ENTRY_THRESHOLD,
         debuffs: [],
         powerCharge: false,
         skinId: skin.skinId || "classic_white",
         ...(skin.trueSkinId ? { trueSkinId: skin.trueSkinId } : {}),
+        ...(skin.ghostBare ? { ghostBare: true } : {}),
       };
     }),
-    currentIndex: 0,
+    currentIndex: startIdx,
     dice: makeFreshDice(),
     rolling: false,
     hasRolled: false,
     turnScore: 0,
     winner: null,
-    message: `${playerNames[0]}'s turn — roll the dice!`,
+    message: `${playerNames[startIdx]}'s turn — roll the dice!`,
     messageVariant: "info",
     farkle: false,
     bustCount: 0,
     lastBustWord: null,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
     perfectTenKPending: false,
     hotDiceCount: 0,
     skinPowerUsedThisTurn: false,
@@ -80,7 +151,102 @@ export function createInitialState(playerNames, options = {}) {
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     xrayReveals: {},
+    xrayScannerIndex: null,
+    prisonDice: null,
+    sharkBiteFx: false,
+    sharkDiceHidden: false,
+    sharkFishFeast: false,
+    sharkFishFeastTargetIdx: null,
+    storyIceFreeze: null,
   };
+}
+
+/** Story Frosty freeze is active (enemy skipped until caster busts). */
+export function isStoryIceFreezeActive(state) {
+  return !!state?.storyIceFreeze;
+}
+
+export function clearStoryIceFreeze(state) {
+  if (!state?.storyIceFreeze) return state;
+  return { ...state, storyIceFreeze: null };
+}
+
+/** Whether the human can fire story Frosty (any player-turn phase, or before enemy banks). */
+export function canStoryIceFire(state, playerIndex = 0) {
+  if (!state || state.winner || state.storyIceFreeze) return false;
+  const player = state.players?.[playerIndex];
+  if (!player?.powerCharge) return false;
+  if (playerHasDebuff(player, "lockout")) return false;
+
+  const targetIdx = (playerIndex + 1) % (state.players?.length || 1);
+  if (state.currentIndex === playerIndex) return true;
+  if (state.currentIndex === targetIdx) {
+    return !!state.hasRolled && !state.farkle && !state.sharkBiteFx;
+  }
+  return false;
+}
+
+function beginStoryIceCasterTurn(state, casterIdx) {
+  const caster = state.players[casterIdx];
+  return {
+    ...state,
+    currentIndex: casterIdx,
+    dice: makeFreshDice(),
+    turnScore: 0,
+    hasRolled: false,
+    farkle: false,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
+    perfectTenKPending: false,
+    turnScoreMultiplier: 1,
+    doubleOrNothing: false,
+    luckyRollNext: false,
+    sharkDiceHidden: false,
+    sharkBiteFx: false,
+    ...turnPowerReset(),
+    message: `${caster?.name}'s turn — enemy frozen!`,
+    messageVariant: "info",
+  };
+}
+
+/** Fire story Frosty — mark enemy frozen, consume charge, yank turn from enemy if needed. */
+export function applyStoryIceFreeze(state, casterIdx = 0) {
+  const targetIdx = (casterIdx + 1) % state.players.length;
+  const targetName = state.players[targetIdx]?.name || "opponent";
+  let next = {
+    ...clearStoryIceFreeze(state),
+    storyIceFreeze: { casterIdx, targetIdx },
+    skinPowerUsedThisTurn: state.currentIndex === casterIdx ? true : state.skinPowerUsedThisTurn,
+    players: state.players.map((p, i) =>
+      i === casterIdx ? { ...p, powerCharge: false } : p
+    ),
+    message: `❄️ ${targetName} is frozen!`,
+    messageVariant: "success",
+  };
+  if (state.currentIndex === targetIdx) {
+    next = beginStoryIceCasterTurn(next, casterIdx);
+    next.message = `❄️ ${targetName} is frozen!`;
+    next.messageVariant = "success";
+  } else if (state.currentIndex === casterIdx && state.farkle) {
+    next = {
+      ...next,
+      farkle: false,
+      farkleTurnScore: null,
+      turnScore: 0,
+      hasRolled: false,
+      dice: makeFreshDice(),
+      message: `❄️ ${targetName} is frozen!`,
+      messageVariant: "success",
+    };
+  }
+  return next;
+}
+
+/** If the frozen enemy somehow becomes active, skip straight back to the caster. */
+export function skipFrozenOpponentTurn(state) {
+  const ice = state?.storyIceFreeze;
+  if (!ice || state.currentIndex !== ice.targetIdx) return state;
+  return beginStoryIceCasterTurn(state, ice.casterIdx);
 }
 
 function makeFreshDice() {
@@ -112,6 +278,32 @@ function rollDieValues(count, { luckyRoll = false } = {}) {
   return { values, perfectTenK };
 }
 
+/** All six active dice match — immediate game win (any face, any roll). */
+function checkActiveSixOfAKindWin(state) {
+  const active = state.dice.filter((d) => !d.used).map((d) => d.value);
+  const face = active.length === 6 ? isSixOfAKind(active) : null;
+  if (face === null) return null;
+
+  const idx = state.currentIndex;
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, score: TARGET_SCORE, onBoard: true } : p
+  );
+  const winner = players[idx];
+  const name = winner?.name || "Player";
+
+  return {
+    ...state,
+    players,
+    winner,
+    perfectTenK: true,
+    perfectTenKPending: false,
+    farkle: false,
+    hasRolled: true,
+    message: `🎯 SIX ${face}s — ${name} WINS!`,
+    messageVariant: "success",
+  };
+}
+
 // Perform a dice roll — only on dice that are not `used`
 export function rollDice(state) {
   const rolling = state.dice.filter((d) => !d.used);
@@ -123,13 +315,26 @@ export function rollDice(state) {
     const value = values[vi++];
     return { ...d, value, held: false };
   });
-  return {
+  let next = {
     ...state,
     dice: newDice,
     hasRolled: true,
     luckyRollNext: false,
     perfectTenKPending: perfectTenK || false,
+    // Next round / turn action — dice return after a shark bank-steal.
+    sharkDiceHidden: false,
   };
+  const prison = trackPrisonSixes(next, values);
+  next = prison.state;
+  if (prison.releaseMessage) {
+    next = {
+      ...next,
+      message: prison.releaseMessage,
+      messageVariant: "success",
+      pendingPrisonRelease: prison.releaseMessage,
+    };
+  }
+  return next;
 }
 
 // Evaluate the roll after it lands → farkle / continue
@@ -142,6 +347,7 @@ export function evaluateRoll(state) {
         ...state,
         farkle: false,
         powerShield: false,
+        pendingPrisonRelease: null,
         message: `🛡️ Shield saved ${currentName}'s turn score!`,
         messageVariant: "success",
       };
@@ -152,20 +358,38 @@ export function evaluateRoll(state) {
     return {
       ...state,
       farkle: true,
+      farkleTurnScore: state.turnScore,
       turnScore: 0,
       bustCount: (state.bustCount || 0) + 1,
       lastBustWord: word,
       doubleOrNothing: false,
       turnScoreMultiplier: 1,
       perfectTenKPending: false,
+      pendingPrisonRelease: null,
       message: state.doubleOrNothing
         ? `💥 ${word} Double or Nothing — ${currentName} loses ${lostScore}.`
         : `💥 ${word} ${currentName} loses turn score.`,
       messageVariant: "danger",
     };
   }
+
+  const sixWin = checkActiveSixOfAKindWin(state);
+  if (sixWin) return sixWin;
+
+  // Keep prison-release banner from rollDice when the roll still scores.
+  if (state.pendingPrisonRelease) {
+    return {
+      ...state,
+      farkleTurnScore: null,
+      pendingPrisonRelease: null,
+      message: state.pendingPrisonRelease,
+      messageVariant: "success",
+    };
+  }
+
   return {
     ...state,
+    farkleTurnScore: null,
     message: "Select scoring dice, then bank or roll again.",
     messageVariant: "info",
   };
@@ -173,7 +397,7 @@ export function evaluateRoll(state) {
 
 // Toggle holding a die in the current selection
 export function toggleHold(state, dieId) {
-  if (state.farkle || state.rolling) return state;
+  if (state.farkle || state.rolling || state.winner) return state;
   return {
     ...state,
     dice: state.dice.map(d =>
@@ -190,26 +414,9 @@ export function getHeldInfo(state) {
 
 // Confirm held dice into the turn, then re-roll remaining
 // Returns { state, instantWin }
-export function confirmAndReroll(state) {
+// options.powerChargeHotDiceThreshold — override hot-dice count needed for power charge (dev/testing).
+export function confirmAndReroll(state, options = {}) {
   const held = getHeldInfo(state);
-  if (isSixOfAKind(held.held) && state.perfectTenKPending) {
-    const players = state.players.map((p, i) =>
-      i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
-    );
-    return {
-      state: {
-        ...state,
-        players,
-        winner: players[state.currentIndex],
-        perfectTenK: true,
-        perfectTenKPending: false,
-        message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
-        messageVariant: "success",
-      },
-      instantWin: true,
-    };
-  }
-
   if (!held.valid || held.score === 0) return { state };
 
   const scored = held;
@@ -265,29 +472,60 @@ export function confirmAndReroll(state) {
       state: {
         ...state,
         dice: newDice,
+        farkleTurnScore: newTurnScore,
         turnScore: 0,
         hasRolled: true,
         farkle: true,
         bustCount: (state.bustCount || 0) + 1,
         lastBustWord: word,
+        pendingPrisonRelease: null,
         message: `💥 ${word} ${state.players[state.currentIndex].name} loses ${newTurnScore}.`,
         messageVariant: "danger",
       },
     };
   }
 
-  const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
-  const earnedCharge = allUsed && newHotCount >= POWER_MODE_HOT_DICE;
+  const midState = {
+    ...state,
+    dice: newDice,
+    turnScore: newTurnScore,
+    hasRolled: true,
+    luckyRollNext: false,
+    perfectTenKPending: perfectTenK || false,
+  };
+  const prison = trackPrisonSixes(midState, values);
+  let working = prison.state;
+  if (prison.releaseMessage) {
+    working = { ...working, message: prison.releaseMessage, messageVariant: "success" };
+  }
+  const sixWin = checkActiveSixOfAKindWin(working);
+  if (sixWin) {
+    return { state: sixWin, instantWin: true };
+  }
+
   const idx = state.currentIndex;
+  const newHotCount = allUsed ? (state.hotDiceCount || 0) + 1 : (state.hotDiceCount || 0);
+  const hotDiceNeeded =
+    options.powerChargeHotDiceThreshold ??
+    getPowerChargeHotDiceThreshold(state.players[idx]);
+  const earnedCharge = allUsed && newHotCount >= hotDiceNeeded;
   const hadCharge = !!state.players[idx]?.powerCharge;
   const players = earnedCharge && !hadCharge
     ? state.players.map((p, i) => (i === idx ? { ...p, powerCharge: true } : p))
     : state.players;
   const chargeJustEarned = earnedCharge && !hadCharge;
 
+  const rollMessage = prison.releaseMessage
+    ? prison.releaseMessage
+    : chargeJustEarned
+      ? "🔥 HOT DICE! Power charge earned — use it now or bank it for later!"
+      : allUsed
+        ? "🔥 HOT DICE! All 6 re-rolled."
+        : "Select scoring dice, then bank or roll again.";
+
   return {
     state: {
-      ...state,
+      ...working,
       players,
       dice: newDice,
       turnScore: newTurnScore,
@@ -295,12 +533,8 @@ export function confirmAndReroll(state) {
       luckyRollNext: false,
       perfectTenKPending: perfectTenK || false,
       hotDiceCount: newHotCount,
-      message: chargeJustEarned
-        ? "🔥 HOT DICE! Power charge earned — use it now or bank it for later!"
-        : allUsed
-        ? "🔥 HOT DICE! All 6 re-rolled."
-        : "Select scoring dice, then bank or roll again.",
-      messageVariant: allUsed || chargeJustEarned ? "success" : "info",
+      message: rollMessage,
+      messageVariant: prison.releaseMessage || allUsed || chargeJustEarned ? "success" : "info",
     },
   };
 }
@@ -308,6 +542,12 @@ export function confirmAndReroll(state) {
 /** Whether a player is holding an unused power charge. */
 export function playerHasPowerCharge(state, playerIndex = state?.currentIndex) {
   return !!state?.players?.[playerIndex]?.powerCharge;
+}
+
+/** Power-mode visuals / fire gate — charge persists across banks and busts until fire. */
+export function isPlayerPowerModeActive(state, playerIndex = state?.currentIndex) {
+  if (!state || state.winner) return false;
+  return playerHasPowerCharge(state, playerIndex);
 }
 
 /** Mark skin secret power as spent — consumes the player's power charge. */
@@ -324,10 +564,16 @@ export function consumeSkinPower(state) {
 
 // Bank the current turn score and pass to next player.
 // Returns new state; if someone wins, winner is set.
+// Shark Bite: if the banker is marked, steal this bank's points and trigger FX
+// (no turn skip — mark resolves only on bank).
 export function bankAndPass(state) {
-  const info = getHeldInfo(state);
+  if (state.farkle || state.winner || !state.hasRolled) return state;
 
-  if (isSixOfAKind(info.held) && state.perfectTenKPending) {
+  const info = getHeldInfo(state);
+  const heldPts = heldSelectionPoints(info, state.perfectTenKPending);
+  if (!info.valid || heldPts <= 0) return state;
+
+  if (isSixOfAKind(info.held) && info.held.length === 6) {
     const players = state.players.map((p, i) =>
       i === state.currentIndex ? { ...p, score: TARGET_SCORE, onBoard: true } : p
     );
@@ -337,7 +583,7 @@ export function bankAndPass(state) {
       winner: players[state.currentIndex],
       perfectTenK: true,
       perfectTenKPending: false,
-      message: `🎯 PERFECT 10,000 — SIX OF A KIND INSTANT WIN!`,
+      message: `🎯 SIX OF A KIND — INSTANT WIN!`,
       messageVariant: "success",
     };
   }
@@ -348,22 +594,36 @@ export function bankAndPass(state) {
     finalTurn += info.score;
   }
 
-  const player = state.players[state.currentIndex];
+  const finishedIdx = state.currentIndex;
+  const player = state.players[finishedIdx];
+  const sharkMark = getSharkBiteDebuff(player);
+  const pendingSharkBite = !!sharkMark;
+  const scoreFrozen = playerHasDebuff(player, "freeze_score");
+  const wasOnBoard = !!player.onBoard;
   const newPlayers = [...state.players];
 
   let message;
   let variant;
+  let amountAdded = 0;
 
-  if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
-    // Didn't make entry
-    message = `${player.name} needs 1,000 to get on the board. Banked 0.`;
+  if (scoreFrozen) {
+    // Score Freeze — turn can still play out, but banked score cannot change.
+    message = `🧊 ${player.name}'s score is frozen — bank had no effect!`;
     variant = "warning";
+  } else if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
+    // Under entry — reject without ending the turn so they can keep rolling
+    return {
+      ...state,
+      message: `${player.name} needs 1,000 to get on the board — keep rolling!`,
+      messageVariant: "warning",
+    };
   } else if (player.score + finalTurn > TARGET_SCORE) {
     // Overshoot — must land exactly on 10,000
     message = `💥 Overshoot! ${player.name} needed exactly ${TARGET_SCORE - player.score} — banked 0.`;
     variant = "danger";
   } else {
-    newPlayers[state.currentIndex] = {
+    amountAdded = finalTurn;
+    newPlayers[finishedIdx] = {
       ...player,
       score: player.score + finalTurn,
       onBoard: true,
@@ -372,9 +632,38 @@ export function bankAndPass(state) {
     variant = "success";
   }
 
-  // Check win
-  const winner = newPlayers[state.currentIndex].score >= TARGET_SCORE
-    ? newPlayers[state.currentIndex]
+  // Pending Shark Bite resolves on the MARKED opponent's bank only:
+  // eat that round's banked points (never the caster's own bank).
+  let sharkBiteFx = false;
+  if (pendingSharkBite) {
+    const casterIdx = typeof sharkMark?.from === "number" ? sharkMark.from : null;
+    const selfMarked = casterIdx === finishedIdx;
+    if (selfMarked) {
+      // Bad mark on the caster — keep their bank; finishBankedTurn clears the mark.
+      if (amountAdded > 0) {
+        message = `${player.name} banked ${amountAdded.toLocaleString()}!`;
+        variant = "success";
+      }
+    } else if (amountAdded > 0) {
+      const afterBank = newPlayers[finishedIdx];
+      newPlayers[finishedIdx] = {
+        ...afterBank,
+        score: Math.max(0, afterBank.score - amountAdded),
+        onBoard: wasOnBoard,
+      };
+      message = `🦈 Shark ate ${player.name}'s bank (−${amountAdded.toLocaleString()})!`;
+      variant = "danger";
+      sharkBiteFx = true;
+    } else {
+      message = `🦈 Shark struck as ${player.name} banked — nothing to eat.`;
+      variant = "danger";
+      sharkBiteFx = true;
+    }
+  }
+
+  // Check win (after any shark steal so a bitten bank can't claim the win)
+  const winner = newPlayers[finishedIdx].score >= TARGET_SCORE
+    ? newPlayers[finishedIdx]
     : null;
 
   if (winner) {
@@ -382,17 +671,52 @@ export function bankAndPass(state) {
       ...state,
       players: newPlayers,
       winner,
+      sharkBiteFx: false,
+      sharkDiceHidden: false,
+      sharkFishFeast: false,
+      sharkFishFeastTargetIdx: null,
       message: `🎉 ${winner.name} wins with ${winner.score.toLocaleString()}!`,
       messageVariant: "success",
     };
   }
 
-  // Sabotage debuffs on the banker clear; power charge carries to their next turn.
-  const finishedIdx = state.currentIndex;
-  const chargeSaved = !!newPlayers[finishedIdx]?.powerCharge && !state.skinPowerUsedThisTurn;
+  // Sabotage debuffs on the banker clear; power charge carries to their next turn
+  // until they fire their secret power (bust alone does not consume charge).
+  const chargeSaved =
+    !!newPlayers[finishedIdx]?.powerCharge && !state.skinPowerUsedThisTurn;
   const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx, {
     skinPowerUsedThisTurn: state.skinPowerUsedThisTurn,
   });
+
+  const storyIce = state.storyIceFreeze;
+  if (storyIce && finishedIdx === storyIce.casterIdx) {
+    const stayMessage =
+      amountAdded > 0
+        ? `${message} ❄️ Enemy still frozen — roll or bank again!`
+        : `${message} ❄️ Enemy still frozen!`;
+    return {
+      ...state,
+      players: playersAfterBank,
+      currentIndex: storyIce.casterIdx,
+      dice: makeFreshDice(),
+      turnScore: 0,
+      hasRolled: false,
+      farkle: false,
+      farkleTurnScore: null,
+      pendingPrisonRelease: null,
+      perfectTenKPending: false,
+      turnScoreMultiplier: 1,
+      doubleOrNothing: false,
+      luckyRollNext: false,
+      sharkBiteFx: false,
+      sharkDiceHidden: false,
+      sharkFishFeast: false,
+      sharkFishFeastTargetIdx: null,
+      ...turnPowerReset(),
+      message: stayMessage,
+      messageVariant: variant,
+    };
+  }
 
   const nextIndex = (finishedIdx + 1) % state.players.length;
   const bankMessage = chargeSaved ? `${message} ⚡ Power charge saved for your next turn.` : message;
@@ -404,10 +728,18 @@ export function bankAndPass(state) {
     turnScore: 0,
     hasRolled: false,
     farkle: false,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
     perfectTenKPending: false,
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     luckyRollNext: false,
+    sharkBiteFx,
+    // Dice stay gone through FX; cleared when FX completes / next round is ready.
+    sharkDiceHidden: sharkBiteFx,
+    // Bank-steal Shark Bite is not Feeding Frenzy.
+    sharkFishFeast: false,
+    sharkFishFeastTargetIdx: null,
     ...turnPowerReset(),
     message: `${bankMessage} ${playersAfterBank[nextIndex].name}'s turn.`,
     messageVariant: variant,
@@ -418,14 +750,18 @@ export function bankAndPass(state) {
 export function passAfterFarkle(state) {
   const bustedIdx = state.currentIndex;
   const nextIndex = (state.currentIndex + 1) % state.players.length;
+  const busted = state.players[bustedIdx];
+  // Shark Bite waits for a bank — survive farkle clears. Other debuffs drop.
+  const keepShark = sharkBiteDebuffOnly(busted);
+  // Bust alone does not consume power charge — only firing does (consumeSkinPower).
   let players = state.players.map((p, i) =>
-    i === bustedIdx ? { ...p, debuffs: [], powerCharge: false } : p
+    i === bustedIdx ? { ...p, debuffs: keepShark } : p
   );
   // Fired a power then busted — sabotage effects you cast are lost.
   if (state.skinPowerUsedThisTurn) {
     players = clearDebuffsFromCaster(players, bustedIdx);
   }
-  return {
+  let nextState = {
     ...state,
     players,
     currentIndex: nextIndex,
@@ -433,14 +769,26 @@ export function passAfterFarkle(state) {
     turnScore: 0,
     hasRolled: false,
     farkle: false,
+    farkleTurnScore: null,
+    pendingPrisonRelease: null,
     perfectTenKPending: false,
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     luckyRollNext: false,
+    // Fresh turn for the next player — restore tray dice if a prior bite hid them.
+    sharkDiceHidden: false,
+    sharkBiteFx: false,
     ...turnPowerReset(),
     message: `${players[nextIndex].name}'s turn — roll the dice!`,
     messageVariant: "info",
   };
+  if (state.skinPowerUsedThisTurn) {
+    nextState = clearPrisonFromCaster(nextState, bustedIdx);
+  }
+  if (state.storyIceFreeze && bustedIdx === state.storyIceFreeze.casterIdx) {
+    nextState = clearStoryIceFreeze(nextState);
+  }
+  return nextState;
 }
 
 /** Player indices whose scores should show as hidden (sabotage debuffs). */

@@ -141,13 +141,22 @@ function AuroraOverlay() {
 }
 
 function HolographicOverlay() {
+  const gradient =
+    "linear-gradient(135deg, #ff8ad6, #7fb6ff, #5bf0c2, #ffe04a, #ff8ad6)";
   return (
     <Layer>
+      {/* Full-bleed base — keeps shimmer under outer dice */}
+      <div
+        className="absolute inset-0 opacity-55 mix-blend-color-dodge"
+        style={{ background: gradient }}
+      />
       <motion.div
-        className="absolute inset-0 opacity-60 mix-blend-color-dodge"
+        className="absolute inset-0 opacity-50 mix-blend-color-dodge"
         style={{
-          background: "linear-gradient(135deg, #ff8ad6, #7fb6ff, #5bf0c2, #ffe04a, #ff8ad6)",
-          backgroundSize: "300% 300%",
+          background: gradient,
+          backgroundSize: "200% 200%",
+          transform: "scale(1.14)",
+          transformOrigin: "center center",
         }}
         animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
         transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
@@ -197,23 +206,78 @@ function TronGridOverlay({ compact }) {
   );
 }
 
-function MatrixRainOverlay({ compact }) {
-  const cols = compact ? 6 : 10;
+const MATRIX_RAIN_TEXT = "ANDREW GRAY";
+const MATRIX_RAIN_DURATION = 2.2;
+
+/** Deterministic shuffle so adjacent columns don't share related phases (no wave). */
+function matrixRainPhases(count, period) {
+  const phases = Array.from({ length: count }, (_, i) => (i / count) * period);
+  let s = 7919;
+  const rand = () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+  for (let i = count - 1; i > 0; i -= 1) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = phases[i];
+    phases[i] = phases[j];
+    phases[j] = tmp;
+  }
+  return phases;
+}
+
+function matrixRainChar(col, row) {
+  // Irregular column start — avoids diagonal letter bands.
+  const start = (col * 17 + ((col * col * 3) % 11) + 5) % MATRIX_RAIN_TEXT.length;
+  return MATRIX_RAIN_TEXT[(start + row) % MATRIX_RAIN_TEXT.length];
+}
+
+function MatrixRainOverlay({ compact, intense = false }) {
+  const cols = compact ? (intense ? 40 : 33) : intense ? 78 : 63;
+  const rows = compact ? (intense ? 18 : 14) : intense ? 30 : 22;
+  const duration = intense ? 1.25 : MATRIX_RAIN_DURATION;
+  const phases = matrixRainPhases(cols, duration);
   return (
-    <Layer className="overflow-hidden opacity-70">
-      {Array.from({ length: cols }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute font-mono text-[6px] text-green-400 leading-none"
-          style={{ left: `${(i / cols) * 100}%`, textShadow: "0 0 4px #22c55e" }}
-          animate={{ top: ["-20%", "120%"] }}
-          transition={{ duration: 1.2 + (i % 4) * 0.3, repeat: Infinity, delay: i * 0.12, ease: "linear" }}
-        >
-          {Array.from({ length: compact ? 6 : 10 }).map((__, j) => (
-            <div key={j}>{(i + j) % 2 ? "1" : "0"}</div>
-          ))}
-        </motion.div>
-      ))}
+    <Layer className={`overflow-hidden ${intense ? "opacity-95" : "opacity-80"}`}>
+      {Array.from({ length: cols }).map((_, i) => {
+        const bright = ((i * 13 + 7) % 9) === 0;
+        return (
+          <motion.div
+            key={i}
+            className="absolute font-mono font-bold text-[6px] text-green-400 leading-none uppercase select-none"
+            style={{
+              left: `${(i / cols) * 100}%`,
+              textShadow: "0 0 5px #22c55e",
+              letterSpacing: "0.04em",
+              color: bright ? "#4ade80" : "#16a34a",
+            }}
+            animate={{ top: ["-40%", "130%"] }}
+            transition={{
+              duration,
+              repeat: Infinity,
+              delay: phases[i],
+              ease: "linear",
+            }}
+          >
+            {Array.from({ length: rows }).map((__, j) => {
+              const char = matrixRainChar(i, j);
+              const fade = 0.28 + ((((i * 19) + (j * 7)) % 5) * 0.1);
+              return (
+                <div
+                  key={j}
+                  style={{
+                    opacity: j === 0 ? 1 : fade,
+                    color: j === 0 ? "#ecfdf5" : undefined,
+                    minWidth: char === " " ? "0.45em" : undefined,
+                  }}
+                >
+                  {char === " " ? "\u00A0" : char}
+                </div>
+              );
+            })}
+          </motion.div>
+        );
+      })}
     </Layer>
   );
 }
@@ -775,7 +839,7 @@ const THEME_COMPONENTS = {
   solid: SolidEnhanceOverlay,
 };
 
-export default function FeltThemeOverlay({ felt, compact = false }) {
+export default function FeltThemeOverlay({ felt, compact = false, intense = false }) {
   if (!felt) return null;
   const theme = getFeltTheme(felt.id);
   if (theme === "casino") return null;
@@ -783,5 +847,5 @@ export default function FeltThemeOverlay({ felt, compact = false }) {
   const Component = THEME_COMPONENTS[theme];
   if (!Component) return null;
 
-  return <Component felt={felt} compact={compact} />;
+  return <Component felt={felt} compact={compact} intense={intense} />;
 }

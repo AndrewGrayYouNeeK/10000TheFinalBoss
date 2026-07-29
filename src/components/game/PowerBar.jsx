@@ -3,34 +3,34 @@ import { motion } from "framer-motion";
 import { MAX_POWER } from "@/lib/powers";
 
 // Neon Power bar — fills as the player rolls, scores, hot-dices.
-// Pass `frozen` to render the depleted/iced state (Freeze sabotage).
-export default function PowerBar({ power = 0, frozen = false, label = "POWER" }) {
+// Pass `frozen` to render the depleted/iced state (power-bar Freeze sabotage — not Score Freeze).
+export default function PowerBar({ power = 0, frozen = false, label = "POWER", compact = false }) {
   const pct = Math.max(0, Math.min(100, (power / MAX_POWER) * 100));
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-1">
+      <div className={`flex items-center justify-between ${compact ? "mb-0.5" : "mb-1"}`}>
         <span
-          className="text-[9px] font-black uppercase tracking-[0.3em]"
+          className={`font-black uppercase ${compact ? "text-[7px] tracking-[0.22em]" : "text-[9px] tracking-[0.3em]"}`}
           style={{
             color: frozen ? "#00d4ff" : "#00ffc8",
-            textShadow: frozen ? "0 0 6px #00d4ff" : "0 0 6px rgba(0,255,200,0.6)",
+            textShadow: frozen ? "0 0 6px #00d4ff" : "0 0 6px rgba(0,255,200,0.8)",
           }}
         >
-          ▸ {frozen ? "FROZEN" : label}
+          ▸ {frozen ? "POWER FROZEN" : label}
         </span>
         <span
-          className="text-xs font-black tabular-nums"
+          className={`font-black tabular-nums ${compact ? "text-[9px]" : "text-xs"}`}
           style={{
             color: "#fff",
-            textShadow: "0 0 6px rgba(0,255,200,0.7)",
+            textShadow: "0 0 6px rgba(0,255,200,0.8)",
           }}
         >
           {Math.floor(power)}/{MAX_POWER}
         </span>
       </div>
       <div
-        className="relative h-3 rounded-full overflow-hidden border"
+        className={`relative rounded-full overflow-hidden border ${compact ? "h-1.5" : "h-3"}`}
         style={{
           background: "rgba(0,0,0,0.6)",
           borderColor: frozen ? "rgba(0,212,255,0.5)" : "rgba(0,255,200,0.4)",

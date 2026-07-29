@@ -1,4 +1,5 @@
-import { getPower, BASE_POWERS, SABO_POWERS } from "@/lib/powers";
+import { getPower, BASE_POWERS, SABO_POWERS, POWER_MODE_HOT_DICE } from "@/lib/powers";
+import { normalizeSkinId } from "@/lib/shopCatalog";
 import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
 
 /**
@@ -6,19 +7,20 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  * ─────────────────────
  * Edit SKIN_POWER_MAP to assign any power id from src/lib/powers.js to a dice skin.
  *
- * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | siphon
- * Sabo powers:  freeze | lockout | blackout | static | xray | overtime
+ * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | siphon | plasma_cut
+ * Sabo powers:  freeze | freeze_score | lockout | blackout | static | xray | overtime | prison_dice | shark_bite
  *
  * Example:
- *   ghost: (mimic — copies opponent's pretend skin; no fixed power)
+ *   ghost: (bare — mimics opponent; disguised — uses disguise skin power)
  *   matrix: "static",    // blinds opponent's own score until they bust
+ *   blue_gel: "shark_bite", // shark eats opponent's next bank
  *
  * Skins not listed here get a stable random power from BASE_POWERS.
  */
 const SKIN_POWER_MAP = {
   // ── Self buffs ──
   lava: "hot_streak",
-  tesla: "lucky_seven",
+  ragnarok: "hot_streak",
   matrix: "lucky_seven",
   pf_matrix_storm: "lucky_seven",
   pf_binary_storm: "lucky_seven",
@@ -28,11 +30,12 @@ const SKIN_POWER_MAP = {
   gold: "hot_streak",
   toxic_plasma_v2: "double_or_nothing",
   pf_bug_zapper: "reroll",
-  pf_core_burst: "double_or_nothing",
+  pf_plasma_cut: "plasma_cut",
+  pf_core_burst: "prison_dice",
   pf_soundwave: "lucky_seven",
   pf_score_meter: "overtime",
   snow_globe: "shield",
-  blue_gel: "reroll",
+  blue_gel: "shark_bite",
   amber_wasp: "siphon",
   circuit_board: "reroll",
   neon_grid: "hot_streak",
@@ -40,7 +43,8 @@ const SKIN_POWER_MAP = {
   // ── Sabotage (hide / disrupt opponent score) ──
   // ghost: no fixed power — mimics opponent's pretend skin (see ghostDisguise.js)
   pf_xray: "xray",
-  toxic_plasma: "freeze",
+  toxic_plasma: "freeze", // power-bar freeze (Radiation)
+  ice: "freeze_score", // Frozen Ice — lock opponent's banked score
   obsidian: "lockout",
 };
 
@@ -50,17 +54,23 @@ export function isCustomDiceSkin(skinId) {
 
 /** Each equipped skin carries one secret power (stable per skin id). */
 export function getSkinPower(skinId) {
-  const mapped = SKIN_POWER_MAP[skinId];
+  const id = normalizeSkinId(skinId || "classic_white");
+  const mapped = SKIN_POWER_MAP[id];
   if (mapped) return getPower(mapped);
 
   let h = 0;
-  for (let i = 0; i < skinId.length; i++) h = (h * 31 + skinId.charCodeAt(i)) | 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   const pool = [...BASE_POWERS, ...SABO_POWERS];
   return pool[Math.abs(h) % pool.length];
 }
 
-/** All power ids you can assign in SKIN_POWER_MAP (for dev tooling). */
+/** Assignable power ids (for dev tooling). */
 export const ASSIGNABLE_SKIN_POWER_IDS = [
   ...BASE_POWERS.map((p) => p.id),
   ...SABO_POWERS.map((p) => p.id),
 ];
+
+/** Hot dice clears needed this turn before earning a power charge. */
+export function getPowerChargeHotDiceThreshold(_player) {
+  return POWER_MODE_HOT_DICE;
+}

@@ -1,0 +1,8 @@
+{
+  "outSize": 507,
+  "contentSize": 325,
+  "pad": 91,
+  "padFrac": 0.1794871794871795,
+  "note": "padFrac = pad/outSize; body scaled to cover content square; drips in pad",
+  "placement": "body-center scale-to-cover"
+}

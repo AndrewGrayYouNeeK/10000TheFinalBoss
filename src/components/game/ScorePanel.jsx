@@ -3,9 +3,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LevelBadge from "@/components/online/LevelBadge";
+import PlayerAvatarVideo from "@/components/game/PlayerAvatarVideo";
 import { normalizeXrayFindings } from "@/lib/xrayScan";
 
-export default function ScorePanel({ players, currentIndex, target = 10000, obscuredIndices = null, xrayReveals = {} }) {
+export default function ScorePanel({
+  players,
+  currentIndex,
+  target = 10000,
+  obscuredIndices = null,
+  xrayReveals = {},
+  showPlayerAvatars = false,
+  /** Player indices whose ⚡ charge badge should not render (pass-and-play shield). */
+  hidePowerChargeForIndices = null,
+}) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {players.map((p, i) => {
@@ -47,6 +57,15 @@ export default function ScorePanel({ players, currentIndex, target = 10000, obsc
             )}
 
             <div className="flex items-center gap-2 mb-1 relative">
+              {showPlayerAvatars && (
+                <PlayerAvatarVideo
+                  playerIndex={i}
+                  playerCount={players.length}
+                  label={p.name}
+                  active={active}
+                  sizeClass="w-9 h-9"
+                />
+              )}
               {active && (
                 <Zap
                   className="w-4 h-4 animate-pulse"
@@ -63,7 +82,16 @@ export default function ScorePanel({ players, currentIndex, target = 10000, obsc
                 <LevelBadge level={p.level} tierId={p.tierId ?? 0} size="xs" />
               )}
               <div className="flex items-center gap-1 ml-auto shrink-0">
-                {p.powerCharge && (
+                {(p.debuffs || []).some((d) => (typeof d === "string" ? d : d.id) === "freeze_score") && (
+                  <span
+                    className="text-[9px] font-black uppercase tracking-wider"
+                    style={{ color: "#7dd3fc", textShadow: "0 0 6px rgba(125,211,252,0.85)" }}
+                    title="Banked score frozen this turn"
+                  >
+                    🧊 Score Frozen
+                  </span>
+                )}
+                {p.powerCharge && !hidePowerChargeForIndices?.has?.(i) && (
                   <span
                     className="text-[9px] font-black uppercase tracking-wider"
                     style={{ color: "#ffb347", textShadow: "0 0 6px rgba(255,107,0,0.8)" }}

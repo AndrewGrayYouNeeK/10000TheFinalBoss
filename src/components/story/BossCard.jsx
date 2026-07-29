@@ -4,7 +4,7 @@ import { Lock, Check, Crown, Coins, Sparkles } from "lucide-react";
 import { getSkin } from "@/lib/shopCatalog";
 import BossAvatar from "./BossAvatar";
 
-export default function BossCard({ boss, unlocked, defeated, onClick, index }) {
+export default function BossCard({ boss, unlocked, defeated, active = false, onClick, index }) {
   const skinName = boss.rewards.skin ? getSkin(boss.rewards.skin)?.name : null;
 
   return (
@@ -19,10 +19,16 @@ export default function BossCard({ boss, unlocked, defeated, onClick, index }) {
       className="w-full text-left rounded-2xl border p-4 transition-all relative overflow-hidden"
       style={{
         background: unlocked ? "rgba(8,2,20,0.65)" : "rgba(8,2,20,0.35)",
-        borderColor: unlocked ? "rgba(0,255,200,0.35)" : "rgba(100,100,120,0.25)",
-        boxShadow: unlocked
-          ? `0 0 18px rgba(0,255,200,0.15), inset 0 0 0 1px rgba(255,255,255,0.04)`
-          : "none",
+        borderColor: active
+          ? "rgba(0,255,200,0.75)"
+          : unlocked
+            ? "rgba(0,255,200,0.35)"
+            : "rgba(100,100,120,0.25)",
+        boxShadow: active
+          ? "0 0 24px rgba(0,255,200,0.35), inset 0 0 0 1px rgba(255,255,255,0.08)"
+          : unlocked
+            ? "0 0 18px rgba(0,255,200,0.15), inset 0 0 0 1px rgba(255,255,255,0.04)"
+            : "none",
         opacity: unlocked ? 1 : 0.55,
         cursor: unlocked ? "pointer" : "not-allowed",
       }}
@@ -50,6 +56,11 @@ export default function BossCard({ boss, unlocked, defeated, onClick, index }) {
             {defeated && (
               <span className="text-[10px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5">
                 <Check className="w-3 h-3" /> Cleared
+              </span>
+            )}
+            {active && !defeated && (
+              <span className="text-[10px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-200 border border-cyan-400/50">
+                Current
               </span>
             )}
           </div>

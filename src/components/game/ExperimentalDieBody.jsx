@@ -1,20 +1,28 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { getDieSquircleClipStyle } from "@/lib/dieSquircleClip";
 import PortfolioDieEffect from "./portfolio/PortfolioEffects";
 
 /** Renders procedural body for experimental / preview dice from skin.style config */
-export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, layout, size = 64, dieSeed = 0 }) {
+export default function ExperimentalDieBody({
+  style,
+  scoreFill = 0.5,
+  layout,
+  size = 64,
+  dieSeed = 0,
+  frozen = false,
+}) {
   if (!style) return null;
 
   if (style.effectId) {
     return (
       <PortfolioDieEffect
         effectId={style.effectId}
-        radius={radius}
         scoreFill={scoreFill}
         layout={layout}
         size={size}
         dieSeed={dieSeed}
+        frozen={frozen}
       />
     );
   }
@@ -31,7 +39,7 @@ export default function ExperimentalDieBody({ style, radius, scoreFill = 0.5, la
     phantomPulse = false,
   } = style;
 
-  const base = { borderRadius: radius };
+  const base = getDieSquircleClipStyle(size);
   const phantomTransition = {
     duration: 4.2,
     repeat: Infinity,

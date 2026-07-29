@@ -33,7 +33,7 @@ export const SKIN_TIERS = {
   // Gold (tier 2)
   gold: 2,
   silver: 2,
-  lava: 2,
+  ragnarok: 2,
   fluorite: 2,
   labradorite: 2,
   labradorite_polished: 2,
@@ -48,7 +48,6 @@ export const SKIN_TIERS = {
   love_is_love: 4,
   galaxy: 4,
   dragon_scale: 4,
-  tesla: 4,
   circuit_board: 4,
   amber_wasp: 4,
   toxic_plasma_v2: 4,
@@ -128,6 +127,28 @@ export const isSkinAchievementOnly = (skinId) => {
 export function getSkinEffectivePrice(skin, xp = 0) {
   if (isSkinUnlockedByTier(skin.id, xp)) return skin.price;
   return skin.price * TIER_SHORTCUT_MULTIPLIER;
+}
+
+/**
+ * ONLINE SKIN LEVELS (future — not wired to local gameplay)
+ * ───────────────────────────────────────────────────────────
+ * Each owned skin gets an independent level 1–100 in online PvP.
+ * Higher level = stronger dice (e.g. faster charge threshold, roll bonuses).
+ * Needs: server-synced `skin_levels`, match payload, server-side validation.
+ * Local stub: `localProfile.skin_levels` + getSkinPowerLevel() below.
+ */
+export const MAX_SKIN_POWER_LEVEL = 100;
+export const DEFAULT_SKIN_POWER_LEVEL = 1;
+
+/** Per-skin power level 1–100 (online stub; defaults to 1). */
+export function getSkinPowerLevel(skinId, skinLevels = {}) {
+  const raw = skinLevels?.[skinId];
+  const level = Number(raw);
+  if (!Number.isFinite(level)) return DEFAULT_SKIN_POWER_LEVEL;
+  return Math.min(
+    MAX_SKIN_POWER_LEVEL,
+    Math.max(DEFAULT_SKIN_POWER_LEVEL, Math.floor(level))
+  );
 }
 
 // XP rewards
