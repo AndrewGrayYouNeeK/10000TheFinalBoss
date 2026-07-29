@@ -34,6 +34,7 @@ import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
 import { buildGamePlayerSkins, resolvePlayerPower, getSkinLabel } from "@/lib/ghostDisguise";
+import { isLowPowerDevice } from "@/lib/platform";
 
 export default function Game() {
   const navigate = useNavigate();
