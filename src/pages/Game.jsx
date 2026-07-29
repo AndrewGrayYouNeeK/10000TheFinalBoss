@@ -137,10 +137,21 @@ export default function Game() {
     [ghostDisguiseId, ownedSkins]
   );
 
+  // Prefer the current seat's power; if they banked a charge for later, keep showing
+  // the first seated player who still holds a charge (power stays on until fire).
+  const powerUiPlayerIndex = (() => {
+    if (!state?.players?.length) return 0;
+    const cur = state.currentIndex ?? 0;
+    if (state.players[cur]?.powerCharge) return cur;
+    const held = state.players.findIndex((p) => p?.powerCharge);
+    return held >= 0 ? held : cur;
+  })();
   const resolvedPower = state
-    ? resolvePlayerPower(state, state.currentIndex, ghostOptions)
+    ? resolvePlayerPower(state, powerUiPlayerIndex, ghostOptions)
     : null;
   const skinPower = resolvedPower?.power ?? null;
+  const canFirePowerNow =
+    !!state && powerUiPlayerIndex === state.currentIndex;
 
   const onlineView = useOnlineGameView({
     enabled: onlineMockActive,
@@ -324,7 +335,8 @@ export default function Game() {
   }, [state?.hotDiceCount, state?.farkle, addXp, state]);
 
   const onFireSkinPower = () => {
-    if (!state || !skinPower || !state.players[state.currentIndex]?.powerCharge) return;
+    if (!state || !skinPower || !canFirePowerNow) return;
+    if (!state.players[state.currentIndex]?.powerCharge) return;
     if (!canAfford(MAX_POWER, skinPower.id)) return;
     const debuffs = state.players[state.currentIndex]?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
@@ -604,15 +616,24 @@ export default function Game() {
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
   const scoreFill = Math.min(1, (currentPlayer.score + effectiveTurnScore) / 10000);
   const obscuredScores = getObscuredScoreIndices(displayState);
-  const powerLocked = (currentPlayer.debuffs || []).some(
+  const powerPanelPlayer = displayState.players[powerUiPlayerIndex] || currentPlayer;
+  const powerLocked = (powerPanelPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "lockout"
   );
-  const powerFrozen = (currentPlayer.debuffs || []).some(
+  const powerFrozen = (powerPanelPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze"
   );
   const plasmaCutRescue =
-    skinPower?.id === "plasma_cut" && !!currentPlayer?.powerCharge && state.farkle;
-  const powerModeActive = isPlayerPowerModeActive(displayState, displayState.currentIndex);
+    skinPower?.id === "plasma_cut" &&
+    !!currentPlayer?.powerCharge &&
+    state.farkle &&
+    canFirePowerNow;
+  // Panel stays on while anyone holds a saved charge; tray VFX only on the active seat's dice.
+  const powerModeActive = isPlayerPowerModeActive(displayState, powerUiPlayerIndex);
+  const traySeatPowerMode = isPlayerPowerModeActive(
+    displayState,
+    displayState.currentIndex
+  );
 
   const lowPower = isLowPowerDevice();
   const practiceVariant =
@@ -628,9 +649,9 @@ export default function Game() {
         : practiceVariant === "ice"
           ? getPower("freeze_score")
           : null;
-  // Dice tray power VFX when charged (or practice preview). Shark Bite stays turn-local.
+  // Dice tray power VFX when the active seat is charged (or practice preview).
   const trayPowerMode =
-    powerModeActive ||
+    traySeatPowerMode ||
     (practicePowerPreview && !!practiceVariant);
   const trayIceFrozen = (currentPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze_score"
@@ -822,9 +843,11 @@ export default function Game() {
           powerMode={showPowerPanel}
           used={false}
           locked={powerLocked}
-          disabled={powerFrozen || practicePowerPreview}
+          disabled={powerFrozen || practicePowerPreview || !canFirePowerNow}
           frozen={powerFrozen}
-          onFire={practicePowerPreview ? undefined : onFireSkinPower}
+          onFire={
+            practicePowerPreview || !canFirePowerNow ? undefined : onFireSkinPower
+          }
           isGhostMimic={resolvedPower?.isMimic}
           mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
           mimicFromName={resolvedPower?.sourcePlayerName}

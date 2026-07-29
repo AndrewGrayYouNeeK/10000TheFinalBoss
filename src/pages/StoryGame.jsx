@@ -937,8 +937,9 @@ export default function StoryGame() {
   const plasmaCutRescue =
     myTurn && skinPower?.id === "plasma_cut" && !!playerCharge && game.farkle;
   const storyPlayerPowerMode = isPlayerPowerModeActive(game, STORY_PLAYER_INDEX);
-  const powerModeActive =
-    storyPlayerPowerMode && (storyIceReady || myTurn);
+  // Keep the power panel on across banks / enemy turns until the charge is fired.
+  const powerModeActive = storyPlayerPowerMode;
+  const canFirePowerNow = storyIceReady || myTurn;
   const isSaboPower = skinPower?.kind === "sabo";
   const frozenTargetIdx = game?.storyIceFreeze?.targetIdx;
   const showFrozenEnemyDice =
@@ -984,7 +985,7 @@ export default function StoryGame() {
         : practiceVariant === "ice"
           ? getPower("frosty_ice")
           : null;
-  // Dice tray power VFX when charged on your turn (or practice preview).
+  // Dice tray power VFX when YOUR dice are on the tray and charged (or practice preview).
   const trayPlayerPowerMode = storyPlayerPowerMode && myTurn;
   const trayPowerMode =
     !diceRolling &&
@@ -1101,9 +1102,17 @@ export default function StoryGame() {
             powerMode={panelPowerMode}
             used={false}
             locked={powerLocked}
-            disabled={(powerFrozen && !storyIceReady) || practicePowerPreview}
+            disabled={
+              (powerFrozen && !storyIceReady) ||
+              practicePowerPreview ||
+              !canFirePowerNow
+            }
             frozen={powerFrozen}
-            onFire={practicePowerPreview ? undefined : onFireSkinPower}
+            onFire={
+              practicePowerPreview || !canFirePowerNow
+                ? undefined
+                : onFireSkinPower
+            }
             hidePowerName={isSaboPower && !storyIceFight}
             isGhostMimic={resolvedPower?.isMimic}
             mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}

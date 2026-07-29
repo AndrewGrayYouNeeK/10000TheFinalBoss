@@ -39,7 +39,8 @@ function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false 
   if (!p) return players;
   const next = [...players];
   // Charge survives banking. Only firing consumes it (consumeSkinPower).
-  const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
+  // Never drop a held charge on bank — skinPowerUsedThisTurn means they already fired.
+  const keepCharge = skinPowerUsedThisTurn ? false : !!p.powerCharge;
   next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
   return next;
 }
