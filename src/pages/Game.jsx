@@ -521,12 +521,23 @@ export default function Game() {
       const info = getHeldInfo(s);
       const points = heldSelectionPoints(info, s.perfectTenKPending);
       const player = s.players[s.currentIndex];
+      const potential = (s.turnScore ?? 0) + points;
       const allowed =
         s.hasRolled &&
         !s.farkle &&
         info.valid &&
-        points > 0;
-      if (!allowed) return s;
+        points > 0 &&
+        (player.onBoard || potential >= ENTRY_THRESHOLD);
+      if (!allowed) {
+        if (!player.onBoard && points > 0 && potential < ENTRY_THRESHOLD) {
+          return {
+            ...s,
+            message: `Need 1,000 to get on the board — keep rolling!`,
+            messageVariant: "warning",
+          };
+        }
+        return s;
+      }
       const prevScore = player.score;
       const prevName = player.name;
       const next = bankAndPass(s);
@@ -589,7 +600,8 @@ export default function Game() {
     displayState.hasRolled &&
     !displayState.farkle &&
     info.valid &&
-    heldPoints > 0;
+    heldPoints > 0 &&
+    (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
   const scoreFill = Math.min(1, (currentPlayer.score + effectiveTurnScore) / 10000);
   const obscuredScores = getObscuredScoreIndices(displayState);
   const powerLocked = (currentPlayer.debuffs || []).some(

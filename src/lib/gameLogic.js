@@ -610,9 +610,12 @@ export function bankAndPass(state) {
     message = `🧊 ${player.name}'s score is frozen — bank had no effect!`;
     variant = "warning";
   } else if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
-    // Didn't make entry
-    message = `${player.name} needs 1,000 to get on the board. Banked 0.`;
-    variant = "warning";
+    // Under entry — reject without ending the turn so they can keep rolling
+    return {
+      ...state,
+      message: `${player.name} needs 1,000 to get on the board — keep rolling!`,
+      messageVariant: "warning",
+    };
   } else if (player.score + finalTurn > TARGET_SCORE) {
     // Overshoot — must land exactly on 10,000
     message = `💥 Overshoot! ${player.name} needed exactly ${TARGET_SCORE - player.score} — banked 0.`;

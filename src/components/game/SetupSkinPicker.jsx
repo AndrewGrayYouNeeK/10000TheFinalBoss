@@ -44,33 +44,15 @@ export default function SetupSkinPicker({
     selectedDisguiseId && disguiseOptions.includes(selectedDisguiseId)
       ? selectedDisguiseId
       : null;
-  const ghostDisguised = isGhost && disguiseLocked && disguiseValue;
-  const previewId = ghostDisguised ? disguiseValue : value;
-  const showGhostBody = isGhost && !ghostDisguised;
   const showDisguisePicker =
     isGhost && !disguiseLocked && disguiseOptions.length > 0 && onDisguiseSelect;
   const disguiseName = disguiseValue ? getSkin(disguiseValue)?.name : null;
 
-  if (ghostDisguised) {
-    return (
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="shrink-0 scale-[0.72] origin-left -mr-2">
-          <DicePreview skinId={disguiseValue} size={40} compact />
-        </div>
-        <div
-          className="h-9 flex-1 min-w-0 flex items-center px-3 border-2 font-term text-sm tracking-wide text-white truncate"
-          style={triggerStyle}
-        >
-          {disguiseName || disguiseValue.replace(/_/g, " ")}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex items-start gap-2 min-w-0">
       <div className="shrink-0 scale-[0.72] origin-left -mr-2 mt-0.5">
-        <DicePreview skinId={previewId} size={40} compact resolveGhost={!showGhostBody} />
+        {/* Always show the selected look — Ghost stays spectral even after disguise */}
+        <DicePreview skinId={value} size={40} compact resolveGhost={false} />
       </div>
       <div className="flex-1 min-w-0 space-y-1.5">
         <Select value={value} onValueChange={onSelect}>
@@ -78,7 +60,7 @@ export default function SetupSkinPicker({
             className="h-9 w-full border-2 font-term text-sm tracking-wide text-white focus:ring-0 focus:ring-offset-0 [&>svg]:text-cyan-300/70"
             style={triggerStyle}
           >
-            <SelectValue placeholder="Pick dice skin" />
+            <SelectValue placeholder="Pick dice look" />
           </SelectTrigger>
           <SelectContent
             className="z-50 border-2 font-term text-white"
@@ -114,7 +96,7 @@ export default function SetupSkinPicker({
                 boxShadow: "inset 0 0 8px rgba(0,255,200,0.12)",
               }}
             >
-              <SelectValue placeholder="Pick dice look" />
+              <SelectValue placeholder="Pick disguise" />
             </SelectTrigger>
             <SelectContent
               className="z-50 border-2 font-term text-white"
@@ -136,6 +118,19 @@ export default function SetupSkinPicker({
               })}
             </SelectContent>
           </Select>
+        ) : null}
+
+        {isGhost && disguiseLocked && disguiseName ? (
+          <div
+            className="h-8 flex items-center px-3 border font-term text-xs tracking-wide text-white/80 truncate"
+            style={{
+              ...triggerStyle,
+              borderColor: "rgba(0,255,200,0.35)",
+              boxShadow: "inset 0 0 8px rgba(0,255,200,0.12)",
+            }}
+          >
+            Disguise: {disguiseName}
+          </div>
         ) : null}
       </div>
     </div>

@@ -27,14 +27,19 @@ export function getPretendSkin(player, options) {
   return normalizeSkinId(player.skinId || "classic_white");
 }
 
-/** Dice on the table — Ghost shows its chosen disguise (not the invisible ghost body). */
-export function getDisplaySkinId(player, options) {
-  return getPretendSkin(player, options);
+/**
+ * Dice on the table — always the player's real skinId.
+ * Ghost stays spectral; disguise (`trueSkinId`) is for powers / privacy only.
+ */
+export function getDisplaySkinId(player, _options) {
+  if (!player) return "classic_white";
+  return normalizeSkinId(player.skinId || "classic_white");
 }
 
-/** Equipped/home previews — render Ghost as its chosen disguise (not the spectral body). */
-export function resolveDiceSkinId(skinId, { ghostDisguiseId = null, ownedSkins = [] } = {}) {
+/** Equipped/home previews — keep Ghost spectral unless caller opts into disguise. */
+export function resolveDiceSkinId(skinId, { ghostDisguiseId = null, ownedSkins = [], asDisguise = false } = {}) {
   if (skinId !== GHOST_SKIN_ID) return normalizeSkinId(skinId);
+  if (!asDisguise) return GHOST_SKIN_ID;
   return normalizeSkinId(ghostDisguiseId || pickTrueSkinForGhost(ownedSkins));
 }
 
@@ -176,7 +181,8 @@ export function primaryOpponentIndex(state, playerIndex = state?.currentIndex ??
 
 /**
  * Resolve the secret power a player will fire.
- * All players (including Ghost) use the dice skin shown on the table (getDisplaySkinId).
+ * Non-Ghost: power from their real skin (getDisplaySkinId).
+ * Ghost + disguise: power from disguise (trueSkinId), not the spectral body.
  * Bare Ghost (no disguise) mimics the opponent's pretend skin.
  * Story overrides may set player.chargePowerId (e.g. Frosty arc, Marlin boss).
  */

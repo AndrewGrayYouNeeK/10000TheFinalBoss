@@ -24,7 +24,7 @@ export default function DicePreview({
   const { equippedFeltId, ghostDisguiseId, ownedSkins } = useCosmetics();
   const felt = getFelt(equippedFeltId);
   const renderSkinId = resolveGhost
-    ? resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins })
+    ? resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins, asDisguise: true })
     : skinId;
   const previewValue =
     renderSkinId === "blue_gel" ? 1 : isAquariumOverlaySkinId(renderSkinId) ? 1 : value;
