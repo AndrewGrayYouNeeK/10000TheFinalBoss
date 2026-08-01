@@ -517,6 +517,9 @@ function CropSliders({ label, crop, onChange, accent = "amber", disabled = false
   );
 }
 
+const FACE_NUDGE_SLIDER_MIN = -100;
+const FACE_NUDGE_SLIDER_MAX = 100;
+
 function FaceNudgePanel({ face, nudge, onChange, onResetFace, onResetAll, modeLabel, disabled = false }) {
   const set = (key, val) => onChange({ ...nudge, [key]: val });
   return (
@@ -536,8 +539,8 @@ function FaceNudgePanel({ face, nudge, onChange, onResetFace, onResetAll, modeLa
       </div>
       <p className="text-[10px] text-slate-500">Per-die nudge in ref pixels (@ 64px die size).</p>
       {[
-        { key: "x", min: -12, max: 12, step: 0.5, label: "Nudge X" },
-        { key: "y", min: -12, max: 12, step: 0.5, label: "Nudge Y" },
+        { key: "x", min: FACE_NUDGE_SLIDER_MIN, max: FACE_NUDGE_SLIDER_MAX, step: 0.5, label: "Nudge X" },
+        { key: "y", min: FACE_NUDGE_SLIDER_MIN, max: FACE_NUDGE_SLIDER_MAX, step: 0.5, label: "Nudge Y" },
       ].map(({ key, min, max, step, label: sliderLabel }) => (
         <label key={key} className="block text-[10px] text-slate-400">
           {sliderLabel}: <span className="text-white tabular-nums">{nudge[key]?.toFixed(1)}</span>
