@@ -152,6 +152,62 @@ export function getSkinPowerLevel(skinId, skinLevels = {}) {
   );
 }
 
+/**
+ * LOCAL SKIN LEVELS (1–10) — play-time XP per equipped skin.
+ * Easy early, steep late (~3 games → L2, ~55+ cumulative → L10).
+ */
+export const LOCAL_SKIN_MAX_LEVEL = 10;
+
+/** Cumulative play XP required to reach level L (L1 = 0). */
+const LOCAL_SKIN_LEVEL_XP = [0, 3, 7, 13, 21, 30, 42, 55, 70, 88, 110];
+
+export function skinXpForLevel(level) {
+  const lv = Math.max(1, Math.min(LOCAL_SKIN_MAX_LEVEL + 1, Math.floor(Number(level) || 1)));
+  return LOCAL_SKIN_LEVEL_XP[lv - 1] ?? 0;
+}
+
+export function getLocalSkinLevelFromXp(xp = 0) {
+  const total = Math.max(0, Math.floor(Number(xp) || 0));
+  for (let lv = LOCAL_SKIN_MAX_LEVEL; lv >= 1; lv -= 1) {
+    if (total >= skinXpForLevel(lv)) return lv;
+  }
+  return 1;
+}
+
+/** Local skin power level 1–10 for owned skins (defaults to 1). */
+export function getLocalSkinPowerLevel(skinId, profile) {
+  if (!skinId) return 1;
+  const owned = profile?.owned_skins ?? ["classic_white"];
+  if (!owned.includes(skinId)) return 1;
+  const xpMap = profile?.skin_level_xp ?? {};
+  const xp = Number(xpMap[skinId]) || 0;
+  return getLocalSkinLevelFromXp(xp);
+}
+
+/** Award play XP for an equipped skin; returns profile patch maps. */
+export function addSkinPlayXp(profile, skinId, xpGain = 1) {
+  if (!skinId || !profile) {
+    return {
+      skin_level_xp: profile?.skin_level_xp ?? {},
+      skin_levels: profile?.skin_levels ?? {},
+    };
+  }
+  const owned = profile.owned_skins ?? ["classic_white"];
+  if (!owned.includes(skinId)) {
+    return {
+      skin_level_xp: profile.skin_level_xp ?? {},
+      skin_levels: profile.skin_levels ?? {},
+    };
+  }
+  const xpMap = { ...(profile.skin_level_xp ?? {}) };
+  const levels = { ...(profile.skin_levels ?? {}) };
+  const prevXp = Number(xpMap[skinId]) || 0;
+  const newXp = prevXp + Math.max(0, Math.floor(Number(xpGain) || 0));
+  xpMap[skinId] = newXp;
+  levels[skinId] = getLocalSkinLevelFromXp(newXp);
+  return { skin_level_xp: xpMap, skin_levels: levels };
+}
+
 // XP rewards
 export const XP_REWARDS = {
   finishGame: 25,

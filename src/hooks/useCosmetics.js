@@ -7,6 +7,7 @@ import {
   getSkinEffectivePrice,
   isSkinUnlockedByTier,
   isSkinAchievementOnly,
+  addSkinPlayXp,
 } from "@/lib/progression";
 import { isPreviewSkin, isCustomDiceSkin, withPreviewOwned } from "@/lib/previewSkins";
 import { isDevUnlockAll } from "@/lib/devUnlock";
@@ -63,10 +64,14 @@ export function useCosmetics() {
 
   const recordGameResult = ({ won, xpGain }) => {
     if (!user) return;
+    const skinId = user.equipped_skin || "classic_white";
+    const skinXpGain = 1 + (won ? 1 : 0);
+    const skinPatch = addSkinPlayXp(user, skinId, skinXpGain);
     updateMe.mutate({
       xp: Math.max(0, (user.xp ?? 0) + (xpGain || 0)),
       games_finished: (user.games_finished ?? 0) + 1,
       wins: (user.wins ?? 0) + (won ? 1 : 0),
+      ...skinPatch,
     });
   };
 

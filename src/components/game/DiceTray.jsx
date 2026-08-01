@@ -36,6 +36,8 @@ function DiceTray({
   onBloodWaterSettled,
   /** Show in-die shark feast on fish dice (after a fish-hunt shark bite). */
   fishFeastMode = false,
+  /** Die ids that briefly glitch when Matrix Glitch rescues a bust. */
+  matrixGlitchDieIds = [],
 }) {
   const felt = getFelt(feltId);
   const [diceEaten, setDiceEaten] = useState(false);
@@ -138,6 +140,7 @@ function DiceTray({
               bloodWaterLocked={bloodWaterLocked && !fishFeastMode}
               onBloodWaterSettled={onBloodWaterSettled}
               includeJellyfish={traySkinId === "blue_gel" && d.id === jellyDieId}
+              matrixGlitchFx={matrixGlitchDieIds.includes(d.id)}
               {...(traySkinId === "blue_gel" ? getBlueGelTrayFishProps(idx) : {})}
             />
           </motion.div>
