@@ -127,6 +127,8 @@ function Die({
   fishFeastMode = false,
   /** Online opponent view — face values withheld by server. */
   valueHidden = false,
+  /** Story Ghost — nearly invisible body; no face readout / ? badge. */
+  spectralHidden = false,
   bloodWaterLocked = false,
   onBloodWaterSettled,
   devSkin = null,
@@ -429,11 +431,22 @@ function Die({
   };
 
   const isRollingAnim = rolling && !held && !used && rollMotion;
+  // Hover-rotate + squircle clip-path leaves a rotated "ghost" of portfolio FX (Soundwave, etc.).
+  const hoverMotion =
+    !used && !(rolling && !held)
+      ? isPortfolioFx
+        ? { y: -5 }
+        : { y: -5, rotate: 3 }
+      : {};
   return (
     <motion.div
       key={dieId != null ? `die-${dieId}` : "die"}
       className="relative flex-shrink-0 overflow-visible"
-      style={{ width: size, height: size }}
+      style={{
+        width: size,
+        height: size,
+        isolation: isPortfolioFx || skin.experimental ? "isolate" : undefined,
+      }}
       initial={false}
       animate={
         isRollingAnim
@@ -464,7 +477,7 @@ function Die({
             }
       }
       whileTap={!used && !(rolling && !held) ? { scale: 0.92 } : {}}
-      whileHover={!used && !(rolling && !held) ? { y: -5, rotate: 3 } : {}}>
+      whileHover={hoverMotion}>
 
       {held && !used && (
         <div className="absolute inset-0 z-20 pointer-events-none overflow-visible">
@@ -816,7 +829,7 @@ function Die({
           <IcePowerOverlay value={value} size={size} radius={radius} allowOverflow skinId={skin.id} />
         )}
 
-        {valueHidden && (
+        {valueHidden && !spectralHidden && (
           <div
             className="absolute inset-0 z-[25] flex items-center justify-center pointer-events-none"
             style={{
@@ -828,6 +841,18 @@ function Die({
           >
             <span className="text-lg font-black text-slate-500">?</span>
           </div>
+        )}
+        {spectralHidden && (
+          <div
+            className="absolute inset-0 z-[25] pointer-events-none"
+            style={{
+              borderRadius: radius,
+              background:
+                "radial-gradient(circle at 40% 35%, rgba(165,243,252,0.12), transparent 62%)",
+              boxShadow: "inset 0 0 18px rgba(165,243,252,0.08)",
+            }}
+            aria-hidden
+          />
         )}
       </button>
       </PortfolioDieProvider>
@@ -843,6 +868,7 @@ function diePropsAreEqual(prev, next) {
   if (prev.allowXrayMorph !== next.allowXrayMorph) return false;
   if (prev.fishFeastMode !== next.fishFeastMode) return false;
   if (prev.valueHidden !== next.valueHidden) return false;
+  if (prev.spectralHidden !== next.spectralHidden) return false;
   if (prev.iceFrozenOverlay !== next.iceFrozenOverlay) return false;
   return (
     prev.value === next.value &&

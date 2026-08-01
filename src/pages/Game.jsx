@@ -45,6 +45,8 @@ import {
   getSkinLabel,
   getDisplaySkinId,
   GHOST_SKIN_ID,
+  ghostDicePrivacyActive,
+  getGhostHiddenTraySkinId,
   pickTrueSkinForGhost,
   readSessionPlayerDisguiseIds,
   readSessionPlayerSkinIds,
@@ -137,21 +139,10 @@ export default function Game() {
     [ghostDisguiseId, ownedSkins]
   );
 
-  // Prefer the current seat's power; if they banked a charge for later, keep showing
-  // the first seated player who still holds a charge (power stays on until fire).
-  const powerUiPlayerIndex = (() => {
-    if (!state?.players?.length) return 0;
-    const cur = state.currentIndex ?? 0;
-    if (state.players[cur]?.powerCharge) return cur;
-    const held = state.players.findIndex((p) => p?.powerCharge);
-    return held >= 0 ? held : cur;
-  })();
   const resolvedPower = state
-    ? resolvePlayerPower(state, powerUiPlayerIndex, ghostOptions)
+    ? resolvePlayerPower(state, state.currentIndex, ghostOptions)
     : null;
   const skinPower = resolvedPower?.power ?? null;
-  const canFirePowerNow =
-    !!state && powerUiPlayerIndex === state.currentIndex;
 
   const onlineView = useOnlineGameView({
     enabled: onlineMockActive,
@@ -253,10 +244,26 @@ export default function Game() {
     const disguise = ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
     setState((s) => {
       const p0 = s?.players?.[0];
-      if (!p0 || p0.skinId !== GHOST_SKIN_ID || p0.trueSkinId === disguise) return s;
+      if (!p0 || p0.skinId !== GHOST_SKIN_ID) return s;
+      if (!disguise || disguise === GHOST_SKIN_ID) {
+        if (p0.ghostBare && !p0.trueSkinId) return s;
+        return {
+          ...s,
+          players: s.players.map((p, i) => {
+            if (i !== 0) return p;
+            const { trueSkinId: _drop, ...rest } = p;
+            return { ...rest, ghostBare: true };
+          }),
+        };
+      }
+      if (p0.trueSkinId === disguise && !p0.ghostBare) return s;
       return {
         ...s,
-        players: s.players.map((p, i) => (i === 0 ? { ...p, trueSkinId: disguise } : p)),
+        players: s.players.map((p, i) => {
+          if (i !== 0) return p;
+          const { ghostBare: _bare, ...rest } = p;
+          return { ...rest, trueSkinId: disguise };
+        }),
       };
     });
   }, [isLoading, ghostDisguiseId, equippedSkinId, ownedSkins]);
@@ -335,8 +342,7 @@ export default function Game() {
   }, [state?.hotDiceCount, state?.farkle, addXp, state]);
 
   const onFireSkinPower = () => {
-    if (!state || !skinPower || !canFirePowerNow) return;
-    if (!state.players[state.currentIndex]?.powerCharge) return;
+    if (!state || !skinPower || !state.players[state.currentIndex]?.powerCharge) return;
     if (!canAfford(MAX_POWER, skinPower.id)) return;
     const debuffs = state.players[state.currentIndex]?.debuffs || [];
     if (debuffs.some((d) => (typeof d === "string" ? d : d.id) === "lockout")) return;
@@ -482,18 +488,29 @@ export default function Game() {
 
   const multiPlayer = (state?.players?.length ?? 0) >= 2;
   const onlineUi = onlineView.ui;
-  // Same-device pass-and-play uses handoff overlay — not online opponent-view blocking.
+  const currentPlayerForShield = state?.players?.[state?.currentIndex];
+  // Ghost + disguise only — bare/story Ghost bosses do not use privacy.
+  const currentGhostPrivacy = ghostDicePrivacyActive(currentPlayerForShield);
+  // Local pass-and-play: handoff so others look away before Ghost sees dice.
   const passPlayPrivacyActive = privacySettings.enabled && multiPlayer;
+  const ghostLocalHandoff = multiPlayer && currentGhostPrivacy && !onlineMockActive;
+  const localHandoffActive = passPlayPrivacyActive || ghostLocalHandoff;
+  // Same-device pass-and-play uses handoff overlay — not online opponent-view blocking.
   const onlineActive = onlineMockActive && !passPlayPrivacyActive && onlineView.active;
   const shieldUp = onlineActive
     ? onlineUi.opponentTurnShield
-    : passPlayPrivacyActive && revealedTurnKey !== state?.currentIndex;
+    : localHandoffActive && revealedTurnKey !== state?.currentIndex;
 
   useEffect(() => {
-    if (!passPlayPrivacyActive && state) {
+    if (!state) return;
+    // Ghost + disguise must claim the device before dice appear — never auto-reveal.
+    if (multiPlayer && !onlineMockActive && ghostDicePrivacyActive(state.players[state.currentIndex])) {
+      return;
+    }
+    if (!passPlayPrivacyActive) {
       setRevealedTurnKey(state.currentIndex);
     }
-  }, [passPlayPrivacyActive, state?.currentIndex, state]);
+  }, [passPlayPrivacyActive, multiPlayer, onlineMockActive, state?.currentIndex, state]);
 
   const onPrivacySettingsChange = useCallback(
     (next) => {
@@ -533,23 +550,14 @@ export default function Game() {
       const info = getHeldInfo(s);
       const points = heldSelectionPoints(info, s.perfectTenKPending);
       const player = s.players[s.currentIndex];
-      const potential = (s.turnScore ?? 0) + points;
+      const potential = (s.turnScore || 0) + (info.valid ? points : 0);
       const allowed =
         s.hasRolled &&
         !s.farkle &&
         info.valid &&
         points > 0 &&
-        (player.onBoard || potential >= ENTRY_THRESHOLD);
-      if (!allowed) {
-        if (!player.onBoard && points > 0 && potential < ENTRY_THRESHOLD) {
-          return {
-            ...s,
-            message: `Need 1,000 to get on the board — keep rolling!`,
-            messageVariant: "warning",
-          };
-        }
-        return s;
-      }
+        (!!player.onBoard || potential >= ENTRY_THRESHOLD);
+      if (!allowed) return s;
       const prevScore = player.score;
       const prevName = player.name;
       const next = bankAndPass(s);
@@ -616,24 +624,16 @@ export default function Game() {
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
   const scoreFill = Math.min(1, (currentPlayer.score + effectiveTurnScore) / 10000);
   const obscuredScores = getObscuredScoreIndices(displayState);
-  const powerPanelPlayer = displayState.players[powerUiPlayerIndex] || currentPlayer;
-  const powerLocked = (powerPanelPlayer.debuffs || []).some(
+  const powerLocked = (currentPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "lockout"
   );
-  const powerFrozen = (powerPanelPlayer.debuffs || []).some(
+  const powerFrozen = (currentPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze"
   );
   const plasmaCutRescue =
-    skinPower?.id === "plasma_cut" &&
-    !!currentPlayer?.powerCharge &&
-    state.farkle &&
-    canFirePowerNow;
-  // Panel stays on while anyone holds a saved charge; tray VFX only on the active seat's dice.
-  const powerModeActive = isPlayerPowerModeActive(displayState, powerUiPlayerIndex);
-  const traySeatPowerMode = isPlayerPowerModeActive(
-    displayState,
-    displayState.currentIndex
-  );
+    skinPower?.id === "plasma_cut" && !!currentPlayer?.powerCharge && state.farkle;
+  // Power charge persists on the player until fired — keep panel/tray VFX on while charged.
+  const powerModeActive = isPlayerPowerModeActive(displayState, displayState.currentIndex);
 
   const lowPower = isLowPowerDevice();
   const practiceVariant =
@@ -649,9 +649,9 @@ export default function Game() {
         : practiceVariant === "ice"
           ? getPower("freeze_score")
           : null;
-  // Dice tray power VFX when the active seat is charged (or practice preview).
+  // Dice tray power VFX when charged (or practice preview). Shark Bite stays turn-local.
   const trayPowerMode =
-    traySeatPowerMode ||
+    powerModeActive ||
     (practicePowerPreview && !!practiceVariant);
   const trayIceFrozen = (currentPlayer.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "freeze_score"
@@ -669,7 +669,7 @@ export default function Game() {
           getDisplaySkinId(state.players[feastTargetIdx], ghostOptions)
         )
       : null;
-  const diceTraySkinId = feastTraySkinId || practiceTraySkinId;
+  // Ghost privacy is dice-only — never force-hide turn score / power panel / charge badge.
   const hidePowerPanelNow = onlineActive
     ? onlineUi.hidePowerPanel
     : shieldUp && privacySettings.hidePowerPanel;
@@ -684,7 +684,12 @@ export default function Game() {
       revealedTurnKey === displayState.currentIndex;
   const hideDiceNow = onlineActive
     ? onlineUi.hideDice
-    : shieldUp && privacySettings.hideDice;
+    : shieldUp && (privacySettings.hideDice || currentGhostPrivacy);
+  // Ghost tray is always spectral (getDisplaySkinId → player.skinId).
+  // Never pass disguise/trueSkinId into the tray — privacy redacts faces only.
+  const diceTraySkinId =
+    feastTraySkinId ||
+    (currentGhostPrivacy && hideDiceNow ? getGhostHiddenTraySkinId() : practiceTraySkinId);
   const trayDice =
     hideDiceNow && !onlineActive
       ? redactDiceForOpponent(displayState.dice)
@@ -695,7 +700,9 @@ export default function Game() {
       ? onlineUi.hidePowerPanel
       : shieldUp && privacySettings.hideDice);
   const hideChargeBadge =
-    (onlineActive ? onlineUi.hidePowerChargeBadge : shieldUp && privacySettings.hidePowerChargeBadge)
+    (onlineActive
+      ? onlineUi.hidePowerChargeBadge
+      : shieldUp && privacySettings.hidePowerChargeBadge)
       ? new Set([displayState.currentIndex])
       : null;
   const scoreXrayReveals = (() => {
@@ -843,11 +850,9 @@ export default function Game() {
           powerMode={showPowerPanel}
           used={false}
           locked={powerLocked}
-          disabled={powerFrozen || practicePowerPreview || !canFirePowerNow}
+          disabled={powerFrozen || practicePowerPreview}
           frozen={powerFrozen}
-          onFire={
-            practicePowerPreview || !canFirePowerNow ? undefined : onFireSkinPower
-          }
+          onFire={practicePowerPreview ? undefined : onFireSkinPower}
           isGhostMimic={resolvedPower?.isMimic}
           mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
           mimicFromName={resolvedPower?.sourcePlayerName}
@@ -1082,8 +1087,9 @@ export default function Game() {
       </div>
 
       <PassPlayHandoffOverlay
-        open={passPlayPrivacyActive && shieldUp}
+        open={!onlineActive && localHandoffActive && shieldUp}
         playerName={currentPlayer?.name ?? "Player"}
+        ghostTurn={currentGhostPrivacy}
         onReady={onTurnReady}
       />
 

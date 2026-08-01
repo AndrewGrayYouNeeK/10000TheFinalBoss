@@ -297,7 +297,7 @@ export default function Setup() {
           </Button>
           {!ghostReady && rosterReady ? (
             <p className="text-center text-xs text-amber-300/90 mt-2 font-term tracking-wide">
-              Ghost runners must pick a dice look before starting.
+              Ghost runners must pick a disguise before starting.
             </p>
           ) : null}
         </div>

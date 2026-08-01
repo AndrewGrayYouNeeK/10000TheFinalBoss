@@ -7,6 +7,7 @@
 
 import { DEFAULT_ONLINE_VISIBILITY, normalizeOnlineVisibility } from "@/lib/onlineVisibility";
 import { xrayRevealsVisible } from "@/lib/xrayScan";
+import { ghostDicePrivacyActive } from "@/lib/ghostDisguise";
 
 /** @typedef {import("@/lib/onlineVisibility").OnlineVisibilitySettings} OnlineVisibilitySettings */
 
@@ -61,15 +62,18 @@ export function buildClientMatchPayload({
     visibilityByPlayerIndex[currentIndex] ?? DEFAULT_ONLINE_VISIBILITY
   );
 
+  const currentPlayer = matchState.players?.[currentIndex];
+  // Ghost + disguise: force-hide die faces from opponents. Score / power stay visible.
+  const ghostHidesDice = ghostDicePrivacyActive(currentPlayer) && !isMyTurn;
   const opponentTurnPrivate =
     !isMyTurn &&
-    (activeVisibility.hideDice ||
+    (ghostHidesDice ||
+      activeVisibility.hideDice ||
       activeVisibility.hideTurnScore ||
       activeVisibility.hidePowerPanel ||
       activeVisibility.hidePowerChargeBadge ||
       activeVisibility.hideXrayReveals);
-
-  const hideDiceFromViewer = !isMyTurn && activeVisibility.hideDice;
+  const hideDiceFromViewer = (!isMyTurn && activeVisibility.hideDice) || ghostHidesDice;
   const hideTurnScoreFromViewer = !isMyTurn && activeVisibility.hideTurnScore;
   const scannerIdx = matchState.xrayScannerIndex ?? null;
   const visibleXrayReveals = xrayRevealsVisible(matchState.xrayReveals, {

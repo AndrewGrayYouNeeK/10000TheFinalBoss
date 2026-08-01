@@ -29,18 +29,23 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   /** Shark bite video muted by default (SFX comes from blueGelPowerAudio). */
   muted: true,
 
-  /** Horizontal nudge — fraction of viewport width (positive = right). */
-  offsetX: 0.18,
+  /** Chomp horizontal nudge — fraction of viewport width (positive = right). 0 = centered. */
+  offsetX: 0,
+  /** Intro swim-in horizontal nudge — separate from chomp. */
+  introOffsetX: 0.06,
   /** Chomp clip vertical nudge — fraction of viewport height (positive = down). */
   offsetY: 0,
   /** Intro swim-in clip vertical nudge — fraction of viewport height (positive = down). */
   introOffsetY: 0,
-  /** Clip progress (0–1) when tray dice vanish / chomp fires. */
-  chompProgress: 0.78,
-  /** Clip progress where end fade begins. */
-  fadeStart: 0.93,
-  /** Clip progress where late exit pan starts. */
-  exitPanStart: 0.93,
+  /** Clip progress (0–1) when tray dice vanish / chomp fires — aim for jaws over the tray. */
+  chompProgress: 0.72,
+  /** Clip progress where end fade begins (non-queue path). */
+  fadeStart: 0.96,
+  /**
+   * Intro exit-pan start (0–1). Chomp (full-screen eat) does not exit-pan —
+   * it plays through so the shark fills the screen.
+   */
+  exitPanStart: 0.88,
   /** Clip progress where playback stops (1 = play to end). Trims tail content. */
   stopAtProgress: 1,
   /**
@@ -53,8 +58,12 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   introVideoRotationDeg: 0,
   /** When true and stored frames are portrait (h > w), auto-apply 90° rotation. */
   autoRotatePortrait: true,
-  /** Extra viewport-width slide during exit pan (at progress 1). */
-  exitPanExtra: 1.1,
+  /** Extra viewport-width slide during intro exit pan (at progress 1). */
+  exitPanExtra: 1.25,
+  /** Exit slide direction: -1 = left (off-screen), +1 = right. */
+  exitPanDirection: -1,
+  /** Pause between intro swim-in ending and chomp starting (ms). */
+  interBeatMs: 3000,
 
   /** Ms before fullscreen bite after FX activates (after in-die feast). */
   preSwimMs: 280,
@@ -68,9 +77,9 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   fallbackVanishMs: 10000,
 
   /** Cover scale for fullscreen chroma canvas (1 = fit, >1 = zoom in). */
-  videoScale: 1.08,
-  /** Bottom inset as fraction of viewport height. */
-  verticalOffset: 0.01,
+  videoScale: 1.18,
+  /** Unused when vertically centered — kept for lab slider compatibility. */
+  verticalOffset: 0,
 
   /**
    * Source-frame crop before chroma (does not modify the upload).
@@ -156,18 +165,52 @@ function applyChompRotationMigration(parsed) {
   return next;
 }
 
+/**
+ * One-time layout pass: center chomp, exit left, pause between beats, bigger shark.
+ * Only rewrites values that still match the old shipped defaults.
+ */
+function applyLayoutPassV3(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV3) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV3: true };
+  if (near(next.offsetX, 0.18)) next.offsetX = DEFAULT_SHARK_BITE_SETTINGS.offsetX;
+  if (next.introOffsetX == null) next.introOffsetX = DEFAULT_SHARK_BITE_SETTINGS.introOffsetX;
+  if (near(next.chompProgress, 0.78)) next.chompProgress = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
+  if (near(next.fadeStart, 0.93)) next.fadeStart = DEFAULT_SHARK_BITE_SETTINGS.fadeStart;
+  if (near(next.exitPanStart, 0.93)) next.exitPanStart = DEFAULT_SHARK_BITE_SETTINGS.exitPanStart;
+  if (near(next.exitPanExtra, 1.1)) next.exitPanExtra = DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
+  if (next.exitPanDirection == null) next.exitPanDirection = DEFAULT_SHARK_BITE_SETTINGS.exitPanDirection;
+  if (next.interBeatMs == null) next.interBeatMs = DEFAULT_SHARK_BITE_SETTINGS.interBeatMs;
+  if (near(next.videoScale, 1.08)) next.videoScale = DEFAULT_SHARK_BITE_SETTINGS.videoScale;
+  if (near(next.verticalOffset, 0.01)) next.verticalOffset = DEFAULT_SHARK_BITE_SETTINGS.verticalOffset;
+  return next;
+}
+
 function parseStoredSettings(raw) {
   const parsed = JSON.parse(raw);
   return {
     ...DEFAULT_SHARK_BITE_SETTINGS,
-    ...applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed))),
+    ...applyLayoutPassV3(
+      applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed)))
+    ),
   };
 }
 
 export function loadSharkBiteSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return parseStoredSettings(raw);
+    if (raw) {
+      const next = parseStoredSettings(raw);
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed._sharkLayoutPassV3) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+      } catch {
+        /* ignore */
+      }
+      return next;
+    }
 
     const prev = localStorage.getItem(PREV_STORAGE_KEY);
     if (prev) {
@@ -275,26 +318,10 @@ export function getSharkBitePreviewVideoStyle(
   };
 }
 
-const PREVIEW_PORTRAIT_ASPECT = 9 / 16;
-
 /**
- * Scale factor so a 90°/270°-rotated clip fills a 9:16 preview box without cropping.
- * Matches portrait container aspect to post-rotation visual dimensions.
- */
-function getRotatedUploadPreviewFitScale(videoWidth, videoHeight, rotationDeg) {
-  if (!videoWidth || !videoHeight || !isSharkBiteRotationSwap(rotationDeg)) return 1;
-  const visualAspect = videoHeight / videoWidth;
-  const containerAspect = PREVIEW_PORTRAIT_ASPECT;
-  if (visualAspect >= containerAspect) {
-    return Math.min(1, containerAspect / visualAspect);
-  }
-  return Math.min(1, visualAspect / containerAspect);
-}
-
-/**
- * Upload-card / dialog preview layout — larger boxes, contain, no side crop on 90°/270° clips.
- * Chomp (rotated) uses a tall 9:16 box; intro uses a wide 16:9 box. Both min ~224–256px tall.
- * In-game fullscreen playback keeps using getSharkBitePreviewVideoStyle (cover).
+ * Upload-card / dialog preview layout — video fills the preview box (relative + absolute inset).
+ * Chomp (rotated) uses a tall 9:16 box; intro uses a wide 16:9 box.
+ * In-game fullscreen playback keeps using getSharkBitePreviewVideoStyle (cover + crop).
  */
 export function getSharkBiteUploadPreviewLayout(
   settings = loadSharkBiteSettings(),
@@ -307,19 +334,18 @@ export function getSharkBiteUploadPreviewLayout(
   const panY = Math.max(-1, Math.min(1, Number(settings?.sourcePanY) || 0));
   const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot);
   const swap = isSharkBiteRotationSwap(rot);
-  const fitScale = getRotatedUploadPreviewFitScale(videoWidth, videoHeight, rot);
-  const transforms = [`scale(${zoom * fitScale})`];
+  const transforms = [`scale(${zoom})`];
   if (rot) transforms.unshift(`rotate(${rot}deg)`);
 
   return {
     rotationDeg: rot,
     swapDimensions: swap,
     containerClassName: swap
-      ? "aspect-[9/16] w-full min-h-72 max-h-[28rem] sm:max-h-[32rem] mx-auto overflow-hidden flex items-center justify-center"
-      : "aspect-video w-full min-h-60 max-h-80 sm:min-h-72 sm:max-h-96 overflow-hidden flex items-center justify-center",
-    videoClassName: "block h-full w-auto max-w-full max-h-full object-contain",
+      ? "aspect-[9/16] w-full min-h-72 max-h-[28rem] sm:max-h-[32rem] mx-auto overflow-hidden relative"
+      : "aspect-video w-full min-h-60 max-h-80 sm:min-h-72 sm:max-h-96 overflow-hidden relative",
+    videoClassName: "absolute inset-0 h-full w-full object-cover",
     videoStyle: {
-      objectFit: "contain",
+      objectFit: "cover",
       transform: transforms.join(" "),
       transformOrigin: `${50 + panX * 50}% ${50 + panY * 50}%`,
     },

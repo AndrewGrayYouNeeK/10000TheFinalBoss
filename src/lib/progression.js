@@ -45,6 +45,7 @@ export const SKIN_TIERS = {
 
   // Mythic / Exotic (tier 4) — achievement-only, never buyable
   crystal_cut: 4,
+  diamond_ruby: 4,
   love_is_love: 4,
   galaxy: 4,
   dragon_scale: 4,

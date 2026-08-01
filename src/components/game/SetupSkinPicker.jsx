@@ -44,6 +44,7 @@ export default function SetupSkinPicker({
     selectedDisguiseId && disguiseOptions.includes(selectedDisguiseId)
       ? selectedDisguiseId
       : null;
+  const ghostDisguised = isGhost && disguiseLocked && disguiseValue;
   const showDisguisePicker =
     isGhost && !disguiseLocked && disguiseOptions.length > 0 && onDisguiseSelect;
   const disguiseName = disguiseValue ? getSkin(disguiseValue)?.name : null;
@@ -51,7 +52,7 @@ export default function SetupSkinPicker({
   return (
     <div className="flex items-start gap-2 min-w-0">
       <div className="shrink-0 scale-[0.72] origin-left -mr-2 mt-0.5">
-        {/* Always show the selected look — Ghost stays spectral even after disguise */}
+        {/* Ghost look stays spectral; do not resolve to disguise (avoids Blue Gel leak). */}
         <DicePreview skinId={value} size={40} compact resolveGhost={false} />
       </div>
       <div className="flex-1 min-w-0 space-y-1.5">
@@ -63,7 +64,7 @@ export default function SetupSkinPicker({
             <SelectValue placeholder="Pick dice look" />
           </SelectTrigger>
           <SelectContent
-            className="z-50 border-2 font-term text-white"
+            className="z-50 border-2 font-term text-white max-h-64"
             style={contentStyle}
             position="popper"
             sideOffset={4}
@@ -99,7 +100,7 @@ export default function SetupSkinPicker({
               <SelectValue placeholder="Pick disguise" />
             </SelectTrigger>
             <SelectContent
-              className="z-50 border-2 font-term text-white"
+              className="z-50 border-2 font-term text-white max-h-64"
               style={contentStyle}
               position="popper"
               sideOffset={4}
@@ -120,16 +121,16 @@ export default function SetupSkinPicker({
           </Select>
         ) : null}
 
-        {isGhost && disguiseLocked && disguiseName ? (
+        {ghostDisguised ? (
           <div
-            className="h-8 flex items-center px-3 border font-term text-xs tracking-wide text-white/80 truncate"
+            className="h-8 flex items-center px-3 border font-term text-xs tracking-wide text-slate-200 truncate"
             style={{
               ...triggerStyle,
               borderColor: "rgba(0,255,200,0.35)",
               boxShadow: "inset 0 0 8px rgba(0,255,200,0.12)",
             }}
           >
-            Disguise: {disguiseName}
+            {disguiseName || disguiseValue.replace(/_/g, " ")}
           </div>
         ) : null}
       </div>

@@ -153,6 +153,7 @@ if (!(await loopVideo.count())) {
   if (box) {
     await page.screenshot({ path: path.join(OUT_DIR, "story-fight-video.png"), clip: box });
   }
+  const loaded = loadFishermanAvatarLoopSettings;
 }
 
 await browser.close();

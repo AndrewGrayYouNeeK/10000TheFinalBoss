@@ -65,10 +65,9 @@ export default function PowersInfo({ variant = "rules" }) {
           👻 Ghost — Special
         </div>
         <p className={`text-[11px] leading-snug ${isShop ? "text-white/80" : "text-slate-300"}`}>
-          Ghost has <b>no fixed power</b>. It automatically steals whatever skin your opponent is{" "}
-          <b>pretending to be</b> — you copy their power, not your own. Pick a strong disguise and you
-          might hand them a strong power if they&apos;re Ghost too. You never know if that innocent-looking
-          skin is real… or Ghost.
+          Pick Ghost, then a <b>disguise</b> for its <b>power</b> and private dice faces — your tray
+          stays spectral Ghost. Only you see your rolls (opponents still see your score). You never
+          know if that innocent-looking skin is real… or Ghost.
         </p>
       </div>
     </div>

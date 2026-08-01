@@ -17,10 +17,11 @@ export function isFishDiceSkin(skinId) {
   return FISH_DICE_SKINS.includes(skinId);
 }
 
+/** Tray / body skin — Ghost keeps spectral `skinId`; disguise is not visual. */
 export function getPlayerDiceSkinId(state, playerIndex) {
   const player = state?.players?.[playerIndex];
   if (!player) return null;
-  return player.trueSkinId || player.skinId || null;
+  return player.skinId || null;
 }
 
 export function isFishDicePlayer(state, playerIndex) {

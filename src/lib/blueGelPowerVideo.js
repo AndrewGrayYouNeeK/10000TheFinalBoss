@@ -94,49 +94,33 @@ export function hasUploadedSharkBiteBeatSync() {
 /**
  * Build the ordered shark-bite beat list.
  *
- * Rules:
- * - Any upload → catalog chomp plays first (full), then optional intro, then optional chomp upload.
- * - Dice vanish on the chomp-sync beat: uploaded chomp if present, else catalog.
- * - No uploads → catalog chomp alone, or SVG when no catalog file.
+ * Rules (intro → chomp, never catalog-first stacking):
+ * - Optional uploaded intro (swim forward) plays first — never syncs dice vanish when a chomp beat follows.
+ * - Chomp beat: local upload wins; otherwise catalog `blue_gel_power.mp4`; dice vanish on this beat.
+ * - Intro alone with no catalog/chomp → intro syncs chomp as last resort.
+ * - Nothing available → SVG fallback.
  *
  * @returns {Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean }>}
  */
 function buildQueue(hasIntro, hasChompUpload) {
   const catalog = getCatalogChompVideoUrl();
-  const hasUpload = hasIntro || hasChompUpload;
 
-  if (!catalog && !hasUpload) {
+  if (!catalog && !hasIntro && !hasChompUpload) {
     return [{ id: "svg", source: "svg", syncChomp: false }];
   }
 
-  if (!hasUpload) {
-    return [
-      {
-        id: "catalog",
-        videoKey: KEY,
-        source: "catalog",
-        syncChomp: true,
-      },
-    ];
-  }
-
   const queue = [];
-  if (catalog) {
-    queue.push({
-      id: "catalog",
-      videoKey: KEY,
-      source: "catalog",
-      syncChomp: !hasChompUpload,
-    });
-  }
+
   if (hasIntro) {
     queue.push({
       id: "intro",
       videoKey: INTRO_KEY,
       source: "local",
-      syncChomp: !catalog && !hasChompUpload,
+      // Dice vanish only if this is the sole beat (no chomp upload and no catalog).
+      syncChomp: !hasChompUpload && !catalog,
     });
   }
+
   if (hasChompUpload) {
     queue.push({
       id: "chomp",
@@ -144,7 +128,15 @@ function buildQueue(hasIntro, hasChompUpload) {
       source: "local",
       syncChomp: true,
     });
+  } else if (catalog) {
+    queue.push({
+      id: "catalog",
+      videoKey: KEY,
+      source: "catalog",
+      syncChomp: true,
+    });
   }
+
   return queue.length ? queue : [{ id: "svg", source: "svg", syncChomp: false }];
 }
 

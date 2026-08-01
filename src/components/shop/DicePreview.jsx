@@ -4,7 +4,6 @@ import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getBlueGelTrayFishProps } from "@/lib/fishDice";
 import { getFelt, isAquariumOverlaySkinId } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
-import { resolveDiceSkinId } from "@/lib/ghostDisguise";
 import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
 
 function stableSeed(skinId) {
@@ -12,20 +11,19 @@ function stableSeed(skinId) {
 }
 
 /** Shop / mystery box preview — same Die + felt tray as gameplay.
- *  resolveGhost=false shows the real Ghost spectral body on catalog cards. */
+ *  Ghost always renders spectral (disguise is never swapped in for look). */
 export default function DicePreview({
   skinId,
   value = 5,
   size = 64,
   scoreFill = 0.5,
   compact = true,
-  resolveGhost = false,
+  /** @deprecated Ghost no longer resolves to disguise; kept for call-site compat. */
+  resolveGhost: _resolveGhost = false,
 }) {
-  const { equippedFeltId, ghostDisguiseId, ownedSkins } = useCosmetics();
+  const { equippedFeltId } = useCosmetics();
   const felt = getFelt(equippedFeltId);
-  const renderSkinId = resolveGhost
-    ? resolveDiceSkinId(skinId, { ghostDisguiseId, ownedSkins, asDisguise: true })
-    : skinId;
+  const renderSkinId = skinId;
   const previewValue =
     renderSkinId === "blue_gel" ? 1 : isAquariumOverlaySkinId(renderSkinId) ? 1 : value;
   const blueGelFishProps =

@@ -6,7 +6,6 @@ import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt } from "@/lib/shopCatalog";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { HELD_DICE_STYLES, HELD_STYLE_SECTIONS } from "@/lib/heldDiceStyles";
-import { resolveDiceSkinId } from "@/lib/ghostDisguise";
 
 function StyleCard({ style, selected, onSelect, skinId, face, felt }) {
   return (
@@ -34,9 +33,9 @@ function StyleCard({ style, selected, onSelect, skinId, face, felt }) {
 }
 
 export default function HeldStylePreview() {
-  const { equippedSkinId, equippedFeltId, heldDiceStyleId, setHeldDiceStyle, ghostDisguiseId, ownedSkins } = useCosmetics();
+  const { equippedSkinId, equippedFeltId, heldDiceStyleId, setHeldDiceStyle } = useCosmetics();
   const felt = getFelt(equippedFeltId);
-  const renderSkinId = resolveDiceSkinId(equippedSkinId, { ghostDisguiseId, ownedSkins });
+  const renderSkinId = equippedSkinId;
   const [face, setFace] = useState(5);
   const [previewStyle, setPreviewStyle] = useState(heldDiceStyleId);
 

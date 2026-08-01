@@ -220,13 +220,15 @@ export default function Shop() {
                                   ? "border-green-500/40 text-green-200"
                                   : id === "crystal_cut"
                                     ? "border-cyan-500/40 text-cyan-200"
-                                    : id === "ice"
-                                      ? "border-sky-500/40 text-sky-200"
-                                      : id === "snow_globe"
+                                    : id === "diamond_ruby"
+                                      ? "border-red-500/40 text-red-200"
+                                      : id === "ice"
                                         ? "border-sky-500/40 text-sky-200"
-                                        : id === "blue_gel"
-                                          ? "border-cyan-500/40 text-cyan-200"
-                                          : "border-orange-500/40 text-orange-200"
+                                        : id === "snow_globe"
+                                          ? "border-sky-500/40 text-sky-200"
+                                          : id === "blue_gel"
+                                            ? "border-cyan-500/40 text-cyan-200"
+                                            : "border-orange-500/40 text-orange-200"
                               )}
                             >
                               <Link to={`/sprite-lab/${id}`}>

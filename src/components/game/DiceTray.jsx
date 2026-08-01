@@ -26,6 +26,8 @@ function DiceTray({
   powerMode = false,
   /** Softer in-die power glow for pass-and-play privacy. */
   powerModeSubtle = false,
+  /** Story Ghost boss — dice render as near-invisible (no face readout). */
+  spectralHidden = false,
   iceFrozenOverlay = false,
   sharkBiteFx = false,
   /** Keep dice vanished after chomp until next round clears this flag. */
@@ -96,17 +98,25 @@ function DiceTray({
             animate={
               diceEaten
                 ? { opacity: [1, 0.85, 0], scale: [1, 1.08, 0.02], x: [0, pullX * 0.45, pullX], y: [0, -6, -18], rotate: [0, -8, 40 + idx * 8] }
-                : { opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 }
+                : {
+                    opacity: spectralHidden ? 0.12 : 1,
+                    scale: 1,
+                    x: 0,
+                    y: 0,
+                    rotate: 0,
+                    filter: spectralHidden ? "blur(1.5px) saturate(0.35)" : "none",
+                  }
             }
             transition={
               diceEaten
-                ? { duration: 0.32, delay: eatOrder * 0.045, ease: "easeIn", times: [0, 0.2, 1] }
+                ? { duration: 0.18, delay: eatOrder * 0.028, ease: "easeIn", times: [0, 0.15, 1] }
                 : { delay: idx * 0.04 }
             }
           >
             <Die
-              value={d.valueHidden ? 1 : d.value}
-              valueHidden={!!d.valueHidden}
+              value={d.valueHidden || spectralHidden ? 1 : d.value}
+              valueHidden={!!d.valueHidden || spectralHidden}
+              spectralHidden={spectralHidden}
               held={d.held}
               used={d.used}
               rolling={rolling && !d.used && !d.held}
