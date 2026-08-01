@@ -410,6 +410,7 @@ export const PRODUCTION_DICE_SKINS = [
     realistic: true,
     powerDice: true,
     spriteUrl: "/assets/999d8760b_generated_image.png",
+    spriteGrid: { cols: 3, rows: 2 },
   },
   {
     id: "plasma",
@@ -919,6 +920,14 @@ function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
 /** Snow globe — custom Die.jsx overlay (no sprite face). Blue Gel uses sprite + fish tank. */
 export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe"]);
 
+export const BLUE_GEL_SPRITE_URL = "/assets/999d8760b_generated_image.png";
+
+function withBlueGelSpriteUrl(skin, base) {
+  if (skin?.id !== "blue_gel") return skin;
+  const url = base?.spriteUrl || BLUE_GEL_SPRITE_URL;
+  return skin.spriteUrl === url ? skin : { ...skin, spriteUrl: url };
+}
+
 function withoutAquariumSpriteSheets(skin) {
   if (!AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
   const next = { ...skin };
@@ -987,7 +996,10 @@ export function getSkin(id) {
 
   const draft = loadSpriteLabDraft(base.id);
   const locked = isSpriteTuningLocked(base.id);
-  const skin = withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked));
+  const skin = withBlueGelSpriteUrl(
+    withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked)),
+    base,
+  );
   if (!draft) return skin;
   const mergeRegular = (offsetsBase) =>
     draft.regularFaces
@@ -1328,6 +1340,21 @@ export function getSkin(id) {
     };
   }
 
+  if (skin.id === "blue_gel") {
+    return withBlueGelSpriteUrl(
+      {
+        ...skin,
+        spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+        spriteFaceOffsets: {
+          ...skin.spriteFaceOffsets,
+          regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+          power: mergePower(skin.spriteFaceOffsets?.power),
+        },
+      },
+      base,
+    );
+  }
+
   if (skin.spriteCrop) {
     return {
       ...skin,
@@ -1341,7 +1368,7 @@ export function getSkin(id) {
     };
   }
 
-  return withoutAquariumSpriteSheets(skin);
+  return withBlueGelSpriteUrl(withoutAquariumSpriteSheets(skin), base);
 }
 export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;

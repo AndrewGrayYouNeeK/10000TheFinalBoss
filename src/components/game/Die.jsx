@@ -252,8 +252,7 @@ function Die({
   const icePowerActive = iceFrozenOverlay && !reduceEffects;
   const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
   const isBlueGelTank = effectiveSkinId === "blue_gel";
-  const aquamarineShellSkin =
-    isAquariumOverlaySkin || isBlueGelTank ? getSkin("aquamarine") : null;
+  const aquamarineShellSkin = isAquariumOverlaySkin ? getSkin("aquamarine") : null;
   const aquamarineShellUrl = aquamarineShellSkin?.spriteUrl ?? null;
   const [aquaShellOk, setAquaShellOk] = React.useState(true);
   React.useEffect(() => {
@@ -284,7 +283,6 @@ function Die({
     !isAquariumOverlaySkin &&
     spriteOk;
   const showPipFallback =
-    !isBlueGelTank &&
     !isAquariumOverlaySkin &&
     !videoPlaying &&
     !videoSkinActive &&
@@ -588,22 +586,9 @@ function Die({
           );
         })()}
 
-        {/* Blue Gel — borrows the Aquamarine glass shell with a fish swimming inside */}
-        {effectiveSkinId === "blue_gel" && (() => {
-          const aqua = aquamarineShellSkin ?? getSkin("aquamarine");
-          const { xNudge, yNudge } = resolveBlueGelShellNudges(
-            value,
-            size,
-            blueGelShellSettings
-          );
-          const aquaForShell = {
-            ...aqua,
-            spriteCrop: getBlueGelShellCrop(aqua.spriteCrop, blueGelShellSettings),
-          };
-          const shellStyle = getAquamarineShellStyle(aquaForShell, value, size, { xNudge, yNudge });
-          return (
+        {/* Blue Gel — fish tank behind the catalog sprite face (pips on sprite sheet) */}
+        {effectiveSkinId === "blue_gel" && (
             <>
-              {/* Aquarium water behind the fish */}
               <div
                 className="absolute inset-0 pointer-events-none z-0"
                 style={{
@@ -611,7 +596,6 @@ function Die({
                     "linear-gradient(160deg, rgba(125,211,252,0.55) 0%, rgba(56,189,248,0.65) 35%, rgba(37,99,235,0.75) 70%, rgba(30,64,175,0.85) 100%)",
                 }}
               />
-              {/* Fish swim between water and glass shell */}
               <div className="absolute inset-0 z-[1] pointer-events-none">
               {fishFeastMode && !reduceEffects ? (
                 <BlueGelSharkAttack
@@ -664,18 +648,6 @@ function Die({
                 </>
               )}
               </div>
-              {showAquamarineShell ? (
-                <div
-                  className="absolute pointer-events-none z-[2]"
-                  style={{
-                    backgroundImage: `url(${assetUrl(aqua.spriteUrl)})`,
-                    opacity: 0.7,
-                    mixBlendMode: "multiply",
-                    ...shellStyle,
-                  }}
-                />
-              ) : null}
-              {/* Glass rim — thickness */}
               <div
                 className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
@@ -684,8 +656,7 @@ function Die({
                 }}
               />
             </>
-          );
-        })()}
+        )}
 
         {/* Default power move for skins without dedicated power visuals — bloody water */}
         {showBloodPowerFx ? (
@@ -722,7 +693,7 @@ function Die({
           const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
           const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
-          const spriteZ = isBlueGelTank ? "z-[4]" : "z-[1]";
+          const spriteZ = isBlueGelTank ? "z-[5]" : "z-[1]";
           return (
             <div
               className={`absolute pointer-events-none ${spriteZ}`}
