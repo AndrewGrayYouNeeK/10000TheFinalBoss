@@ -409,8 +409,7 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Marlin Joe's fish-tank dice — Shark Bite eats the opponent's next bank.",
     realistic: true,
     powerDice: true,
-    // NEVER add spriteUrl / powerSpriteUrl / videoUrl here — face is built in Die.jsx
-    // (FishOverlay + borrowed Aquamarine shell). See AQUARIUM_OVERLAY_SKIN_IDS.
+    spriteUrl: "/assets/999d8760b_generated_image.png",
   },
   {
     id: "plasma",
@@ -917,8 +916,8 @@ function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
   return draftZoom;
 }
 
-/** Fish tank / snow globe — custom Die.jsx overlays, never a sprite sheet face. */
-export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["blue_gel", "snow_globe"]);
+/** Snow globe — custom Die.jsx overlay (no sprite face). Blue Gel uses sprite + fish tank. */
+export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe"]);
 
 function withoutAquariumSpriteSheets(skin) {
   if (!AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
