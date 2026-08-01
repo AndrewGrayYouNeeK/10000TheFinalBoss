@@ -42,6 +42,7 @@ import {
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
 import { assetUrl } from "@/lib/assetUrl";
+import { BLUE_GEL_SPRITE_TUNING } from "@/lib/blueGelSpriteTuning";
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -270,11 +271,14 @@ function Die({
   const dieShapeStyle = getDieSquircleClipStyle(size);
 
   const showSpriteLayer =
-    (displaySpriteLayer || (isBlueGelTank && (skin.spriteUrl || BLUE_GEL_SPRITE_URL))) &&
+    !isBlueGelTank &&
+    displaySpriteLayer &&
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     spriteOk;
+  const showBlueGelFace = isBlueGelTank && !videoPlaying;
   const showPipFallback =
+    !isBlueGelTank &&
     !isAquariumOverlaySkin &&
     !videoPlaying &&
     !videoSkinActive &&
@@ -391,6 +395,36 @@ function Die({
         );
       })}
     </div>
+    );
+  };
+
+  const renderBlueGelFaceSprite = () => {
+    if (!showBlueGelFace) return null;
+    const faceSpriteUrl = skin.spriteUrl || BLUE_GEL_SPRITE_URL;
+    const spriteSkin = {
+      id: "blue_gel",
+      spriteGrid: { cols: 3, rows: 2 },
+      spriteUrl: faceSpriteUrl,
+      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
+      spriteFaceOffsets: skin.spriteFaceOffsets ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
+    };
+    const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
+    const { xNudge, yNudge } = resolveFaceSpriteNudges("blue_gel", value, size, faceOffset);
+    const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
+    return (
+      <div
+        className="absolute inset-0 pointer-events-none z-[10] overflow-hidden"
+        style={dieShapeStyle}
+      >
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url(${assetUrl(faceSpriteUrl)})`,
+            backgroundColor: "transparent",
+            ...sheetStyle,
+          }}
+        />
+      </div>
     );
   };
 
@@ -774,6 +808,8 @@ function Die({
         }
 
         </div>
+
+        {renderBlueGelFaceSprite()}
 
         {/* Ice overlay OUTSIDE squircle clip — drips / edge frost can overhang the die. */}
         {icePowerActive && (
