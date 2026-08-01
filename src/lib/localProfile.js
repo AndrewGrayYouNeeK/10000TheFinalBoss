@@ -1,4 +1,25 @@
 const STORAGE_KEY = "dice10k_profile";
+const STORAGE_ORIGIN_KEY = "dice10k_storage_origin";
+
+function pinStorageOrigin() {
+  if (typeof window === "undefined") return;
+  try {
+    const origin = window.location.origin;
+    const pinned = localStorage.getItem(STORAGE_ORIGIN_KEY);
+    if (!pinned) {
+      localStorage.setItem(STORAGE_ORIGIN_KEY, origin);
+      return;
+    }
+    if (pinned !== origin) {
+      console.warn(
+        `[YouNeeK 10,000] Saves are stored under ${pinned}, but you opened ${origin}. ` +
+          "Sprite tuning, videos, and profile data will look missing until you use the same URL every time."
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 const RAGNAROK_LEGACY_SKINS = ["lava", "ragnarok_regular"];
 const REMOVED_SKIN_IDS = ["tesla"];
@@ -85,6 +106,7 @@ const DEFAULT_PROFILE = {
 
 export function loadProfile() {
   try {
+    pinStorageOrigin();
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       const profile = { ...DEFAULT_PROFILE };

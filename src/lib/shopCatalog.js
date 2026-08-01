@@ -1389,12 +1389,16 @@ export function getSkin(id) {
   }
 
   if (skin.id === "blue_gel") {
-    // Face crop comes from catalog tuning — stale sprite-lab drafts used aquamarine shell crops.
+    // Face crop must stay on the Blue Gel sheet — stale lab drafts used aquamarine shell crops.
+    const blueGelCrop = sanitizeSpriteCrop(
+      draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
+      BLUE_GEL_SPRITE_TUNING.spriteCrop
+    );
     return withBlueGelSpriteUrl(
       {
         ...skin,
         spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-        spriteCrop: draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
+        spriteCrop: blueGelCrop,
         spriteFaceOffsets: {
           ...skin.spriteFaceOffsets,
           regular: mergeRegular(skin.spriteFaceOffsets?.regular),

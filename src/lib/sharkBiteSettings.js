@@ -233,7 +233,7 @@ export function loadSharkBiteSettings() {
 }
 
 export function saveSharkBiteSettings(settings) {
-  const next = { ...DEFAULT_SHARK_BITE_SETTINGS, ...settings };
+  const next = { ...loadSharkBiteSettings(), ...settings };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
