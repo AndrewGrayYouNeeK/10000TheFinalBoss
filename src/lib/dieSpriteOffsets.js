@@ -2,7 +2,7 @@
  * Per-skin sprite face alignment for photorealistic dice sheets.
  * Pixel nudges were tuned at DIE_SPRITE_REF_SIZE — scaled for any render size.
  */
-import { DEFAULT_SPRITE_CROP, sanitizeSpriteCrop } from "./spriteLab";
+import { sanitizeSpriteCrop } from "./spriteLab";
 import { getPaperSpriteXNudge, getPaperSpriteYNudge } from "./paperSpriteTuning";
 import {
   getDragonScaleSpriteXNudge,
