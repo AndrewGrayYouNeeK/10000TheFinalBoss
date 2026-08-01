@@ -2,7 +2,7 @@
  * Per-skin sprite face alignment for photorealistic dice sheets.
  * Pixel nudges were tuned at DIE_SPRITE_REF_SIZE — scaled for any render size.
  */
-import { sanitizeSpriteCrop } from "./spriteLab";
+import { sanitizeSpriteCrop, catalogSkinById, DEFAULT_SPRITE_CROP } from "./spriteLab";
 import { getPaperSpriteXNudge, getPaperSpriteYNudge } from "./paperSpriteTuning";
 import {
   getDragonScaleSpriteXNudge,
@@ -155,7 +155,8 @@ export function getSpriteSheetStyle(skin, value, size, { xNudge, yNudge }) {
   const rows = skin.spriteGrid?.rows ?? 2;
   const col = (value - 1) % cols;
   const row = Math.floor((value - 1) / cols);
-  const spriteCrop = sanitizeSpriteCrop(skin.spriteCrop);
+  const catalogCrop = catalogSkinById(skin.id)?.spriteCrop ?? DEFAULT_SPRITE_CROP;
+  const spriteCrop = sanitizeSpriteCrop(skin.spriteCrop, catalogCrop);
   const zoom = spriteCrop.zoom ?? 1;
   const stretch = getDieSpriteStretch(skin.id, value, size, { ...skin, spriteCrop });
   const spriteCropBgY = spriteCrop.offsetY ? size * spriteCrop.offsetY : 0;
@@ -217,15 +218,28 @@ export function getSpriteSheetStyle(skin, value, size, { xNudge, yNudge }) {
   const sheetW = cellW * cols + stretch * 2;
   const sheetH = cellH * rows + stretch * 2;
 
-  // inset:0 + shifted backgroundPosition — keeps art inside squircle clip-path
-  // (negative top/left/right/bottom on the sprite div gets clipped away).
-  const padTop = size * 0.14 - yNudge + stretch;
-  const padLeft = size * 0.35 - xNudge + stretch;
+  const bleedLeft = size * 0.35 - xNudge + stretch;
+  const bleedTop = size * 0.14 - yNudge + stretch;
 
+  // Large Sprite-Lab face nudges (classic_white, etc.) collapse the bleed box —
+  // keep inset:0 and fold nudges into backgroundPosition via bleedLeft/bleedTop.
+  if (bleedLeft < 0 || bleedTop < 0) {
+    return {
+      inset: 0,
+      backgroundSize: `${sheetW}px ${sheetH}px`,
+      backgroundPosition: `${-(col * colStep) + spriteCropBgX + bleedLeft}px ${-(row * rowStep) - spriteCropBgY + bleedTop}px`,
+      backgroundRepeat: "no-repeat",
+    };
+  }
+
+  // Default photoreal sheets — extend bleed past the die; squircle clip crops to face.
   return {
-    inset: 0,
+    top: `${-bleedTop}px`,
+    bottom: `${-size * 0.8 + yNudge - stretch}px`,
+    left: `${-bleedLeft}px`,
+    right: `${-size * 0.35 + xNudge - stretch}px`,
     backgroundSize: `${sheetW}px ${sheetH}px`,
-    backgroundPosition: `${-(col * colStep) + spriteCropBgX + padLeft}px ${-(row * rowStep) - spriteCropBgY + padTop}px`,
+    backgroundPosition: `${-(col * colStep) + spriteCropBgX}px ${-(row * rowStep) - spriteCropBgY}px`,
     backgroundRepeat: "no-repeat",
   };
 }

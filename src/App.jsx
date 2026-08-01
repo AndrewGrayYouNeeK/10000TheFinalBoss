@@ -6,13 +6,20 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
+import { recoverCorruptDiceState } from '@/lib/skinRecovery';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
 import Story from '@/pages/Story';
 import StoryGame from '@/pages/StoryGame';
 
+// Repair corrupt sprite-lab saves before hydration syncs them into the profile.
+recoverCorruptDiceState();
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
 hydrateSpriteLabPersistence();
+// Re-seal video uploads from backup/vault/OPFS (never wipes user uploads).
+import("@/lib/spriteLabLockedVideos")
+  .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
+  .catch(() => {});
 
 const Shop = lazy(() => import('@/pages/Shop'));
 
@@ -31,6 +38,7 @@ const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
 const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
 const IcePowerLab = lazy(() => import('@/pages/IcePowerLab'));
 const SharkBiteLab = lazy(() => import('@/pages/SharkBiteLab'));
+const FeltLabPage = lazy(() => import('@/pages/FeltLabPage'));
 
 function PageLoader() {
   return (
@@ -141,6 +149,8 @@ function App() {
             <Route path="/fish-showcase" element={<FishShowcase />} />
             <Route path="/ice-lab" element={<IcePowerLab />} />
             <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
+            <Route path="/felt-lab" element={<FeltLabPage />} />
+            <Route path="/felt-lab/:feltId" element={<FeltLabPage />} />
             <Route path="/shark-bite-lab" element={<SharkBiteLab />} />
             <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
             <Route path="*" element={<PageNotFound />} />

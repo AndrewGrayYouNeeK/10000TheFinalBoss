@@ -55,7 +55,7 @@ import { cn } from "@/lib/utils";
 import { Lock, Play, Save, Unlock } from "lucide-react";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
 import VideoPreviewDialog from "@/components/video/VideoPreviewDialog";
-import { VIDEO_KEYS } from "@/lib/localVideoStore";
+import { VIDEO_KEYS, VIDEO_LABELS, VIDEO_DESCRIPTIONS } from "@/lib/localVideoStore";
 import {
   getStoryBossVideoDescription,
   getStoryBossVideoLabel,
@@ -536,8 +536,8 @@ function FaceNudgePanel({ face, nudge, onChange, onResetFace, onResetAll, modeLa
       </div>
       <p className="text-[10px] text-slate-500">Per-die nudge in ref pixels (@ 64px die size).</p>
       {[
-        { key: "x", min: -200, max: 200, step: 0.5, label: "Nudge X" },
-        { key: "y", min: -200, max: 200, step: 0.5, label: "Nudge Y" },
+        { key: "x", min: -12, max: 12, step: 0.5, label: "Nudge X" },
+        { key: "y", min: -12, max: 12, step: 0.5, label: "Nudge Y" },
       ].map(({ key, min, max, step, label: sliderLabel }) => (
         <label key={key} className="block text-[10px] text-slate-400">
           {sliderLabel}: <span className="text-white tabular-nums">{nudge[key]?.toFixed(1)}</span>
@@ -1137,6 +1137,29 @@ export default function SpriteLab({ skinId }) {
             </div>
           </div>
         )}
+        {skinId === "blue_gel" && (
+          <div className="rounded-xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-rose-200">
+              Shark Bite power videos
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Uploads auto-save on this device in multiple backups. Tap <b>Restore uploads</b> above
+              if a clip looks missing after a refresh.
+            </p>
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO}
+              label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]}
+              description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={VIDEO_KEYS.BLUE_GEL_POWER}
+              label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_POWER]}
+              description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_POWER]}
+            />
+          </div>
+        )}
         {skinId === "ice" && (
           <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-sky-100">
             <span>
@@ -1197,7 +1220,7 @@ export default function SpriteLab({ skinId }) {
               <li>Tune global crop, then fine-tune each face</li>
               <li>Settings autosave in this browser — apply in-game immediately</li>
               <li>
-                Shark Bite videos tune on{" "}
+                Shark Bite videos upload below (swim forward + chomp) — also on{" "}
                 <Link to="/shark-bite-lab" className="text-rose-300 underline">
                   Shark Bite Lab
                 </Link>
@@ -1586,18 +1609,8 @@ export default function SpriteLab({ skinId }) {
           </div>
         )}
 
-        {(hasSpriteSheet || hasPowerSprite || hasPowerVideo) && (
+        {(hasPowerSprite || hasPowerVideo) && (
         <div className={cn("grid gap-4", hasPowerSprite || hasPowerVideo ? "sm:grid-cols-2" : "")}>
-          {hasSpriteSheet && (
-          <div>
-            <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Sprite sheet</p>
-            <img
-              src={catalogSkin.spriteUrl}
-              alt="Sprite sheet"
-              className="w-full rounded-lg border border-white/10"
-            />
-          </div>
-          )}
           {hasPowerSprite && (
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Power sheet</p>

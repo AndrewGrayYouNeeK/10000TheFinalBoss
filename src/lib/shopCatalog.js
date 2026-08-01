@@ -2,6 +2,7 @@
 // Skins describe the die body. Pips describe the dots. Badges describe an animated player badge.
 
 import { EXPERIMENTAL_DICE } from "./experimentalDice";
+import { applyFeltTuning } from "./feltLab";
 import { assetUrl } from "./assetUrl";
 import { RAGNAROK_SPRITE_TUNING } from "./ragnarokSpriteTuning";
 import { MATRIX_SPRITE_TUNING } from "./matrixSpriteTuning";
@@ -30,9 +31,10 @@ import { PLASMA_SPRITE_TUNING } from "./plasmaSpriteTuning";
 import { PRIDE_SPRITE_TUNING } from "./prideSpriteTuning";
 import { TOXIC_PLASMA_V2_SPRITE_TUNING } from "./toxicPlasmaV2SpriteTuning";
 import { RUBY_SPRITE_TUNING } from "./rubySpriteTuning";
+import { DIAMOND_RUBY_SPRITE_TUNING } from "./diamondRubySpriteTuning";
 import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
 import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
-import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked } from "./spriteLab";
+import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, sanitizeSpriteCrop, catalogSkinById, DEFAULT_SPRITE_CROP, hasUserFaceTuning } from "./spriteLab";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -284,6 +286,19 @@ export const PRODUCTION_DICE_SKINS = [
     ...RUBY_SPRITE_TUNING,
   },
   {
+    id: "diamond_ruby",
+    name: "Diamond Ruby",
+    price: 1200,
+    gradient: "from-rose-300 via-red-500 to-fuchsia-900",
+    border: "border-rose-800",
+    pipColor: "bg-white",
+    glow: "shadow-rose-500/70",
+    description: "Faceted ruby crystal — story boss reward.",
+    realistic: true,
+    spriteUrl: "/assets/diamond_ruby_dice.png",
+    ...DIAMOND_RUBY_SPRITE_TUNING,
+  },
+  {
     id: "crystal_cut",
     name: "Diamond Cut",
     price: 2000,
@@ -477,6 +492,7 @@ const GEMSTONE_SKIN_IDS = new Set([
   "labradorite_polished",
   "pride",
   "ruby",
+  "diamond_ruby",
   "crystal_cut",
   "love_is_love",
   "cyber_neon",
@@ -996,26 +1012,45 @@ function applyLockedSpritePaths(skin, draft, locked) {
 export function getSkin(id) {
   const base = DICE_SKINS.find((s) => s.id === normalizeSkinId(id)) || DICE_SKINS[0];
 
-  const draft = loadSpriteLabDraft(base.id);
+  let draft = loadSpriteLabDraft(base.id);
+  if (draft) {
+    const catalogCrop = base.spriteCrop ?? DEFAULT_SPRITE_CROP;
+    const catalogPowerCrop = base.powerSpriteCrop ?? catalogCrop;
+    draft = {
+      ...draft,
+      regularCrop: draft.regularCrop
+        ? sanitizeSpriteCrop(draft.regularCrop, catalogCrop)
+        : draft.regularCrop,
+      powerCrop: draft.powerCrop
+        ? sanitizeSpriteCrop(draft.powerCrop, catalogPowerCrop)
+        : draft.powerCrop,
+    };
+  }
   const locked = isSpriteTuningLocked(base.id);
   const skin = withBlueGelSpriteUrl(
     withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked)),
     base,
   );
   if (!draft) return skin;
-  const mergeRegular = (offsetsBase) =>
-    draft.regularFaces
-      ? mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked })
-      : offsetsBase;
-  const mergePower = (offsetsBase) =>
-    draft.powerFaces
-      ? mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: locked })
-      : offsetsBase;
+  const mergeRegular = (offsetsBase) => {
+    if (!draft?.regularFaces || !hasUserFaceTuning(draft.regularFaces)) return offsetsBase;
+    return mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked });
+  };
+  const mergePower = (offsetsBase) => {
+    if (!draft?.powerFaces || !hasUserFaceTuning(draft.powerFaces)) return offsetsBase;
+    return mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: locked });
+  };
+  const draftRegularCrop = draft?.regularCrop
+    ? sanitizeSpriteCrop(draft.regularCrop, base.spriteCrop ?? DEFAULT_SPRITE_CROP)
+    : null;
+  const draftPowerCrop = draft?.powerCrop
+    ? sanitizeSpriteCrop(draft.powerCrop, base.powerSpriteCrop ?? base.spriteCrop ?? DEFAULT_SPRITE_CROP)
+    : null;
 
   if (skin.id === "matrix") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
       powerVideoCrop: draft.powerVideoCrop ?? skin.powerVideoCrop,
       spriteFaceOffsets: {
@@ -1029,7 +1064,7 @@ export function getSkin(id) {
   if (skin.id === "crystal_cut") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       powerVideoZoom: resolveLockedPowerVideoZoom(draft.powerVideoZoom, skin.powerVideoZoom, locked),
       powerVideoCrop: draft.powerVideoCrop ?? skin.powerVideoCrop,
       spriteFaceOffsets: {
@@ -1043,7 +1078,7 @@ export function getSkin(id) {
   if (skin.id === "ice") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1057,8 +1092,8 @@ export function getSkin(id) {
       ...skin,
       spriteUrl: base.spriteUrl,
       powerSpriteUrl: base.powerSpriteUrl,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
-      powerSpriteCrop: draft.powerCrop ?? skin.powerSpriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
+      powerSpriteCrop: draftPowerCrop ?? skin.powerSpriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1070,7 +1105,7 @@ export function getSkin(id) {
   if (skin.id === "galaxy") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1081,7 +1116,7 @@ export function getSkin(id) {
   if (skin.id === "fluorite") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1092,7 +1127,7 @@ export function getSkin(id) {
   if (skin.id === "amber_wasp") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1103,7 +1138,7 @@ export function getSkin(id) {
   if (skin.id === "amethyst") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1114,7 +1149,7 @@ export function getSkin(id) {
   if (skin.id === "moonstone") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1125,7 +1160,7 @@ export function getSkin(id) {
   if (skin.id === "classic_white") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1136,7 +1171,7 @@ export function getSkin(id) {
   if (skin.id === "paper") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1147,7 +1182,7 @@ export function getSkin(id) {
   if (skin.id === "love_is_love") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1158,7 +1193,7 @@ export function getSkin(id) {
   if (skin.id === "dragon_scale") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1169,7 +1204,7 @@ export function getSkin(id) {
   if (skin.id === "teal_crackle") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1180,7 +1215,7 @@ export function getSkin(id) {
   if (skin.id === "aquamarine_light") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1191,7 +1226,7 @@ export function getSkin(id) {
   if (skin.id === "aquamarine") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1202,7 +1237,7 @@ export function getSkin(id) {
   if (skin.id === "wood") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1213,7 +1248,7 @@ export function getSkin(id) {
   if (skin.id === "obsidian") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1224,7 +1259,7 @@ export function getSkin(id) {
   if (skin.id === "gold") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1235,7 +1270,7 @@ export function getSkin(id) {
   if (skin.id === "labradorite") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1246,7 +1281,7 @@ export function getSkin(id) {
   if (skin.id === "labradorite_polished") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1257,7 +1292,7 @@ export function getSkin(id) {
   if (skin.id === "silver") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1268,7 +1303,7 @@ export function getSkin(id) {
   if (skin.id === "circuit_board") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1279,7 +1314,7 @@ export function getSkin(id) {
   if (skin.id === "cyber_neon") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1290,7 +1325,7 @@ export function getSkin(id) {
   if (skin.id === "neon_grid") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1301,7 +1336,7 @@ export function getSkin(id) {
   if (skin.id === "plasma") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1312,7 +1347,7 @@ export function getSkin(id) {
   if (skin.id === "pride") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1323,7 +1358,7 @@ export function getSkin(id) {
   if (skin.id === "toxic_plasma_v2") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1334,7 +1369,18 @@ export function getSkin(id) {
   if (skin.id === "ruby") {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(skin.spriteFaceOffsets?.regular),
+      },
+    };
+  }
+
+  if (skin.id === "diamond_ruby") {
+    return {
+      ...skin,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1348,7 +1394,7 @@ export function getSkin(id) {
       {
         ...skin,
         spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-        spriteCrop: draft.regularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
+        spriteCrop: draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
         spriteFaceOffsets: {
           ...skin.spriteFaceOffsets,
           regular: mergeRegular(skin.spriteFaceOffsets?.regular),
@@ -1362,7 +1408,7 @@ export function getSkin(id) {
   if (skin.spriteCrop) {
     return {
       ...skin,
-      spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+      spriteCrop: draftRegularCrop ?? skin.spriteCrop,
       powerVideoZoom: draft.powerVideoZoom ?? skin.powerVideoZoom,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
@@ -1378,7 +1424,8 @@ export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;
 }
 export function getFelt(id) {
-  return FELT_COLORS.find(f => f.id === id) || FELT_COLORS[0];
+  const base = FELT_COLORS.find(f => f.id === id) || FELT_COLORS[0];
+  return applyFeltTuning(base);
 }
 
 /**
@@ -1394,8 +1441,9 @@ export function getSpriteStyle(skin, value, size) {
   const url = assetUrl(skin.spriteUrl);
   const posX = cols <= 1 ? "0%" : `${(col / (cols - 1)) * 100}%`;
   const posY = rows <= 1 ? "0%" : `${(row / (rows - 1)) * 100}%`;
-  const zoom = skin.spriteCrop?.zoom ?? 1;
-  const offsetYPx = skin.spriteCrop?.offsetY ? size * skin.spriteCrop.offsetY : 0;
+  const crop = sanitizeSpriteCrop(skin.spriteCrop, catalogSkinById(skin.id)?.spriteCrop);
+  const zoom = crop.zoom ?? 1;
+  const offsetYPx = crop.offsetY ? size * crop.offsetY : 0;
 
   return {
     width: size,

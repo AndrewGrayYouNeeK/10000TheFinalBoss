@@ -83,14 +83,62 @@ export function isDedicatedPhotoFelt(feltId) {
   return DEDICATED_PHOTO_FELT_IDS.has(feltId);
 }
 
-function dedicatedPhotoStyle(compact = false, felt) {
+/** Frame felts shipped as tall PNGs — landscape tray art centered in portrait canvas. */
+const PORTRAIT_CANVAS_FELT_IDS = new Set([
+  "green_wood",
+  "red_wood",
+  "galaxy_window",
+  "tiedye_neon",
+]);
+
+/** Approx. opaque tray height ÷ full PNG height (~358px of 1024px). */
+export const PORTRAIT_CANVAS_TRAY_HEIGHT_RATIO = 0.35;
+
+export function isPortraitCanvasFelt(feltId) {
+  return PORTRAIT_CANVAS_FELT_IDS.has(feltId);
+}
+
+/** Zoom so the centered tray art fills the element (crops transparent padding). */
+export function getPortraitCanvasZoom(felt) {
   const scale = felt?.textureScale ?? 1;
+  return (1 / PORTRAIT_CANVAS_TRAY_HEIGHT_RATIO) * scale;
+}
+
+/** Frame PNGs render cleaner as an img layer (object-fit cover + zoom). */
+export function usesFramePhotoLayer(felt) {
+  return Boolean(felt?.includesFrame && felt?.textureUrl);
+}
+
+function framePhotoZoom(felt) {
+  if (isPortraitCanvasFelt(felt?.id)) return getPortraitCanvasZoom(felt);
+  return felt?.textureScale ?? 1;
+}
+
+function photoBackgroundSize(felt, compact) {
+  const scale = felt?.textureScale ?? 1;
+  if (isPortraitCanvasFelt(felt?.id)) {
+    if (scale === 1) return "cover";
+    return `${Math.round(scale * 100)}%`;
+  }
+  if (scale === 1) return "cover";
+  return `${Math.round(scale * 100)}%`;
+}
+
+function photoBackgroundPosition(felt) {
+  const posX = felt?.texturePosX ?? 50;
+  const posY = felt?.texturePosY ?? 50;
+  return `${posX}% ${posY}%`;
+}
+function dedicatedPhotoStyle(compact = false, felt) {
+  const opacity = felt?.textureOpacity ?? (compact ? 0.92 : 0.88);
   return {
-    backgroundSize: scale === 1 ? "cover" : `${Math.round(scale * 100)}%`,
-    backgroundPosition: "center",
+    backgroundSize: photoBackgroundSize(felt, compact),
+    backgroundPosition: photoBackgroundPosition(felt),
+    backgroundRepeat: "no-repeat",
     mixBlendMode: "normal",
-    opacity: compact ? 0.92 : 0.88,
-    filter: "none",
+    opacity,
+    filter: buildTextureFilter(felt, "none"),
+    imageRendering: felt?.textureBlur > 0 ? "auto" : "-webkit-optimize-contrast",
   };
 }
 
@@ -228,8 +276,47 @@ export function getWoodGrainOverlay() {
 }
 
 /** Photo texture tint — shift green casino scan toward each felt color. */
+function buildTextureFilter(felt, baseFilter) {
+  const parts = [];
+  const brightness = felt?.textureBrightness;
+  const contrast = felt?.textureContrast;
+  const saturate = felt?.textureSaturate;
+  const blur = felt?.textureBlur ?? 0;
+
+  if (brightness != null && brightness !== 1) parts.push(`brightness(${brightness})`);
+  if (contrast != null && contrast !== 1) parts.push(`contrast(${contrast})`);
+  if (saturate != null && saturate !== 1) parts.push(`saturate(${saturate})`);
+  else if (baseFilter && baseFilter !== "none") parts.push(baseFilter);
+
+  if (blur > 0) parts.push(`blur(${blur}px)`);
+  return parts.length ? parts.join(" ") : "none";
+}
+
+/** Styles for includesFrame photo layer — img + object-fit crops transparent padding. */
+export function getFramePhotoImgStyle(felt, compact = false) {
+  const zoom = framePhotoZoom(felt);
+  const posX = felt?.texturePosX ?? 50;
+  const posY = felt?.texturePosY ?? 50;
+  const opacity = felt?.textureOpacity ?? (compact ? 0.98 : 1);
+  const style = {
+    objectFit: "cover",
+    objectPosition: `${posX}% ${posY}%`,
+    opacity,
+    filter: buildTextureFilter(felt, "none"),
+    imageRendering: felt?.textureBlur > 0 ? "auto" : "-webkit-optimize-contrast",
+  };
+  if (zoom !== 1) {
+    style.transform = `scale(${zoom})`;
+    style.transformOrigin = `${posX}% ${posY}%`;
+  }
+  return style;
+}
+
 export function getPhotoTextureStyle(felt, compact = false) {
   const id = felt?.id;
+  if (usesFramePhotoLayer(felt)) {
+    return getFramePhotoImgStyle(felt, compact);
+  }
   if (isDedicatedPhotoFelt(id)) {
     return dedicatedPhotoStyle(compact, felt);
   }
@@ -255,12 +342,17 @@ export function getPhotoTextureStyle(felt, compact = false) {
     velvet_royal: "hue-rotate(100deg) saturate(1.25) brightness(0.8)",
   };
 
+  const opacity = felt?.textureOpacity ?? (compact ? 0.72 : 0.58);
+  const baseFilter = hueMap[id] || "saturate(0.85) contrast(1.05)";
+
   return {
-    backgroundSize: compact ? "180%" : "140%",
-    backgroundPosition: "center",
+    backgroundSize: photoBackgroundSize(felt, compact),
+    backgroundPosition: photoBackgroundPosition(felt),
+    backgroundRepeat: "no-repeat",
     mixBlendMode: "multiply",
-    opacity: compact ? 0.72 : 0.58,
-    filter: hueMap[id] || "saturate(0.85) contrast(1.05)",
+    opacity,
+    filter: buildTextureFilter(felt, baseFilter),
+    imageRendering: felt?.textureBlur > 0 ? "auto" : "-webkit-optimize-contrast",
   };
 }
 

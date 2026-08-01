@@ -64,6 +64,9 @@ export default function Shop() {
           <Sparkles className="w-5 h-5 text-amber-400 shrink-0" /> Shop
         </h1>
         <div className="flex items-center gap-2 shrink-0">
+          <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-emerald-500/40 text-emerald-200 px-2">
+            <Link to="/felt-lab">Felt Lab</Link>
+          </Button>
           <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-green-500/40 text-green-200 px-2">
             <Link to="/sprite-lab">Sprite Lab</Link>
           </Button>
@@ -298,6 +301,22 @@ export default function Shop() {
           </TabsContent>
 
           <TabsContent value="felts" className="mt-4">
+            <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/30 to-slate-900/50 p-4 mb-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Felt Lab</p>
+                  <p className="text-sm text-slate-300">
+                    Fix stretched or blurry table felt — tune texture fit and sharpness
+                  </p>
+                  <p className="text-[10px] text-emerald-200/90 mt-1 font-semibold">
+                    Saves to your profile — same look in shop and game
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline" className="border-emerald-400/50 text-emerald-200 shrink-0 hover:bg-emerald-500/10">
+                  <Link to="/felt-lab">Open Lab</Link>
+                </Button>
+              </div>
+            </div>
             <p className="text-[10px] text-slate-400 mb-3 text-center">
               Each card shows the real table surface — scroll to match names to looks.
             </p>

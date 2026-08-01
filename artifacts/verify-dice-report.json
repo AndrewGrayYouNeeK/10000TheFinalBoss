@@ -1,0 +1,89 @@
+{
+  "base": "http://127.0.0.1:4191",
+  "timestamp": "2026-08-01T08:08:42.152Z",
+  "shop": {
+    "bgLayerCount": 83,
+    "brokenBgCount": 0,
+    "hasClassicWhite": true,
+    "hasDiamondRuby": true,
+    "categoryHeaders": [
+      "Regular",
+      "Power",
+      "Gemstones",
+      "Exotic",
+      "Custom Dice"
+    ]
+  },
+  "game": {
+    "bgLayerCount": 0,
+    "brokenBgCount": 0,
+    "diceImgCount": 0,
+    "hasError": false
+  },
+  "assets": [
+    {
+      "id": "classic_white",
+      "path": "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
+      "resolved": "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "gold",
+      "path": "/assets/cb5c77d90_WxvYf9qjMiU_V3CHnTzs-_DUPg67v2.png",
+      "resolved": "/assets/cb5c77d90_WxvYf9qjMiU_V3CHnTzs-_DUPg67v2.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "matrix",
+      "path": "/assets/matrix_dice.png",
+      "resolved": "/assets/matrix_dice.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "galaxy",
+      "path": "/assets/galaxy_dice_blackhole.png",
+      "resolved": "/assets/galaxy_dice_blackhole.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "blue_gel",
+      "path": "/assets/999d8760b_generated_image.png",
+      "resolved": "/assets/999d8760b_generated_image.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "ruby",
+      "path": "/assets/95bd85fb4_RdaZRnY8n4MYNGmhbire2_jIN9S0Pd.png",
+      "resolved": "/assets/95bd85fb4_RdaZRnY8n4MYNGmhbire2_jIN9S0Pd.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "diamond_ruby",
+      "path": "/assets/diamond_ruby_dice.png",
+      "resolved": "/assets/diamond_ruby_dice.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "ragnarok",
+      "path": "/assets/ragnarok_regular_dice.png",
+      "resolved": "/assets/ragnarok_regular_dice.png",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "crystal_cut",
+      "path": "/assets/823a86262_zIRb81kXhGo3xU-pd4xpr_yf8rZsgh.png",
+      "resolved": "/assets/823a86262_zIRb81kXhGo3xU-pd4xpr_yf8rZsgh.png",
+      "ok": true,
+      "status": 200
+    }
+  ],
+  "pass": true
+}
