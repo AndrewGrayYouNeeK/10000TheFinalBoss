@@ -1347,6 +1347,7 @@ export function getSkin(id) {
     return withBlueGelSpriteUrl(
       {
         ...skin,
+        spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
         spriteCrop: base.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
         spriteFaceOffsets: {
           ...skin.spriteFaceOffsets,

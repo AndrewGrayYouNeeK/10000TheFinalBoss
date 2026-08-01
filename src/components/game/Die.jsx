@@ -733,7 +733,7 @@ function Die({
           const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
           const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
-          const spriteZ = isBlueGelTank ? "z-[5]" : "z-[1]";
+          const spriteZ = "z-[1]";
           return (
             <div
               className={`absolute pointer-events-none ${spriteZ}`}

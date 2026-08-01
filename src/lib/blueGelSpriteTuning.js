@@ -1,9 +1,10 @@
 /**
  * Blue Gel face sheet — /assets/999d8760b_generated_image.png (1024×1024, 3×2).
  * Pips and digits are baked into the art (dark marks on the sprite sheet).
- * Uses the standard sprite crop path — same as before the aquarium-overlay regression.
+ * Portrait sheet size drives aspect-correct crops; zoom 1 shows full cell including corners.
  */
 export const BLUE_GEL_SPRITE_TUNING = {
+  spriteSheetSize: { width: 1024, height: 1024 },
   spriteCrop: { zoom: 1, offsetY: 0, offsetX: 0, stretch: 0 },
   spriteFaceOffsets: {
     regular: {
