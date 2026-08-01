@@ -12,6 +12,7 @@ import {
 } from "@/lib/diamondCutPowerVideo";
 import {
   AQUARIUM_OVERLAY_SKIN_IDS,
+  BLUE_GEL_SPRITE_URL,
   getSkin,
   getSkinSpriteLayer,
   getActiveVideoUrl,
@@ -41,7 +42,6 @@ import {
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
 import {
-  getBlueGelShellCrop,
   resolveBlueGelShellNudges,
   useBlueGelSettings,
 } from "@/lib/blueGelSettings";
@@ -203,8 +203,11 @@ function Die({
       ? "powerSprite"
       : "regular";
   const [spriteOk, setSpriteOk] = React.useState(true);
+  const isBlueGelTankEarly = (devSkin?.id ?? skinId) === "blue_gel";
   React.useEffect(() => {
-    const url = displaySpriteLayer?.spriteUrl;
+    const url = isBlueGelTankEarly
+      ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
+      : displaySpriteLayer?.spriteUrl;
     if (!url) return undefined;
     if (SPRITE_LOAD_CACHE.has(assetUrl(url))) {
       setSpriteOk(true);
@@ -212,7 +215,7 @@ function Die({
     }
     setSpriteOk(true);
     return preloadSpriteUrl(url, (ok) => setSpriteOk(ok));
-  }, [displaySpriteLayer?.spriteUrl]);
+  }, [displaySpriteLayer?.spriteUrl, isBlueGelTankEarly, skin.spriteUrl, skin.id]);
   const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
   const showBloodPowerFx =
     !reducePowerPresentation && usesBloodPowerFx && (powerMode || bloodWaterLocked);
@@ -278,7 +281,7 @@ function Die({
   const dieShapeStyle = getDieSquircleClipStyle(size);
 
   const showSpriteLayer =
-    displaySpriteLayer &&
+    (displaySpriteLayer || (isBlueGelTank && (skin.spriteUrl || BLUE_GEL_SPRITE_URL))) &&
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     spriteOk;
@@ -684,21 +687,26 @@ function Die({
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
         {showSpriteLayer ?
         (() => {
+          const faceSpriteUrl = isBlueGelTank
+            ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
+            : displaySpriteLayer.spriteUrl;
           const spriteSkin = {
             ...skin,
-            spriteUrl: displaySpriteLayer.spriteUrl,
-            spriteCrop: displaySpriteLayer.spriteCrop,
+            spriteUrl: faceSpriteUrl,
+            spriteCrop: displaySpriteLayer?.spriteCrop ?? skin.spriteCrop,
           };
           const faceOffset = getSkinFaceOffset(skin, value, spriteOffsetMode);
           const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
-          const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
+          const { xNudge, yNudge } = isBlueGelTank
+            ? resolveBlueGelShellNudges(value, size, blueGelShellSettings)
+            : resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
           const spriteZ = isBlueGelTank ? "z-[5]" : "z-[1]";
           return (
             <div
               className={`absolute pointer-events-none ${spriteZ}`}
               style={{
-                backgroundImage: `url(${assetUrl(displaySpriteLayer.spriteUrl)})`,
+                backgroundImage: `url(${assetUrl(faceSpriteUrl)})`,
                 backgroundColor: "transparent",
                 ...sheetStyle,
               }}
