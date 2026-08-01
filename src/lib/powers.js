@@ -74,6 +74,17 @@ export const POWERS = [
     tagline: "Skirt the skeert.",
   },
   {
+    id: "matrix_glitch",
+    name: "Matrix Glitch",
+    kind: "self",
+    cost: 40,
+    icon: "⚡",
+    color: "#00ff9f",
+    description:
+      "Arm glitch for this turn — if the roll would bust, rewrite up to N dice into scoring faces (stronger at higher skin level).",
+    tagline: "Reality is negotiable.",
+  },
+  {
     id: "hot_streak",
     name: "Hot Streak",
     kind: "self",

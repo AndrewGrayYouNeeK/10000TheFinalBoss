@@ -9,7 +9,7 @@ import { DICE_SKINS, FELT_COLORS, SHOP_DICE_CATEGORIES, getSkinShopCategory, get
 import { EXPERIMENTAL_DICE } from "@/lib/experimentalDice";
 import { getDuplicateGroups } from "@/lib/duplicateSkins";
 import { useCosmetics } from "@/hooks/useCosmetics";
-import { isSkinUnlockedByTier as checkUnlocked, isSkinAchievementOnly } from "@/lib/progression";
+import { isSkinUnlockedByTier as checkUnlocked, isSkinAchievementOnly, getLocalSkinPowerLevel } from "@/lib/progression";
 import ShopItemCard from "@/components/shop/ShopItemCard";
 import DicePreview from "@/components/shop/DicePreview";
 import FeltPreview from "@/components/shop/FeltPreview";
@@ -264,6 +264,11 @@ export default function Shop() {
                           achievementOnly={achievementOnly}
                           effectivePrice={effectivePrice}
                           hideLockedAction={false}
+                          skinLevel={
+                            ownedSkins.includes(skin.id)
+                              ? getLocalSkinPowerLevel(skin.id, user)
+                              : undefined
+                          }
                         />
                       );
                     })}
@@ -294,6 +299,11 @@ export default function Shop() {
                     achievementOnly={!ownedSkins.includes(skin.id)}
                     hideLockedAction={ownedSkins.includes(skin.id)}
                     effectivePrice={0}
+                    skinLevel={
+                      ownedSkins.includes(skin.id)
+                        ? getLocalSkinPowerLevel(skin.id, user)
+                        : undefined
+                    }
                   />
                 ))}
               </div>

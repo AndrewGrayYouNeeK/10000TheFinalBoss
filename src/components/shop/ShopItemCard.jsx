@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 export default function ShopItemCard({
   item, owned, equipped, canAfford, onBuy, onEquip, preview, duplicateTag,
   tierLocked, effectivePrice, achievementOnly, hideLockedAction,
+  skinLevel,
 }) {
   const displayPrice = effectivePrice ?? item.price;
 
@@ -30,6 +31,14 @@ export default function ShopItemCard({
       {equipped && (
         <div className="absolute top-2 right-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
           EQUIPPED
+        </div>
+      )}
+      {owned && typeof skinLevel === "number" && skinLevel >= 1 && (
+        <div
+          className="absolute top-2 left-2 bg-cyan-500/90 text-black text-[10px] font-black px-2 py-0.5 rounded-full border border-cyan-200/60"
+          style={{ boxShadow: "0 0 8px rgba(34,211,238,0.5)" }}
+        >
+          Lv {skinLevel}
         </div>
       )}
       <div className="flex items-center justify-center min-h-[120px] mb-3 relative w-full">

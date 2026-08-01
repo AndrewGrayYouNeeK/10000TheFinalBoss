@@ -1,6 +1,10 @@
 import { TARGET_SCORE } from "@/lib/gameLogic";
 import { formatXraySummary, scanAllOpponents } from "@/lib/xrayScan";
 import { isFishDicePlayer } from "@/lib/fishDice";
+import { loadProfile } from "@/lib/localProfile";
+import { getLocalSkinPowerLevel } from "@/lib/progression";
+import { glitchDiceCountForLevel } from "@/lib/matrixGlitch";
+import { resolvePlayerPower } from "@/lib/ghostDisguise";
 
 function opponentIndex(state) {
   const n = state.players?.length ?? 0;
@@ -108,6 +112,27 @@ export function applySkinPower(state, powerId) {
         message: "Lucky roll ready!",
         variant: "success",
       };
+
+    case "matrix_glitch": {
+      const profile = loadProfile();
+      const { mimicSkinId } = resolvePlayerPower(state, state.currentIndex, {
+        ghostDisguiseId: profile.ghost_disguise,
+        ownedSkins: profile.owned_skins ?? [],
+      });
+      const skinId = mimicSkinId || "matrix";
+      const level = getLocalSkinPowerLevel(skinId, profile);
+      const diceCount = glitchDiceCountForLevel(level);
+      return {
+        state: {
+          ...state,
+          matrixGlitchArmed: { diceCount },
+          message: `⚡ Matrix Glitch armed — next bust rewrites up to ${diceCount} die${diceCount === 1 ? "" : "s"}! (Lv ${level})`,
+          messageVariant: "success",
+        },
+        message: "Matrix Glitch armed!",
+        variant: "success",
+      };
+    }
 
     case "hot_streak":
       return {

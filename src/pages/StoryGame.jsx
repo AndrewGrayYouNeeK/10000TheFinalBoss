@@ -33,6 +33,7 @@ import {
   applyStoryBossHeadStart,
 } from "@/lib/storyBosses";
 import { getSkin } from "@/lib/shopCatalog";
+import { addSkinPlayXp } from "@/lib/progression";
 import { chooseDiceToHold, chooseBankOrRoll } from "@/lib/aiOpponent";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { useDiceSound } from "@/lib/useDiceSound";
@@ -185,6 +186,16 @@ export default function StoryGame() {
       lockBloodWater();
     }
   }, [game?.sharkFishFeast, game?.sharkBiteFx, lockBloodWater]);
+
+  useEffect(() => {
+    if (!game?.matrixGlitchFx) return undefined;
+    const t = setTimeout(() => {
+      setGame((g) =>
+        g ? { ...g, matrixGlitchFx: false, matrixGlitchDieIds: [] } : g
+      );
+    }, 800);
+    return () => clearTimeout(t);
+  }, [game?.matrixGlitchFx]);
 
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
   const [marlinLoopToolOpen, setMarlinLoopToolOpen] = useState(false);
@@ -812,6 +823,9 @@ export default function StoryGame() {
       games_finished: (user?.games_finished ?? 0) + 1,
     };
 
+    const skinId = user?.equipped_skin || storyPlayerSkin;
+    Object.assign(patch, addSkinPlayXp(user, skinId, 2));
+
     // Mark boss defeated (only once)
     if (!alreadyDefeated) {
       patch.bosses_defeated = [...(user?.bosses_defeated || []), boss.id];
@@ -1200,6 +1214,9 @@ export default function StoryGame() {
               bloodWaterLocked={trayBloodWater}
               onBloodWaterSettled={
                 fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
+              }
+              matrixGlitchDieIds={
+                game.matrixGlitchFx ? (game.matrixGlitchDieIds ?? []) : []
               }
             />
             {heldInfo.held.length > 0 && !hideStoryGhostDice && (

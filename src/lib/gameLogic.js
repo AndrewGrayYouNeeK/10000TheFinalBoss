@@ -2,6 +2,7 @@
 import { scoreSelection, hasAnyScore, isSixOfAKind, heldSelectionPoints } from "./scoring";
 import { getPowerChargeHotDiceThreshold } from "./skinPowers";
 import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
+import { applyMatrixGlitchToDice } from "./matrixGlitch";
 
 export const TARGET_SCORE = 10000;
 export const ENTRY_THRESHOLD = 1000;
@@ -30,6 +31,7 @@ function turnPowerReset() {
     doubleOrNothing: false,
     turnScoreMultiplier: 1,
     luckyRollNext: false,
+    matrixGlitchArmed: null,
   };
 }
 
@@ -157,6 +159,9 @@ export function createInitialState(playerNames, options = {}) {
     sharkFishFeast: false,
     sharkFishFeastTargetIdx: null,
     storyIceFreeze: null,
+    matrixGlitchArmed: null,
+    matrixGlitchFx: false,
+    matrixGlitchDieIds: [],
   };
 }
 
@@ -336,6 +341,32 @@ export function rollDice(state) {
   return next;
 }
 
+function tryMatrixGlitchRescue(state, dice) {
+  const diceCount = state.matrixGlitchArmed?.diceCount;
+  if (!diceCount) return null;
+
+  const activeValues = dice.filter((d) => !d.used).map((d) => d.value);
+  if (hasAnyScore(activeValues)) return null;
+
+  const { dice: glitchedDice, glitchedIds } = applyMatrixGlitchToDice(dice, diceCount);
+  const afterValues = glitchedDice.filter((d) => !d.used).map((d) => d.value);
+  if (!hasAnyScore(afterValues)) return null;
+
+  const currentName = state.players[state.currentIndex]?.name || "Player";
+  const n = glitchedIds.length;
+  return {
+    ...state,
+    dice: glitchedDice,
+    farkle: false,
+    matrixGlitchArmed: null,
+    matrixGlitchFx: true,
+    matrixGlitchDieIds: glitchedIds,
+    pendingPrisonRelease: null,
+    message: `⚡ Matrix Glitch — ${currentName} rewrote ${n} die${n === 1 ? "" : "s"}!`,
+    messageVariant: "success",
+  };
+}
+
 // Evaluate the roll after it lands → farkle / continue
 export function evaluateRoll(state) {
   const active = state.dice.filter(d => !d.used).map(d => d.value);
@@ -351,6 +382,8 @@ export function evaluateRoll(state) {
         messageVariant: "success",
       };
     }
+    const glitchRescue = tryMatrixGlitchRescue(state, state.dice);
+    if (glitchRescue) return glitchRescue;
     const currentName = state.players[state.currentIndex].name;
     const word = bustWord(state.bustCount || 0);
     const lostScore = state.doubleOrNothing ? state.turnScore * 2 : state.turnScore;
@@ -466,6 +499,13 @@ export function confirmAndReroll(state, options = {}) {
   const farkled = !hasAnyScore(activeVals);
 
   if (farkled) {
+    const glitchRescue = tryMatrixGlitchRescue(
+      { ...state, turnScore: newTurnScore, hasRolled: true },
+      newDice
+    );
+    if (glitchRescue) {
+      return { state: glitchRescue };
+    }
     const word = bustWord(state.bustCount || 0);
     return {
       state: {

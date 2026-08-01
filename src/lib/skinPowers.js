@@ -21,9 +21,9 @@ const SKIN_POWER_MAP = {
   // ── Self buffs ──
   lava: "hot_streak",
   ragnarok: "hot_streak",
-  matrix: "lucky_seven",
-  pf_matrix_storm: "lucky_seven",
-  pf_binary_storm: "lucky_seven",
+  matrix: "matrix_glitch",
+  pf_matrix_storm: "matrix_glitch",
+  pf_binary_storm: "matrix_glitch",
   galaxy: "double_or_nothing",
   dragon_scale: "shield",
   crystal_cut: "siphon",

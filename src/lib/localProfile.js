@@ -93,6 +93,8 @@ const DEFAULT_PROFILE = {
   video_uploads: {},
   /** Online stub: per-skin power level 1–100 (see progression.getSkinPowerLevel). */
   skin_levels: {},
+  /** Local play-time XP per skin (levels 1–10 derived in progression.addSkinPlayXp). */
+  skin_level_xp: {},
   /** What opponents see during your turn in online PvP (sync to server when live). */
   online_visibility: {
     hideDice: true,

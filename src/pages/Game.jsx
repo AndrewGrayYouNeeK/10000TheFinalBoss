@@ -100,6 +100,16 @@ export default function Game() {
     }
   }, [state?.sharkFishFeast, state?.sharkBiteFx, lockBloodWater]);
 
+  useEffect(() => {
+    if (!state?.matrixGlitchFx) return undefined;
+    const t = setTimeout(() => {
+      setState((s) =>
+        s ? { ...s, matrixGlitchFx: false, matrixGlitchDieIds: [] } : s
+      );
+    }, 800);
+    return () => clearTimeout(t);
+  }, [state?.matrixGlitchFx]);
+
   const [practicePowerPreview, setPracticePowerPreview] = useState(false);
   const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
@@ -975,6 +985,9 @@ export default function Game() {
             bloodWaterLocked={trayBloodWater}
             onBloodWaterSettled={
               fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
+            }
+            matrixGlitchDieIds={
+              state.matrixGlitchFx ? (state.matrixGlitchDieIds ?? []) : []
             }
           />
           {info.held.length > 0 && !hideDiceNow && (
