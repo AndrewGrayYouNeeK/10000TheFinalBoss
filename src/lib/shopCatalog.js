@@ -2,6 +2,7 @@
 // Skins describe the die body. Pips describe the dots. Badges describe an animated player badge.
 
 import { EXPERIMENTAL_DICE } from "./experimentalDice";
+import { applyFeltTuning } from "./feltLab";
 import { assetUrl } from "./assetUrl";
 import { RAGNAROK_SPRITE_TUNING } from "./ragnarokSpriteTuning";
 import { MATRIX_SPRITE_TUNING } from "./matrixSpriteTuning";
@@ -1423,7 +1424,8 @@ export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;
 }
 export function getFelt(id) {
-  return FELT_COLORS.find(f => f.id === id) || FELT_COLORS[0];
+  const base = FELT_COLORS.find(f => f.id === id) || FELT_COLORS[0];
+  return applyFeltTuning(base);
 }
 
 /**

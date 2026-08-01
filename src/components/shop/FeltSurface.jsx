@@ -29,6 +29,7 @@ export default function FeltSurface({ felt, compact = false, intense = false }) 
   const showPhoto = usesPhotoFeltTexture(felt.id) && felt.textureUrl;
   const wearOpacity = compact ? 0.22 : 0.38;
   const vignetteStrength = compact ? 0.32 : 0.5;
+  const overlay = felt.overlayStrength ?? 1;
 
   return (
     <>
@@ -36,7 +37,7 @@ export default function FeltSurface({ felt, compact = false, intense = false }) 
       <div
         className="absolute inset-0 pointer-events-none mix-blend-soft-light"
         style={{
-          opacity: isPhotoOnly ? 0.35 : isFabric ? 0.85 : 0.45 * fabricStrength,
+          opacity: (isPhotoOnly ? 0.35 : isFabric ? 0.85 : 0.45 * fabricStrength) * overlay,
           background: getFeltMottlingLayers(felt),
         }}
       />
@@ -57,14 +58,14 @@ export default function FeltSurface({ felt, compact = false, intense = false }) 
           <div
             className="absolute inset-0 pointer-events-none mix-blend-multiply"
             style={{
-              opacity: isFabric ? 0.55 : 0.35 * fabricStrength,
+              opacity: (isFabric ? 0.55 : 0.35 * fabricStrength) * overlay,
               backgroundImage: `${nap.primary}, ${nap.cross}`,
             }}
           />
           <div
             className="absolute inset-0 pointer-events-none mix-blend-overlay"
             style={{
-              opacity: isFabric ? 0.42 : 0.28 * fabricStrength,
+              opacity: (isFabric ? 0.42 : 0.28 * fabricStrength) * overlay,
               backgroundImage: nap.shear,
             }}
           />
@@ -77,7 +78,7 @@ export default function FeltSurface({ felt, compact = false, intense = false }) 
       <div
         className="absolute inset-0 pointer-events-none mix-blend-overlay"
         style={{
-          opacity: compact ? 0.45 : 0.58,
+          opacity: (compact ? 0.45 : 0.58) * overlay,
           backgroundImage: getFeltFiberNoiseUrl(),
           backgroundSize: compact ? "128px 128px" : "192px 192px",
         }}
@@ -87,7 +88,7 @@ export default function FeltSurface({ felt, compact = false, intense = false }) 
       <div
         className="absolute inset-0 pointer-events-none mix-blend-soft-light"
         style={{
-          opacity: compact ? 0.35 : 0.48,
+          opacity: (compact ? 0.35 : 0.48) * overlay,
           backgroundImage: `
             radial-gradient(circle at 14% 22%, rgba(255,255,255,0.2) 0.4px, transparent 0.8px),
             radial-gradient(circle at 41% 67%, rgba(0,0,0,0.24) 0.4px, transparent 0.8px),

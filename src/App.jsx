@@ -34,6 +34,7 @@ const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
 const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
 const IcePowerLab = lazy(() => import('@/pages/IcePowerLab'));
 const SharkBiteLab = lazy(() => import('@/pages/SharkBiteLab'));
+const FeltLabPage = lazy(() => import('@/pages/FeltLabPage'));
 
 function PageLoader() {
   return (
@@ -144,6 +145,8 @@ function App() {
             <Route path="/fish-showcase" element={<FishShowcase />} />
             <Route path="/ice-lab" element={<IcePowerLab />} />
             <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
+            <Route path="/felt-lab" element={<FeltLabPage />} />
+            <Route path="/felt-lab/:feltId" element={<FeltLabPage />} />
             <Route path="/shark-bite-lab" element={<SharkBiteLab />} />
             <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
             <Route path="*" element={<PageNotFound />} />

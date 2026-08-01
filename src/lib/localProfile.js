@@ -66,6 +66,8 @@ const DEFAULT_PROFILE = {
   opponent_sfx_muted: false,
   /** Sprite Lab locks + snapshots — survives restarts alongside this profile. */
   sprite_tuning: {},
+  /** Felt Lab texture tuning — scale, position, clarity per table felt. */
+  felt_tuning: {},
   /** Video upload inventory (metadata only — blobs live in IndexedDB/OPFS). */
   video_uploads: {},
   /** Online stub: per-skin power level 1–100 (see progression.getSkinPowerLevel). */

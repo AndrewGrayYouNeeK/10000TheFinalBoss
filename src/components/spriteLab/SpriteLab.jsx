@@ -1586,18 +1586,8 @@ export default function SpriteLab({ skinId }) {
           </div>
         )}
 
-        {(hasSpriteSheet || hasPowerSprite || hasPowerVideo) && (
+        {(hasPowerSprite || hasPowerVideo) && (
         <div className={cn("grid gap-4", hasPowerSprite || hasPowerVideo ? "sm:grid-cols-2" : "")}>
-          {hasSpriteSheet && (
-          <div>
-            <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Sprite sheet</p>
-            <img
-              src={catalogSkin.spriteUrl}
-              alt="Sprite sheet"
-              className="w-full rounded-lg border border-white/10"
-            />
-          </div>
-          )}
           {hasPowerSprite && (
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Power sheet</p>

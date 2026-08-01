@@ -85,12 +85,16 @@ export function isDedicatedPhotoFelt(feltId) {
 
 function dedicatedPhotoStyle(compact = false, felt) {
   const scale = felt?.textureScale ?? 1;
+  const posX = felt?.texturePosX ?? 50;
+  const posY = felt?.texturePosY ?? 50;
+  const opacity = felt?.textureOpacity ?? (compact ? 0.92 : 0.88);
   return {
     backgroundSize: scale === 1 ? "cover" : `${Math.round(scale * 100)}%`,
-    backgroundPosition: "center",
+    backgroundPosition: `${posX}% ${posY}%`,
     mixBlendMode: "normal",
-    opacity: compact ? 0.92 : 0.88,
-    filter: "none",
+    opacity,
+    filter: buildTextureFilter(felt, "none"),
+    imageRendering: felt?.textureBlur > 0 ? "auto" : "-webkit-optimize-contrast",
   };
 }
 
@@ -228,6 +232,22 @@ export function getWoodGrainOverlay() {
 }
 
 /** Photo texture tint — shift green casino scan toward each felt color. */
+function buildTextureFilter(felt, baseFilter) {
+  const parts = [];
+  const brightness = felt?.textureBrightness;
+  const contrast = felt?.textureContrast;
+  const saturate = felt?.textureSaturate;
+  const blur = felt?.textureBlur ?? 0;
+
+  if (brightness != null && brightness !== 1) parts.push(`brightness(${brightness})`);
+  if (contrast != null && contrast !== 1) parts.push(`contrast(${contrast})`);
+  if (saturate != null && saturate !== 1) parts.push(`saturate(${saturate})`);
+  else if (baseFilter && baseFilter !== "none") parts.push(baseFilter);
+
+  if (blur > 0) parts.push(`blur(${blur}px)`);
+  return parts.length ? parts.join(" ") : "none";
+}
+
 export function getPhotoTextureStyle(felt, compact = false) {
   const id = felt?.id;
   if (isDedicatedPhotoFelt(id)) {
@@ -255,12 +275,19 @@ export function getPhotoTextureStyle(felt, compact = false) {
     velvet_royal: "hue-rotate(100deg) saturate(1.25) brightness(0.8)",
   };
 
+  const scale = felt?.textureScale ?? 1;
+  const posX = felt?.texturePosX ?? 50;
+  const posY = felt?.texturePosY ?? 50;
+  const opacity = felt?.textureOpacity ?? (compact ? 0.72 : 0.58);
+  const baseFilter = hueMap[id] || "saturate(0.85) contrast(1.05)";
+
   return {
-    backgroundSize: compact ? "180%" : "140%",
-    backgroundPosition: "center",
+    backgroundSize: scale === 1 ? "cover" : `${Math.round(scale * 100)}%`,
+    backgroundPosition: `${posX}% ${posY}%`,
     mixBlendMode: "multiply",
-    opacity: compact ? 0.72 : 0.58,
-    filter: hueMap[id] || "saturate(0.85) contrast(1.05)",
+    opacity,
+    filter: buildTextureFilter(felt, baseFilter),
+    imageRendering: felt?.textureBlur > 0 ? "auto" : "-webkit-optimize-contrast",
   };
 }
 
