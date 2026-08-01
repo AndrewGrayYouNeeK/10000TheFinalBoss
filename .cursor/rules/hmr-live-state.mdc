@@ -1,0 +1,39 @@
+---
+description: Prevent full page reloads and game state loss during live debugging with Vite + game engines
+alwaysApply: true
+---
+
+# HMR & LIVE GAME STATE SAFETY – CRITICAL
+
+The user is frequently play-testing the dice game live. Full page reloads destroy progress, skins, and debugging state. Treat this as a high-priority constraint.
+
+## Core Rules
+
+1. Prefer the smallest change that can hot-reload without a full page refresh.
+2. Never restart the Vite dev server or kill the process unless the user explicitly asks.
+3. When editing game logic, scenes, or sprite *references*, structure the change so Vite can do a module hot update instead of a full reload whenever possible.
+4. If a change will force a full page reload, **stop and warn the user first**. Offer a safer alternative if one exists.
+5. After any change, clearly state whether it should hot-reload or will cause a full refresh.
+
+## Phaser-specific (if applicable)
+
+- Always destroy the old Phaser.Game instance cleanly on HMR using `import.meta.hot`.
+- Use a singleton pattern or module-level `let game` + `import.meta.hot.dispose(() => game.destroy(true))`.
+- Prefer updating config, scene data, or texture references over recreating the whole game when possible.
+
+## Pixi / Canvas / Three.js
+
+- Destroy the old Application / renderer / scene graph on HMR dispose.
+- Clear any leftover canvas elements from the DOM before creating a new one.
+- Keep asset loading and texture caches intact across hot updates when feasible.
+
+## Asset / Skin Changes
+
+- Never overwrite existing sprite sheets, texture atlases, or skin image files.
+- Only change the code that points to them (paths, frame names, animation keys).
+- If a new visual variant is needed, create a *new* file instead of modifying the original.
+
+## When the user reports “it refreshed and reset” or “my skins disappeared”
+
+- Immediately investigate whether the last change forced a full reload or overwrote an asset.
+- Fix the root cause (HMR cleanup, asset overwrite, etc.) before continuing with other work.

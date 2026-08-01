@@ -1,0 +1,14 @@
+---
+description: Safe git and pull request handling – never mess up branches
+alwaysApply: true
+---
+
+# GIT & PR SAFETY RULES
+
+- Always create a new feature/fix branch from main before making changes.
+- Never commit or push directly to main.
+- Never force-push.
+- Never delete or rename existing branches unless the user explicitly asks.
+- Prefer small, focused commits with clear messages.
+- When asked to “handle the PR”, create the branch → make changes → commit → push → open a PR against main, then give the user the PR link.
+- If the working tree is dirty or the user is on a messy branch, warn them and offer to start clean from main.
