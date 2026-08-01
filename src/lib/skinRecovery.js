@@ -8,13 +8,17 @@ import { DICE_SKINS } from "./shopCatalog";
 import {
   isUsableSpriteLabSnapshot,
   lockedTuningStorageKey,
+  sanitizeSpriteLabSnapshot,
   spriteLabStorageKey,
 } from "./spriteLab";
 
 const RECOVERY_VERSION_KEY = "yourneek_dice_recovery_v5";
 
-function snapshotNeedsRepair(skinId, snapshot) {
-  return !isUsableSpriteLabSnapshot(skinId, snapshot);
+function repairSnapshot(skinId, snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const sanitized = sanitizeSpriteLabSnapshot(skinId, snapshot);
+  if (!isUsableSpriteLabSnapshot(skinId, sanitized)) return null;
+  return sanitized;
 }
 
 /** Reset corrupt sprite-lab saves and restore owned dice skins. Safe to run every launch. */
@@ -32,8 +36,14 @@ export function recoverCorruptDiceState() {
         if (!raw) continue;
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") continue;
-        if (snapshotNeedsRepair(skinId, parsed)) {
+        const fixed = repairSnapshot(skinId, parsed);
+        if (!fixed) {
           localStorage.removeItem(key);
+          repaired = true;
+          continue;
+        }
+        if (JSON.stringify(fixed) !== raw) {
+          localStorage.setItem(key, JSON.stringify(fixed));
           repaired = true;
         }
       } catch {
@@ -49,10 +59,19 @@ export function recoverCorruptDiceState() {
   const nextTuning = { ...spriteTuning };
   for (const [skinId, entry] of Object.entries(spriteTuning)) {
     const snap = entry?.snapshot;
-    if (!snap || !snapshotNeedsRepair(skinId, snap)) continue;
-    delete nextTuning[skinId];
-    tuningDirty = true;
-    repaired = true;
+    if (!snap) continue;
+    const fixed = repairSnapshot(skinId, snap);
+    if (!fixed) {
+      delete nextTuning[skinId];
+      tuningDirty = true;
+      repaired = true;
+      continue;
+    }
+    if (JSON.stringify(fixed) !== JSON.stringify(snap)) {
+      nextTuning[skinId] = { ...entry, snapshot: fixed, updatedAt: Date.now() };
+      tuningDirty = true;
+      repaired = true;
+    }
   }
   if (tuningDirty) {
     updateProfile({ sprite_tuning: nextTuning });

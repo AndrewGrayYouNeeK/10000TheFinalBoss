@@ -155,7 +155,7 @@ function writeProfileSpriteTuningEntry(skinId, patch) {
 
 /** Persist slider + sprite path values when the user taps Lock in Sprite Lab. */
 export function saveLockedTuningSnapshot(skinId, payload) {
-  const data = { ...payload, savedAt: Date.now() };
+  const data = sanitizeSpriteLabSnapshot(skinId, { ...payload, savedAt: Date.now() });
   try {
     localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(data));
   } catch {
@@ -164,12 +164,19 @@ export function saveLockedTuningSnapshot(skinId, payload) {
   writeProfileSpriteTuningEntry(skinId, { locked: true, snapshot: data });
 }
 
+function readUsableSpriteLabSnapshot(skinId, snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const sanitized = sanitizeSpriteLabSnapshot(skinId, snapshot);
+  return isUsableSpriteLabSnapshot(skinId, sanitized) ? sanitized : null;
+}
+
 export function loadLockedTuningSnapshot(skinId) {
   try {
     const raw = localStorage.getItem(lockedTuningStorageKey(skinId));
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") return parsed;
+      const usable = readUsableSpriteLabSnapshot(skinId, parsed);
+      if (usable) return usable;
     }
   } catch {
     /* fall through to profile backup */
@@ -177,12 +184,14 @@ export function loadLockedTuningSnapshot(skinId) {
   try {
     const snap = readProfileSpriteTuning()?.[skinId]?.snapshot;
     if (snap && typeof snap === "object") {
+      const usable = readUsableSpriteLabSnapshot(skinId, snap);
+      if (!usable) return null;
       try {
-        localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(snap));
+        localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(usable));
       } catch {
         /* ignore */
       }
-      return snap;
+      return usable;
     }
   } catch {
     /* ignore */
@@ -293,20 +302,20 @@ export function isCorruptZoom(zoom) {
   return !Number.isFinite(n) || n < 0.45 || n > 1.85;
 }
 
+/** True when snapshot is safe to load — clamp/sanitize may still adjust values. */
 export function isUsableSpriteLabSnapshot(skinId, snapshot) {
   if (!snapshot || typeof snapshot !== "object") return false;
   if (snapshot.regularCrop && isCorruptZoom(snapshot.regularCrop.zoom)) return false;
   if (snapshot.powerCrop && isCorruptZoom(snapshot.powerCrop.zoom)) return false;
   if (isCorruptFaceMap(snapshot.regularFaces)) return false;
   if (isCorruptFaceMap(snapshot.powerFaces)) return false;
-  const fixed = sanitizeSpriteLabSnapshot(skinId, snapshot);
-  return JSON.stringify(fixed) === JSON.stringify(snapshot);
+  return true;
 }
 
 /** Prefer snapshots with real user tuning — reject corrupt lab saves first. */
 function preferRicherSnapshot(skinId, a, b) {
-  const usableA = a && isUsableSpriteLabSnapshot(skinId, a) ? a : null;
-  const usableB = b && isUsableSpriteLabSnapshot(skinId, b) ? b : null;
+  const usableA = readUsableSpriteLabSnapshot(skinId, a);
+  const usableB = readUsableSpriteLabSnapshot(skinId, b);
   if (!usableA && !usableB) return null;
   if (!usableA) return usableB;
   if (!usableB) return usableA;
@@ -314,6 +323,26 @@ function preferRicherSnapshot(skinId, a, b) {
   const sb = snapshotTuningScore(usableB);
   if (sa !== sb) return sa > sb ? usableA : usableB;
   return (usableA.savedAt ?? 0) >= (usableB.savedAt ?? 0) ? usableA : usableB;
+}
+
+/** Merge lock snapshot, profile backup, and live draft — keep the richest usable save. */
+function pickBestSpriteLabSnapshot(skinId, ...candidates) {
+  let best = null;
+  for (const candidate of candidates) {
+    best = preferRicherSnapshot(skinId, best, candidate);
+  }
+  return best ? sanitizeSpriteLabSnapshot(skinId, best) : null;
+}
+
+function writeSpriteLabSnapshotToLocalStorage(skinId, snapshot) {
+  if (!snapshot) return;
+  const json = JSON.stringify(snapshot);
+  try {
+    localStorage.setItem(spriteLabStorageKey(skinId), json);
+    localStorage.setItem(lockedTuningStorageKey(skinId), json);
+  } catch {
+    /* ignore quota errors */
+  }
 }
 
 export function restoreAquariumShellSettingsFromSnapshot(skinId, snapshot) {
@@ -450,10 +479,14 @@ function seedMissingLockedTuningSnapshots(sprite_tuning) {
     }
 
     const draft = loadRawSpriteLabDraft(skinId);
-    const needsSeed = !existing;
+    if (!existing && draft) {
+      existing = readUsableSpriteLabSnapshot(skinId, draft) ?? draft;
+    }
+    const usableExisting = readUsableSpriteLabSnapshot(skinId, existing);
+    const needsSeed = !usableExisting;
     const needsPathBackfill = !!(
-      existing &&
-      !snapshotHasSpritePaths(existing) &&
+      usableExisting &&
+      !snapshotHasSpritePaths(usableExisting) &&
       catalog &&
       !AQUARIUM_OVERLAY_SKIN_IDS.has(skinId)
     );
@@ -472,7 +505,7 @@ function seedMissingLockedTuningSnapshots(sprite_tuning) {
             sprite_tuning[skinId] = {
               ...(entry || {}),
               locked,
-              snapshot: existing,
+              snapshot: usableExisting,
               updatedAt: Date.now(),
             };
             profileDirty = true;
@@ -484,16 +517,12 @@ function seedMissingLockedTuningSnapshots(sprite_tuning) {
       continue;
     }
 
-    const snapshot = {
-      ...mergeRecoveredLockSnapshot({ existing, draft, catalog }),
+    const snapshot = sanitizeSpriteLabSnapshot(skinId, {
+      ...mergeRecoveredLockSnapshot({ existing: usableExisting || existing, draft, catalog }),
       savedAt: Date.now(),
-    };
+    });
 
-    try {
-      localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(snapshot));
-    } catch {
-      /* ignore quota */
-    }
+    writeSpriteLabSnapshotToLocalStorage(skinId, snapshot);
 
     // Auto-lock so Sprite Lab doesn't ask the user to re-lock each skin.
     // Respect an explicit unlock ("0") — still write the snapshot for when they lock.
@@ -544,10 +573,8 @@ export function hydrateSpriteLabPersistence() {
         if (parsed && typeof parsed === "object") lsSnap = parsed;
       }
       const profileSnap = sprite_tuning[skinId]?.snapshot;
-      const snapshot = sanitizeSpriteLabSnapshot(
-        skinId,
-        preferRicherSnapshot(skinId, lsSnap, profileSnap)
-      );
+      const draftSnap = loadRawSpriteLabDraft(skinId);
+      const snapshot = pickBestSpriteLabSnapshot(skinId, lsSnap, profileSnap, draftSnap);
       if (!snapshot) continue;
 
       restoreAquariumShellSettingsFromSnapshot(skinId, snapshot);
@@ -570,11 +597,9 @@ export function hydrateSpriteLabPersistence() {
       };
       profileDirty = true;
 
-      // Keep localStorage in sync when profile won (or LS was missing/stale)
+      // Keep draft + lock localStorage in sync with the winning snapshot.
+      writeSpriteLabSnapshotToLocalStorage(skinId, snapshot);
       try {
-        if (JSON.stringify(lsSnap) !== JSON.stringify(snapshot)) {
-          localStorage.setItem(lockedTuningStorageKey(skinId), JSON.stringify(snapshot));
-        }
         if (flagKey && flag === null) {
           localStorage.setItem(flagKey, locked ? "1" : "0");
         }
@@ -748,11 +773,7 @@ export function loadSpriteLabDraft(skinId) {
   try {
     const lockedSnap = loadLockedTuningSnapshot(skinId);
     const rawDraft = loadRawSpriteLabDraft(skinId);
-    const draft = preferRicherSnapshot(skinId, lockedSnap, rawDraft);
-    if (!draft) return null;
-    const sanitized = sanitizeSpriteLabSnapshot(skinId, draft);
-    if (!isUsableSpriteLabSnapshot(skinId, sanitized)) return null;
-    return sanitized;
+    return pickBestSpriteLabSnapshot(skinId, lockedSnap, rawDraft);
   } catch {
     return null;
   }
