@@ -631,12 +631,13 @@ export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
   };
 }
 
-/** Per-face nudge map — clamp ref-pixel offsets (lab sliders allow ±200; that blows sprites). */
+/** Per-face nudge map — clamp corrupt ref-pixel offsets (old lab sliders allowed ±200). */
 export function sanitizeSpriteFaceMap(faceMap) {
   const clamp = (n) => {
     const v = Number(n);
     if (!Number.isFinite(v)) return 0;
-    return Math.min(12, Math.max(-12, v));
+    // Snapshots store absolute catalog-aligned offsets (often >12); only reject runaway saves.
+    return Math.min(100, Math.max(-100, v));
   };
   return Object.fromEntries(
     FACES.map((face) => {
