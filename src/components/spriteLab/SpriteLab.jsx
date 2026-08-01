@@ -536,8 +536,8 @@ function FaceNudgePanel({ face, nudge, onChange, onResetFace, onResetAll, modeLa
       </div>
       <p className="text-[10px] text-slate-500">Per-die nudge in ref pixels (@ 64px die size).</p>
       {[
-        { key: "x", min: -200, max: 200, step: 0.5, label: "Nudge X" },
-        { key: "y", min: -200, max: 200, step: 0.5, label: "Nudge Y" },
+        { key: "x", min: -12, max: 12, step: 0.5, label: "Nudge X" },
+        { key: "y", min: -12, max: 12, step: 0.5, label: "Nudge Y" },
       ].map(({ key, min, max, step, label: sliderLabel }) => (
         <label key={key} className="block text-[10px] text-slate-400">
           {sliderLabel}: <span className="text-white tabular-nums">{nudge[key]?.toFixed(1)}</span>

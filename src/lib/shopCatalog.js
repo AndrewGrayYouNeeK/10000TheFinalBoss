@@ -32,7 +32,7 @@ import { TOXIC_PLASMA_V2_SPRITE_TUNING } from "./toxicPlasmaV2SpriteTuning";
 import { RUBY_SPRITE_TUNING } from "./rubySpriteTuning";
 import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
 import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
-import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked } from "./spriteLab";
+import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, sanitizeSpriteCrop } from "./spriteLab";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -1394,8 +1394,9 @@ export function getSpriteStyle(skin, value, size) {
   const url = assetUrl(skin.spriteUrl);
   const posX = cols <= 1 ? "0%" : `${(col / (cols - 1)) * 100}%`;
   const posY = rows <= 1 ? "0%" : `${(row / (rows - 1)) * 100}%`;
-  const zoom = skin.spriteCrop?.zoom ?? 1;
-  const offsetYPx = skin.spriteCrop?.offsetY ? size * skin.spriteCrop.offsetY : 0;
+  const crop = sanitizeSpriteCrop(skin.spriteCrop);
+  const zoom = crop.zoom ?? 1;
+  const offsetYPx = crop.offsetY ? size * crop.offsetY : 0;
 
   return {
     width: size,

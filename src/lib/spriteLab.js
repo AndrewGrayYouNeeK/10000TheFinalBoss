@@ -510,7 +510,10 @@ export function hydrateSpriteLabPersistence() {
         if (parsed && typeof parsed === "object") lsSnap = parsed;
       }
       const profileSnap = sprite_tuning[skinId]?.snapshot;
-      const snapshot = preferRicherSnapshot(lsSnap, profileSnap);
+      const snapshot = sanitizeSpriteLabSnapshot(
+        skinId,
+        preferRicherSnapshot(lsSnap, profileSnap)
+      );
       if (!snapshot) continue;
 
       restoreAquariumShellSettingsFromSnapshot(skinId, snapshot);
@@ -575,6 +578,7 @@ export function hydrateSpriteLabPersistence() {
 
   if (seedMissingLockedTuningSnapshots(sprite_tuning)) profileDirty = true;
   if (profileDirty) writeProfileSpriteTuningMap(sprite_tuning);
+  repairCorruptSpriteLabData();
 }
 
 /** Featured skins — shop category headers link to these labs first */
@@ -608,7 +612,8 @@ export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
   if (!crop || typeof crop !== "object") return { ...fb };
   const fbZoom = Number(fb.zoom ?? 1);
   const zoom = Number(crop.zoom);
-  const safeZoom = Number.isFinite(zoom) && zoom >= 0.45 && zoom <= 2.25 ? zoom : fbZoom;
+  // Galaxy tops catalog at ~1.63 — values above ~1.85 are corrupt lab saves.
+  const safeZoom = Number.isFinite(zoom) && zoom >= 0.45 && zoom <= 1.85 ? zoom : fbZoom;
   const clampOff = (value, defaultValue = 0) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return defaultValue;
@@ -624,6 +629,66 @@ export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
     offsetY: clampOff(crop.offsetY, fb.offsetY ?? 0),
     stretch: safeStretch,
   };
+}
+
+/** Per-face nudge map — clamp ref-pixel offsets (lab sliders allow ±200; that blows sprites). */
+export function sanitizeSpriteFaceMap(faceMap) {
+  const clamp = (n) => {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return 0;
+    return Math.min(12, Math.max(-12, v));
+  };
+  return Object.fromEntries(
+    FACES.map((face) => {
+      const raw = faceMap?.[face] ?? faceMap?.[String(face)] ?? {};
+      return [face, { x: clamp(raw.x), y: clamp(raw.y) }];
+    })
+  );
+}
+
+/** Sanitize crop + face maps on any sprite-lab snapshot before it reaches getSkin. */
+export function sanitizeSpriteLabSnapshot(skinId, snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return snapshot;
+  const catalog = catalogSkinById(skinId);
+  const catalogCrop = catalog?.spriteCrop ?? DEFAULT_SPRITE_CROP;
+  const catalogPowerCrop = catalog?.powerSpriteCrop ?? catalogCrop;
+  const next = { ...snapshot };
+  if (snapshot.regularCrop) {
+    next.regularCrop = sanitizeSpriteCrop(snapshot.regularCrop, catalogCrop);
+  }
+  if (snapshot.powerCrop) {
+    next.powerCrop = sanitizeSpriteCrop(snapshot.powerCrop, catalogPowerCrop);
+  }
+  if (snapshot.regularFaces) {
+    next.regularFaces = sanitizeSpriteFaceMap(snapshot.regularFaces);
+  }
+  if (snapshot.powerFaces) {
+    next.powerFaces = sanitizeSpriteFaceMap(snapshot.powerFaces);
+  }
+  return next;
+}
+
+/** Repair every sprite-lab draft/lock in localStorage (corrupt zoom/nudges break all dice). */
+export function repairCorruptSpriteLabData() {
+  if (typeof localStorage === "undefined") return;
+  for (const skin of getSpriteLabSkins()) {
+    const skinId = skin.id;
+    try {
+      const keys = [spriteLabStorageKey(skinId), lockedTuningStorageKey(skinId)];
+      for (const key of keys) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") continue;
+        const fixed = sanitizeSpriteLabSnapshot(skinId, parsed);
+        if (JSON.stringify(fixed) !== raw) {
+          localStorage.setItem(key, JSON.stringify(fixed));
+        }
+      }
+    } catch {
+      /* ignore per-skin */
+    }
+  }
 }
 
 export const FACES = [1, 2, 3, 4, 5, 6];
@@ -650,13 +715,7 @@ export function loadSpriteLabDraft(skinId) {
     const rawDraft = loadRawSpriteLabDraft(skinId);
     const draft = preferRicherSnapshot(lockedSnap, rawDraft);
     if (!draft) return null;
-    const catalog = catalogSkinById(skinId);
-    const catalogCrop = catalog?.spriteCrop ?? DEFAULT_SPRITE_CROP;
-    const catalogPowerCrop = catalog?.powerSpriteCrop ?? catalogCrop;
-    const next = { ...draft };
-    if (draft.regularCrop) next.regularCrop = sanitizeSpriteCrop(draft.regularCrop, catalogCrop);
-    if (draft.powerCrop) next.powerCrop = sanitizeSpriteCrop(draft.powerCrop, catalogPowerCrop);
-    return next;
+    return sanitizeSpriteLabSnapshot(skinId, draft);
   } catch {
     return null;
   }
@@ -665,7 +724,7 @@ export function loadSpriteLabDraft(skinId) {
 /** Write draft + lock snapshot + profile backup so tuning survives reload/restart. */
 export function persistSpriteLabTuning(skinId, payload, { locked = isSpriteTuningLocked(skinId) } = {}) {
   const catalog = catalogSkinById(skinId);
-  const withMeta = {
+  const withMeta = sanitizeSpriteLabSnapshot(skinId, {
     ...payload,
     savedAt: Date.now(),
     ...(payload.regularCrop
@@ -687,7 +746,7 @@ export function persistSpriteLabTuning(skinId, payload, { locked = isSpriteTunin
           videoUrl: payload.videoUrl ?? catalog.videoUrl,
         }
       : {}),
-  };
+  });
   try {
     localStorage.setItem(spriteLabStorageKey(skinId), JSON.stringify(withMeta));
   } catch {

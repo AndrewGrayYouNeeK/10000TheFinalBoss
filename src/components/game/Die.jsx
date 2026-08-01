@@ -736,7 +736,7 @@ function Die({
           const spriteZ = "z-[1]";
           return (
             <div
-              className={`absolute pointer-events-none ${spriteZ}`}
+              className={`absolute inset-0 pointer-events-none ${spriteZ}`}
               style={{
                 backgroundImage: `url(${assetUrl(faceSpriteUrl)})`,
                 backgroundColor: "transparent",
