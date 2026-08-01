@@ -1,5 +1,5 @@
 import { loadProfile, updateProfile } from "@/lib/localProfile";
-import { isDedicatedPhotoFelt, isFabricFelt } from "@/lib/feltVisuals";
+import { isDedicatedPhotoFelt, isFabricFelt, isPortraitCanvasFelt } from "@/lib/feltVisuals";
 
 /** Tunable felt texture fields — merged onto catalog felt in getFelt(). */
 export const FELT_TUNING_FIELDS = [
@@ -47,7 +47,11 @@ export function getCatalogFeltTuningDefaults(felt) {
   if (!felt) return { ...DEFAULT_FELT_TUNING };
   const base = { ...DEFAULT_FELT_TUNING };
   if (felt.textureScale != null) base.textureScale = felt.textureScale;
-  if (isDedicatedPhotoFelt(felt.id)) {
+  if (isPortraitCanvasFelt(felt.id)) {
+    base.textureScale = 1;
+    base.textureOpacity = 0.98;
+    base.overlayStrength = 0.35;
+  } else if (isDedicatedPhotoFelt(felt.id)) {
     base.textureOpacity = 0.92;
     base.textureContrast = 1.08;
   } else if (isFabricFelt(felt.id)) {

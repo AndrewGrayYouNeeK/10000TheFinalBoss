@@ -83,14 +83,39 @@ export function isDedicatedPhotoFelt(feltId) {
   return DEDICATED_PHOTO_FELT_IDS.has(feltId);
 }
 
-function dedicatedPhotoStyle(compact = false, felt) {
+/** Frame felts shipped as tall PNGs — landscape tray art centered in portrait canvas. */
+const PORTRAIT_CANVAS_FELT_IDS = new Set([
+  "green_wood",
+  "red_wood",
+  "galaxy_window",
+  "tiedye_neon",
+]);
+
+export function isPortraitCanvasFelt(feltId) {
+  return PORTRAIT_CANVAS_FELT_IDS.has(feltId);
+}
+
+function photoBackgroundSize(felt, compact) {
   const scale = felt?.textureScale ?? 1;
+  if (isPortraitCanvasFelt(felt?.id)) {
+    if (scale === 1) return "100% auto";
+    return `${Math.round(scale * 100)}% auto`;
+  }
+  if (scale === 1) return "cover";
+  return `${Math.round(scale * 100)}%`;
+}
+
+function photoBackgroundPosition(felt) {
   const posX = felt?.texturePosX ?? 50;
   const posY = felt?.texturePosY ?? 50;
+  return `${posX}% ${posY}%`;
+}
+function dedicatedPhotoStyle(compact = false, felt) {
   const opacity = felt?.textureOpacity ?? (compact ? 0.92 : 0.88);
   return {
-    backgroundSize: scale === 1 ? "cover" : `${Math.round(scale * 100)}%`,
-    backgroundPosition: `${posX}% ${posY}%`,
+    backgroundSize: photoBackgroundSize(felt, compact),
+    backgroundPosition: photoBackgroundPosition(felt),
+    backgroundRepeat: "no-repeat",
     mixBlendMode: "normal",
     opacity,
     filter: buildTextureFilter(felt, "none"),
@@ -275,15 +300,13 @@ export function getPhotoTextureStyle(felt, compact = false) {
     velvet_royal: "hue-rotate(100deg) saturate(1.25) brightness(0.8)",
   };
 
-  const scale = felt?.textureScale ?? 1;
-  const posX = felt?.texturePosX ?? 50;
-  const posY = felt?.texturePosY ?? 50;
   const opacity = felt?.textureOpacity ?? (compact ? 0.72 : 0.58);
   const baseFilter = hueMap[id] || "saturate(0.85) contrast(1.05)";
 
   return {
-    backgroundSize: scale === 1 ? "cover" : `${Math.round(scale * 100)}%`,
-    backgroundPosition: `${posX}% ${posY}%`,
+    backgroundSize: photoBackgroundSize(felt, compact),
+    backgroundPosition: photoBackgroundPosition(felt),
+    backgroundRepeat: "no-repeat",
     mixBlendMode: "multiply",
     opacity,
     filter: buildTextureFilter(felt, baseFilter),

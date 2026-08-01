@@ -16,6 +16,10 @@ import StoryGame from '@/pages/StoryGame';
 recoverCorruptDiceState();
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
 hydrateSpriteLabPersistence();
+// Re-seal video uploads from backup/vault/OPFS (never wipes user uploads).
+import("@/lib/spriteLabLockedVideos")
+  .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
+  .catch(() => {});
 
 const Shop = lazy(() => import('@/pages/Shop'));
 
