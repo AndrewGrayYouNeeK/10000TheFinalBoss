@@ -265,7 +265,6 @@ function Die({
       : null;
   // Convex squircle on the inner visual stack — never on the button (that hid sprites).
   const dieShapeStyle = getDieSquircleClipStyle(size);
-  void blueGelShellSettingsProp;
 
   const showSpriteLayer =
     displaySpriteLayer &&
