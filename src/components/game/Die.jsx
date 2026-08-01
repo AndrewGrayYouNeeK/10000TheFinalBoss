@@ -41,10 +41,6 @@ import {
   resolveSnowGlobeShellNudges,
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
-import {
-  resolveBlueGelShellNudges,
-  useBlueGelSettings,
-} from "@/lib/blueGelSettings";
 import { assetUrl } from "@/lib/assetUrl";
 
 const LOCAL_POWER_VIDEO_SKINS = {
@@ -135,8 +131,6 @@ function Die({
   devSkin = null,
   /** Sprite Lab override for Snow Globe glass-shell alignment. */
   snowGlobeShellSettings: snowGlobeShellSettingsProp = null,
-  /** Sprite Lab override for Blue Gel glass-shell alignment. */
-  blueGelShellSettings: blueGelShellSettingsProp = null,
 }) {
   const stableSeedRef = React.useRef(Math.floor(Math.random() * 10000));
   const effectDieSeed = dieSeed ?? stableSeedRef.current;
@@ -271,11 +265,6 @@ function Die({
   const snowGlobeShellSettings =
     effectiveSkinId === "snow_globe"
       ? snowGlobeShellSettingsProp ?? liveSnowGlobeSettings
-      : null;
-  const liveBlueGelSettings = useBlueGelSettings();
-  const blueGelShellSettings =
-    effectiveSkinId === "blue_gel"
-      ? blueGelShellSettingsProp ?? liveBlueGelSettings
       : null;
   // Convex squircle on the inner visual stack — never on the button (that hid sprites).
   const dieShapeStyle = getDieSquircleClipStyle(size);
@@ -697,9 +686,7 @@ function Die({
           };
           const faceOffset = getSkinFaceOffset(skin, value, spriteOffsetMode);
           const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
-          const { xNudge, yNudge } = isBlueGelTank
-            ? resolveBlueGelShellNudges(value, size, blueGelShellSettings)
-            : resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
+          const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
           const spriteZ = isBlueGelTank ? "z-[5]" : "z-[1]";
           return (
@@ -815,7 +802,6 @@ function Die({
 function diePropsAreEqual(prev, next) {
   if (prev.devSkin !== next.devSkin) return false;
   if (prev.snowGlobeShellSettings !== next.snowGlobeShellSettings) return false;
-  if (prev.blueGelShellSettings !== next.blueGelShellSettings) return false;
   if (prev.powerMode !== next.powerMode) return false;
   if (prev.powerModeSubtle !== next.powerModeSubtle) return false;
   if (prev.allowXrayMorph !== next.allowXrayMorph) return false;
