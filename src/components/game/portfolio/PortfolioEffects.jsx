@@ -979,33 +979,30 @@ function SoundwaveBars() {
 
   return (
     <>
-      {needsMicTap && (
-        <div
-          className="absolute inset-0 z-10 flex items-end justify-center pb-1 pointer-events-auto cursor-pointer"
+      <SoundwaveBarDisplay
+        levels={levels}
+        live={live}
+        className="absolute inset-0 px-2 pb-2.5 pointer-events-none"
+      />
+      {needsMicTap ? (
+        <button
+          type="button"
+          className="absolute bottom-1 left-1/2 z-10 -translate-x-1/2 max-w-[90%] truncate text-[6px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-black/70 text-cyan-300 border border-cyan-500/45 pointer-events-auto cursor-pointer"
           onPointerDown={requestMic}
           onClick={requestMic}
           title={error || "Tap to enable microphone"}
         >
-          <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/60 text-cyan-300 border border-cyan-500/40">
-            {pending ? "Starting mic…" : error || (synthetic ? "Tap for live mic" : "Tap for mic")}
-          </span>
-        </div>
-      )}
-      {live && !synthetic && (
+          {pending ? "Mic…" : error ? "Mic blocked" : "Mic"}
+        </button>
+      ) : live && !synthetic ? (
         <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 z-10 text-[6px] font-bold uppercase tracking-wider text-emerald-300/90 pointer-events-none">
-          Live mic
+          Live
         </span>
-      )}
-      {live && synthetic && (
+      ) : live && synthetic ? (
         <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 z-10 text-[6px] font-bold uppercase tracking-wider text-amber-300/80 pointer-events-none">
-          Demo audio
+          Demo
         </span>
-      )}
-      <SoundwaveBarDisplay
-        levels={levels}
-        live={live}
-        className="absolute inset-0 px-2 pb-2 pointer-events-none"
-      />
+      ) : null}
     </>
   );
 }
@@ -1032,54 +1029,65 @@ const EFFECTS = {
       <motion.div
         className="absolute inset-0 pointer-events-none"
         animate={{ rotate: 360 }}
-        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+        transition={{ duration: 0.55, repeat: Infinity, ease: "linear" }}
         style={{
           ...dieShape(size),
-          background: "conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.04) 30deg, transparent 60deg)",
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.07) 18deg, transparent 40deg, rgba(255,255,255,0.04) 200deg, transparent 230deg)",
         }}
       />
+      {/* Katakana bands whipping sideways — inside-the-tornado read */}
+      {Array.from({ length: 16 }).map((_, i) => {
+        const goRight = i % 2 === 0;
+        const bandChars = Array.from({ length: 18 }, (__, j) =>
+          String.fromCharCode(0x30a0 + ((i * 13 + j * 19) % 80))
+        ).join(" ");
+        return (
+          <motion.div
+            key={`band-${i}`}
+            className="absolute font-mono font-bold pointer-events-none select-none whitespace-nowrap"
+            style={{
+              top: `${4 + ((i * 6.1) % 88)}%`,
+              fontSize: 6 + (i % 4),
+              letterSpacing: `${1 + (i % 3)}px`,
+              color: i % 4 === 0 ? "#ffffff" : i % 4 === 1 ? "#e5e5e5" : i % 4 === 2 ? "#a3a3a3" : "#d4d4d4",
+              textShadow: goRight
+                ? "-10px 0 4px rgba(255,255,255,0.35), -18px 0 8px rgba(255,255,255,0.15)"
+                : "10px 0 4px rgba(255,255,255,0.35), 18px 0 8px rgba(255,255,255,0.15)",
+              opacity: 0.7 + (i % 3) * 0.1,
+              filter: "blur(0.35px)",
+            }}
+            animate={{
+              left: goRight ? ["-160%", "160%"] : ["160%", "-160%"],
+            }}
+            transition={{
+              duration: safeAnimDuration(0.09 + (i % 5) * 0.018),
+              repeat: Infinity,
+              delay: (i * 0.027) % 0.35,
+              ease: "linear",
+            }}
+          >
+            {bandChars}
+          </motion.div>
+        );
+      })}
+      {/* Extra speed streaks */}
       {Array.from({ length: 18 }).map((_, i) => (
         <motion.div
-          key={i}
-          className="absolute font-mono font-bold pointer-events-none select-none"
-          style={{
-            left: `${(i * 5.8) % 96}%`,
-            fontSize: 7 + (i % 3),
-            color: i % 4 === 0 ? "#ffffff" : i % 4 === 1 ? "#e5e5e5" : i % 4 === 2 ? "#a3a3a3" : "#d4d4d4",
-            textShadow: "0 0 6px rgba(255,255,255,0.6)",
-            opacity: 0.75 + (i % 3) * 0.08,
-          }}
-          animate={{ top: ["-90%", "115%"] }}
-          transition={{
-            duration: 0.28 + (i % 5) * 0.06,
-            repeat: Infinity,
-            delay: (i * 0.09) % 1.4,
-            ease: "linear",
-          }}
-        >
-          {Array.from({ length: 12 }).map((__, j) => (
-            <div key={j} style={{ opacity: 0.4 + ((j + i) % 4) * 0.15 }}>
-              {String.fromCharCode(0x30a0 + ((i * 11 + j * 17) % 80))}
-            </div>
-          ))}
-        </motion.div>
-      ))}
-      {Array.from({ length: 14 }).map((_, i) => (
-        <motion.div
-          key={`s-${i}`}
+          key={`streak-${i}`}
           className="absolute pointer-events-none"
           style={{
-            top: `${(i * 7) % 90}%`,
-            height: 1,
-            width: `${12 + (i % 4) * 8}%`,
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent)",
-            opacity: 0.35 + (i % 3) * 0.15,
+            top: `${(i * 5.7) % 94}%`,
+            height: 1 + (i % 2),
+            width: `${18 + (i % 5) * 10}%`,
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.95), transparent)",
+            opacity: 0.4 + (i % 3) * 0.18,
           }}
-          animate={{ left: ["-40%", "140%"] }}
+          animate={{ left: i % 2 === 0 ? ["-50%", "150%"] : ["150%", "-50%"] }}
           transition={{
-            duration: 0.22 + (i % 4) * 0.05,
+            duration: safeAnimDuration(0.07 + (i % 4) * 0.015),
             repeat: Infinity,
-            delay: i * 0.06,
+            delay: i * 0.03,
             ease: "linear",
           }}
         />
@@ -1272,14 +1280,17 @@ export default function PortfolioDieEffect({
 }) {
   const Effect = EFFECTS[effectId];
   if (!Effect) return null;
+  // One outer squircle clip — Rainfall silhouette — so particles/FX can't square-fill the corners.
   return (
-    <Effect
-      scoreFill={scoreFill}
-      layout={layout}
-      size={size}
-      dieSeed={dieSeed}
-      frozen={frozen}
-    />
+    <div className="absolute inset-0 pointer-events-none" style={dieShape(size)}>
+      <Effect
+        scoreFill={scoreFill}
+        layout={layout}
+        size={size}
+        dieSeed={dieSeed}
+        frozen={frozen}
+      />
+    </div>
   );
 }
 

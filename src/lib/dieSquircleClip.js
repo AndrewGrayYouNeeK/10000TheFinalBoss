@@ -2,14 +2,14 @@
  * Convex squircle silhouette for dice — bows each edge outward between rounded corners.
  * Uses clip-path (not mask-image) so sprite background layers stay visible in WebKit.
  *
- * Path matches the pre-5471035 SVG mask in Die.jsx (b = 0.04, cr = 0.08 in unit space).
- * Coords are mapped through the same padded viewBox so the bulge stays inside the die
- * square — raw pixel paths with negative control points get flattened by overflow:hidden.
+ * Path is mapped through a padded viewBox so the bulge stays inside the die square —
+ * raw pixel paths with negative control points get flattened by overflow:hidden.
  */
 /** Shared squircle clip for Die.jsx visual stack and custom-dice portfolio layers. */
 export function getDieSquircleClipStyle(size) {
-  const b = 0.04;
-  const cr = 0.08;
+  // Slightly stronger bulge than the old 0.04 so Custom Dice Lab FX match Rainfall’s read.
+  const b = 0.055;
+  const cr = 0.09;
   const vb = 1 + 2 * b;
   const px = (x) => ((x + b) / vb) * size;
   const py = (y) => ((y + b) / vb) * size;

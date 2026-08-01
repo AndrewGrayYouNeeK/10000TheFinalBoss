@@ -1,10 +1,10 @@
 import React from "react";
 import { getSkin } from "@/lib/shopCatalog";
-import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
+import { getSetupDisguiseOptions } from "@/lib/ghostDisguise";
 
 /** Pick which skin Ghost pretends to be (saved to profile). */
 export default function GhostDisguisePicker({ ownedSkins, selectedId, onSelect }) {
-  const options = ownedSkins.filter((id) => id && id !== GHOST_SKIN_ID);
+  const options = getSetupDisguiseOptions(ownedSkins);
   if (!options.length) return null;
 
   return (
@@ -17,7 +17,8 @@ export default function GhostDisguisePicker({ ownedSkins, selectedId, onSelect }
     >
       <p className="text-xs font-black uppercase tracking-wider text-violet-300 mb-1">👻 Ghost Disguise</p>
       <p className="text-[11px] text-slate-300 mb-2 leading-snug">
-        Choose the skin you pretend to be. Strong disguises can backfire if your opponent is also Ghost.
+        Choose which skin&apos;s <b>power</b> you borrow. Your dice stay Ghost — disguise is identity
+        for powers and private rolls, not tray look.
       </p>
       <div className="flex flex-wrap gap-2">
         {options.map((id) => {

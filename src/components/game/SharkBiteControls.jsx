@@ -200,14 +200,14 @@ export default function SharkBiteControls({
             max={35}
             step={0.5}
             format={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
-            hint="Negative = left · positive = right."
+            hint="Negative = left · positive = right. Default 0 = centered."
             onChange={(v) => update({ offsetX: v / 100 })}
           />
           <SliderRow
             label="Chomp video scale"
             value={settings.videoScale}
             min={0.85}
-            max={1.35}
+            max={1.45}
             step={0.01}
             onChange={(videoScale) => update({ videoScale })}
           />
@@ -218,13 +218,23 @@ export default function SharkBiteControls({
             max={20}
             step={0.25}
             format={(v) => `${v.toFixed(1)}%`}
-            hint="How close the chomp sits to the screen bottom before the up/down nudge."
+            hint="Legacy bottom inset (chomp is vertically centered now — leave at 0)."
             onChange={(v) => update({ verticalOffset: v / 100 })}
           />
 
           <p className="text-[10px] uppercase tracking-wider text-cyan-300/80 font-bold pt-1">
             Intro swim position
           </p>
+          <SliderRow
+            label="Move intro left / right"
+            value={(settings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX) * 100}
+            min={-15}
+            max={35}
+            step={0.5}
+            format={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
+            hint="Swim forward clip only — then exits left off-screen."
+            onChange={(v) => update({ introOffsetX: v / 100 })}
+          />
           <SliderRow
             label="Move intro up / down"
             value={(settings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY) * 100}
@@ -301,7 +311,7 @@ export default function SharkBiteControls({
             max={0.98}
             step={0.01}
             format={(v) => v.toFixed(2)}
-            hint="Slide-off begins here — keep at or after fade start."
+            hint="Intro slide-off begins here. Chomp plays full — no exit pan."
             onChange={(exitPanStart) => update({ exitPanStart })}
           />
           <SliderRow
@@ -323,12 +333,34 @@ export default function SharkBiteControls({
             format={(v) => `${v.toFixed(2)}× vw`}
             onChange={(exitPanExtra) => update({ exitPanExtra })}
           />
+          <SliderRow
+            label="Exit direction"
+            value={settings.exitPanDirection ?? DEFAULT_SHARK_BITE_SETTINGS.exitPanDirection}
+            min={-1}
+            max={1}
+            step={2}
+            format={(v) => (v < 0 ? "← left" : "right →")}
+            hint="Intro swims off this way. Default left so it clears the screen."
+            onChange={(exitPanDirection) =>
+              update({ exitPanDirection: exitPanDirection < 0 ? -1 : 1 })
+            }
+          />
         </div>
 
         <div className="space-y-3">
           <p className="text-[10px] uppercase tracking-wider text-rose-300/80 font-bold">
             Timing (ms)
           </p>
+          <SliderRow
+            label="Pause before chomp"
+            value={settings.interBeatMs ?? DEFAULT_SHARK_BITE_SETTINGS.interBeatMs}
+            min={0}
+            max={5000}
+            step={100}
+            format={(v) => `${Math.round(v)}ms`}
+            hint="Quiet gap after swim-in before the full-screen chomp."
+            onChange={(interBeatMs) => update({ interBeatMs })}
+          />
           <SliderRow
             label="Pre-swim delay"
             value={settings.preSwimMs}
@@ -383,14 +415,12 @@ export default function SharkBiteControls({
             type="button"
             onClick={() =>
               update({
-                offsetX: DEFAULT_SHARK_BITE_SETTINGS.offsetX,
-                chompProgress: DEFAULT_SHARK_BITE_SETTINGS.chompProgress,
-                startAtSeconds: 0,
+                ...DEFAULT_SHARK_BITE_SETTINGS,
               })
             }
             className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white pt-1"
           >
-            Reset layout + chomp defaults
+            Reset all shark bite defaults
           </button>
 
           {onPreviewBite ? (

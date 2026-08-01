@@ -49,7 +49,8 @@ import BossDialogue from "@/components/story/BossDialogue";
 import BossRainBackground from "@/components/story/BossRainBackground";
 import SkinPowerPanel, { MAX_POWER } from "@/components/game/SkinPowerPanel";
 import { enterGamePlaySession } from "@/lib/gameAudioSettings";
-import { assignPlayerSkin, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID } from "@/lib/ghostDisguise";
+import { assignPlayerSkin, resolvePlayerPower, getSkinLabel, getDisplaySkinId, GHOST_SKIN_ID, getGhostHiddenTraySkinId, storyGhostDiceHidden, storyGhostPowerHiddenScores } from "@/lib/ghostDisguise";
+import { redactDiceForOpponent } from "@/lib/onlineGameState";
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford, getPower } from "@/lib/powers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
@@ -82,6 +83,7 @@ import {
 } from "@/lib/storyIcePower";
 
 const PLAYER_NAME = "You";
+const STORY_BOSS_INDEX = 1;
 
 /** Story AI pacing only — player roll/UI timing stays unchanged. */
 const AI_ROLL_ANIM_MS = 900;
@@ -921,7 +923,11 @@ export default function StoryGame() {
     heldInfo.valid &&
     heldPoints > 0 &&
     (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
-  const obscuredScores = getObscuredScoreIndices(game);
+  const obscuredScores = (() => {
+    const base = getObscuredScoreIndices(game);
+    storyGhostPowerHiddenScores(game, STORY_BOSS_INDEX).forEach((i) => base.add(i));
+    return base;
+  })();
   const storyPlayer = game.players[STORY_PLAYER_INDEX];
   const powerLocked = (storyPlayer?.debuffs || []).some(
     (d) => (typeof d === "string" ? d : d.id) === "lockout"
@@ -936,10 +942,9 @@ export default function StoryGame() {
     canFireStoryIce(game, STORY_PLAYER_INDEX, bossId);
   const plasmaCutRescue =
     myTurn && skinPower?.id === "plasma_cut" && !!playerCharge && game.farkle;
+  // Power stays on once charged — panel remains visible across opponent turns until fired.
   const storyPlayerPowerMode = isPlayerPowerModeActive(game, STORY_PLAYER_INDEX);
-  // Keep the power panel on across banks / enemy turns until the charge is fired.
   const powerModeActive = storyPlayerPowerMode;
-  const canFirePowerNow = storyIceReady || myTurn;
   const isSaboPower = skinPower?.kind === "sabo";
   const frozenTargetIdx = game?.storyIceFreeze?.targetIdx;
   const showFrozenEnemyDice =
@@ -947,19 +952,22 @@ export default function StoryGame() {
     (storyIceFight &&
       !!game.storyIceFreeze &&
       game.currentIndex === frozenTargetIdx);
-  const traySkinId = getPrisonTraySkinId(
-    game,
+  const trayPlayerIndex =
     showFrozenEnemyDice && typeof frozenTargetIdx === "number"
       ? frozenTargetIdx
-      : game.currentIndex,
-    getDisplaySkinId(
-      game.players[
-        showFrozenEnemyDice && typeof frozenTargetIdx === "number"
-          ? frozenTargetIdx
-          : game.currentIndex
-      ],
-      { ghostDisguiseId, ownedSkins }
-    )
+      : game.currentIndex;
+  const trayPlayer = game.players[trayPlayerIndex];
+  const hideStoryGhostDice = storyGhostDiceHidden(
+    trayPlayer,
+    trayPlayerIndex,
+    STORY_PLAYER_INDEX
+  );
+  const traySkinId = getPrisonTraySkinId(
+    game,
+    trayPlayerIndex,
+    hideStoryGhostDice
+      ? getGhostHiddenTraySkinId()
+      : getDisplaySkinId(trayPlayer, { ghostDisguiseId, ownedSkins })
   );
   const practiceVariant = storyBossPracticeVariant(bossId);
   const previewSkinId = practicePreviewSkinId(practiceVariant);
@@ -985,15 +993,15 @@ export default function StoryGame() {
         : practiceVariant === "ice"
           ? getPower("frosty_ice")
           : null;
-  // Dice tray power VFX when YOUR dice are on the tray and charged (or practice preview).
-  const trayPlayerPowerMode = storyPlayerPowerMode && myTurn;
+  // Dice tray power VFX while your charge is live on your dice (stays on through rolls).
+  const trayPlayerPowerMode = storyPlayerPowerMode && myTurn && !hideStoryGhostDice;
   const trayPowerMode =
-    !diceRolling &&
-    (trayPlayerPowerMode || (practicePowerPreview && !!practiceVariant));
+    trayPlayerPowerMode || (practicePowerPreview && !!practiceVariant);
   const trayIceFrozen = showFrozenEnemyDice;
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
   const trayBloodWater = bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
+  const trayDice = hideStoryGhostDice ? redactDiceForOpponent(game.dice) : game.dice;
   return (
     <div className="min-h-screen text-white pb-6 flex flex-col relative">
       <BossRainBackground
@@ -1102,17 +1110,9 @@ export default function StoryGame() {
             powerMode={panelPowerMode}
             used={false}
             locked={powerLocked}
-            disabled={
-              (powerFrozen && !storyIceReady) ||
-              practicePowerPreview ||
-              !canFirePowerNow
-            }
+            disabled={(powerFrozen && !storyIceReady) || practicePowerPreview}
             frozen={powerFrozen}
-            onFire={
-              practicePowerPreview || !canFirePowerNow
-                ? undefined
-                : onFireSkinPower
-            }
+            onFire={practicePowerPreview ? undefined : onFireSkinPower}
             hidePowerName={isSaboPower && !storyIceFight}
             isGhostMimic={resolvedPower?.isMimic}
             mimicSkinLabel={resolvedPower?.isMimic ? getSkinLabel(resolvedPower.mimicSkinId) : null}
@@ -1128,9 +1128,15 @@ export default function StoryGame() {
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-400">Turn Score</div>
               <div className="text-3xl font-black tabular-nums">
-                {(game.turnScore || 0).toLocaleString()}
-                {heldInfo.valid && heldPoints > 0 && (
-                  <span className="text-emerald-400 text-xl"> +{heldPoints.toLocaleString()}</span>
+                {hideStoryGhostDice ? (
+                  <span className="text-slate-500 text-2xl tracking-widest">•••</span>
+                ) : (
+                  <>
+                    {(game.turnScore || 0).toLocaleString()}
+                    {heldInfo.valid && heldPoints > 0 && (
+                      <span className="text-emerald-400 text-xl"> +{heldPoints.toLocaleString()}</span>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1169,11 +1175,12 @@ export default function StoryGame() {
               />
             )}
             <DiceTray
-              dice={game.dice}
+              dice={trayDice}
               rolling={diceRolling}
               onToggle={handleToggle}
               disabled={
                 showFrozenEnemyDice ||
+                hideStoryGhostDice ||
                 !myTurn ||
                 !game.hasRolled ||
                 game.farkle ||
@@ -1185,6 +1192,7 @@ export default function StoryGame() {
               heldStyleId={heldDiceStyleId}
               lowPower={lowPower}
               powerMode={trayPowerMode && !showFrozenEnemyDice}
+              spectralHidden={hideStoryGhostDice}
               iceFrozenOverlay={trayIceFrozen}
               fishFeastMode={fishFeastOnTray && !hasSharkBiteChompVideoSync()}
               sharkBiteFx={!!game.sharkBiteFx}
@@ -1194,7 +1202,7 @@ export default function StoryGame() {
                 fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
               }
             />
-            {heldInfo.held.length > 0 && (
+            {heldInfo.held.length > 0 && !hideStoryGhostDice && (
               <div className="mt-2 text-center text-sm">
                 {heldInfo.valid ? (
                   <span className="text-emerald-400 font-semibold">

@@ -39,8 +39,7 @@ function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false 
   if (!p) return players;
   const next = [...players];
   // Charge survives banking. Only firing consumes it (consumeSkinPower).
-  // Never drop a held charge on bank — skinPowerUsedThisTurn means they already fired.
-  const keepCharge = skinPowerUsedThisTurn ? false : !!p.powerCharge;
+  const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
   next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
   return next;
 }
@@ -596,6 +595,16 @@ export function bankAndPass(state) {
 
   const finishedIdx = state.currentIndex;
   const player = state.players[finishedIdx];
+
+  // Opening rule — reject illegal entry banks without ending the turn.
+  if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
+    return {
+      ...state,
+      message: `${player.name} needs 1,000 to get on the board — keep rolling!`,
+      messageVariant: "warning",
+    };
+  }
+
   const sharkMark = getSharkBiteDebuff(player);
   const pendingSharkBite = !!sharkMark;
   const scoreFrozen = playerHasDebuff(player, "freeze_score");
@@ -610,13 +619,6 @@ export function bankAndPass(state) {
     // Score Freeze — turn can still play out, but banked score cannot change.
     message = `🧊 ${player.name}'s score is frozen — bank had no effect!`;
     variant = "warning";
-  } else if (!player.onBoard && finalTurn < ENTRY_THRESHOLD) {
-    // Under entry — reject without ending the turn so they can keep rolling
-    return {
-      ...state,
-      message: `${player.name} needs 1,000 to get on the board — keep rolling!`,
-      messageVariant: "warning",
-    };
   } else if (player.score + finalTurn > TARGET_SCORE) {
     // Overshoot — must land exactly on 10,000
     message = `💥 Overshoot! ${player.name} needed exactly ${TARGET_SCORE - player.score} — banked 0.`;

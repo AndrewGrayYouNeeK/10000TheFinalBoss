@@ -49,13 +49,18 @@ function normalizeSettings(raw) {
   for (let f = 1; f <= 6; f += 1) {
     faces[f] = normalizeFace(srcFaces[f] ?? srcFaces[String(f)]);
   }
+  const shellZoomRaw = Number(s.shellZoom);
+  const shellOffsetXRaw = Number(s.shellOffsetX);
+  const shellOffsetYRaw = Number(s.shellOffsetY);
   return {
-    shellZoom: Number.isFinite(Number(s.shellZoom)) ? Number(s.shellZoom) : DEFAULT_BLUE_GEL_SETTINGS.shellZoom,
-    shellOffsetX: Number.isFinite(Number(s.shellOffsetX))
-      ? Number(s.shellOffsetX)
+    shellZoom: Number.isFinite(shellZoomRaw)
+      ? Math.min(1.2, Math.max(0.85, shellZoomRaw))
+      : DEFAULT_BLUE_GEL_SETTINGS.shellZoom,
+    shellOffsetX: Number.isFinite(shellOffsetXRaw)
+      ? Math.min(0.35, Math.max(-0.35, shellOffsetXRaw))
       : DEFAULT_BLUE_GEL_SETTINGS.shellOffsetX,
-    shellOffsetY: Number.isFinite(Number(s.shellOffsetY))
-      ? Number(s.shellOffsetY)
+    shellOffsetY: Number.isFinite(shellOffsetYRaw)
+      ? Math.min(0.35, Math.max(-0.35, shellOffsetYRaw))
       : DEFAULT_BLUE_GEL_SETTINGS.shellOffsetY,
     shellFaces: faces,
   };

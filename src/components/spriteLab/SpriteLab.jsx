@@ -14,13 +14,6 @@ import {
   saveSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
 import {
-  DEFAULT_BLUE_GEL_SETTINGS,
-  getBlueGelShellFace,
-  loadBlueGelSettings,
-  resetBlueGelSettings,
-  saveBlueGelSettings,
-} from "@/lib/blueGelSettings";
-import {
   buildCatalogSnippet,
   buildLabPreviewSkin,
   clearSpriteLabDraft,
@@ -225,6 +218,11 @@ import {
   lockRubyTuning,
   unlockRubyTuning,
 } from "@/lib/rubyTuningLock";
+import {
+  isDiamondRubyTuningLocked,
+  lockDiamondRubyTuning,
+  unlockDiamondRubyTuning,
+} from "@/lib/diamondRubyTuningLock";
 
 const TUNING_LOCK_SKINS = {
   matrix: {
@@ -269,7 +267,6 @@ const TUNING_LOCK_SKINS = {
     unlock: unlockBlueGelTuning,
     tuningFile: "blueGelSpriteTuning.js",
     accent: "cyan",
-    noSpriteTuning: true,
   },
   galaxy: {
     isLocked: isGalaxyTuningLocked,
@@ -446,6 +443,13 @@ const TUNING_LOCK_SKINS = {
     tuningFile: "rubySpriteTuning.js",
     accent: "amber",
   },
+  diamond_ruby: {
+    isLocked: isDiamondRubyTuningLocked,
+    lock: lockDiamondRubyTuning,
+    unlock: unlockDiamondRubyTuning,
+    tuningFile: "diamondRubySpriteTuning.js",
+    accent: "amber",
+  },
 };
 
 const POWER_VIDEO_SKIN_CONFIG = {
@@ -605,9 +609,6 @@ export default function SpriteLab({ skinId }) {
   const [snowGlobeShell, setSnowGlobeShell] = useState(() =>
     skinId === "snow_globe" ? loadSnowGlobeSettings() : null
   );
-  const [blueGelShell, setBlueGelShell] = useState(() =>
-    skinId === "blue_gel" ? loadBlueGelSettings() : null
-  );
 
   useEffect(() => {
     const persisted = readSpriteLabPersistedState(skinId);
@@ -618,7 +619,6 @@ export default function SpriteLab({ skinId }) {
     setPowerVideoZoom(persisted.powerVideoZoom);
     setPowerVideoCrop(persisted.powerVideoCrop);
     if (skinId === "snow_globe") setSnowGlobeShell(loadSnowGlobeSettings());
-    if (skinId === "blue_gel") setBlueGelShell(loadBlueGelSettings());
     setFreezeOverlayPreview(false);
   }, [skinId]);
   const [selectedFace, setSelectedFace] = useState(1);
@@ -644,18 +644,11 @@ export default function SpriteLab({ skinId }) {
   const activeNudge =
     skinId === "snow_globe"
       ? getSnowGlobeShellFace(snowGlobeShell, selectedFace)
-      : skinId === "blue_gel"
-        ? getBlueGelShellFace(blueGelShell, selectedFace)
-        : activeFaces[selectedFace] ?? { x: 0, y: 0 };
+      : activeFaces[selectedFace] ?? { x: 0, y: 0 };
 
   const patchSnowGlobeShell = (partial) => {
     const next = saveSnowGlobeSettings({ ...snowGlobeShell, ...partial });
     setSnowGlobeShell(next);
-  };
-
-  const patchBlueGelShell = (partial) => {
-    const next = saveBlueGelSettings({ ...blueGelShell, ...partial });
-    setBlueGelShell(next);
   };
 
   const patchSnowGlobeFace = (face, patch) => {
@@ -664,14 +657,6 @@ export default function SpriteLab({ skinId }) {
       [face]: { ...getSnowGlobeShellFace(snowGlobeShell, face), ...patch },
     };
     patchSnowGlobeShell({ shellFaces: nextFaces });
-  };
-
-  const patchBlueGelFace = (face, patch) => {
-    const nextFaces = {
-      ...(blueGelShell?.shellFaces ?? DEFAULT_BLUE_GEL_SETTINGS.shellFaces),
-      [face]: { ...getBlueGelShellFace(blueGelShell, face), ...patch },
-    };
-    patchBlueGelShell({ shellFaces: nextFaces });
   };
 
   const tunedSkin = useMemo(
@@ -791,7 +776,6 @@ export default function SpriteLab({ skinId }) {
     powerVideoCrop,
     ...(lockedVideos ? { lockedVideos } : {}),
     ...(skinId === "snow_globe" && snowGlobeShell ? { shellSettings: snowGlobeShell } : {}),
-    ...(skinId === "blue_gel" && blueGelShell ? { shellSettings: blueGelShell } : {}),
     spriteUrl: catalogSkin.spriteUrl,
     powerSpriteUrl: catalogSkin.powerSpriteUrl,
     powerVideoUrl: catalogSkin.powerVideoUrl,
@@ -881,7 +865,7 @@ export default function SpriteLab({ skinId }) {
   useEffect(() => {
     if (tuningLocked) return;
     persistSpriteLabTuning(skinId, buildTuningPayload(), { locked: false });
-  }, [skinId, regularCrop, powerCrop, regularFaces, powerFaces, powerVideoZoom, powerVideoCrop, tuningLocked, snowGlobeShell, blueGelShell]);
+  }, [skinId, regularCrop, powerCrop, regularFaces, powerFaces, powerVideoZoom, powerVideoCrop, tuningLocked, snowGlobeShell]);
 
   useEffect(() => {
     if (!powerVideoConfig) return undefined;
@@ -1121,7 +1105,7 @@ export default function SpriteLab({ skinId }) {
                 : skinId === "snow_globe"
                   ? "Glass shell dice — live preview + shell shift"
                   : skinId === "blue_gel"
-                    ? "Aquarium dice — live preview + shell shift"
+                    ? "Face sprite sheet — crop + per-face nudge · autosaved"
                     : skinId === "ice"
                     ? "Sprite crop + per-face nudge · Save or Lock to persist"
                     : "Global crop + per-face nudge · autosaved · tap Save to confirm"}
@@ -1134,13 +1118,8 @@ export default function SpriteLab({ skinId }) {
         {skinId === "blue_gel" && (
           <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 text-xs text-cyan-100 space-y-2">
             <p>
-              Blue Gel has <b>no dice sheet of its own</b> — face + pips come from the borrowed{" "}
-              <b>Aquamarine glass shell</b> (3×2 sprite). Use shell shift below to align; tune the shell
-              crop on{" "}
-              <Link to="/sprite-lab/aquamarine" className="text-cyan-200 underline font-bold">
-                Aquamarine Sprite Lab
-              </Link>
-              .
+              Blue Gel uses its own <b>face sprite sheet</b> (<code className="text-cyan-200">999d8760b_generated_image.png</code>)
+              with <b>baked-in dark pips</b> painted above the fish tank. Use crop + nudge below to align each face.
             </p>
             <div className="flex flex-wrap gap-2">
               <Link
@@ -1214,8 +1193,8 @@ export default function SpriteLab({ skinId }) {
           ) : skinId === "blue_gel" ? (
             <ol className="list-decimal pl-4 space-y-1 text-slate-300">
               <li>Pick a face with the <b>1–6 buttons</b></li>
-              <li>Shift the borrowed <b>Aquamarine glass shell</b> until pips read clearly over the fish</li>
-              <li>Tune global shell zoom/offset, then fine-tune each face</li>
+              <li>Drag <b>Nudge X / Y</b> until the dark pips/digits read clearly over the fish</li>
+              <li>Tune global crop, then fine-tune each face</li>
               <li>Settings autosave in this browser — apply in-game immediately</li>
               <li>
                 Shark Bite videos tune on{" "}
@@ -1322,7 +1301,6 @@ export default function SpriteLab({ skinId }) {
               powerMode={hasPowerPreview && powerMode}
               iceFrozenOverlay={iceFreezeOn}
               snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
-              blueGelShellSettings={skinId === "blue_gel" ? blueGelShell : undefined}
               devSkin={labPreviewSkin}
               includeJellyfish={skinId === "blue_gel" && selectedFace >= 2}
               {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(selectedFace - 1) : {})}
@@ -1351,23 +1329,19 @@ export default function SpriteLab({ skinId }) {
               ))}
             </div>
 
-            {(!lockConfig?.noSpriteTuning || skinId === "snow_globe" || skinId === "blue_gel") && (
+            {(!lockConfig?.noSpriteTuning || skinId === "snow_globe") && (
             <FaceNudgePanel
               face={selectedFace}
               nudge={activeNudge}
               onChange={
                 skinId === "snow_globe"
                   ? (nudge) => patchSnowGlobeFace(selectedFace, nudge)
-                  : skinId === "blue_gel"
-                    ? (nudge) => patchBlueGelFace(selectedFace, nudge)
-                    : updateFaceNudge
+                  : updateFaceNudge
               }
               onResetFace={
                 skinId === "snow_globe"
                   ? () => patchSnowGlobeFace(selectedFace, { x: 0, y: 0 })
-                  : skinId === "blue_gel"
-                    ? () => patchBlueGelFace(selectedFace, { x: 0, y: 0 })
-                    : resetFace
+                  : resetFace
               }
               onResetAll={
                 skinId === "snow_globe"
@@ -1375,16 +1349,11 @@ export default function SpriteLab({ skinId }) {
                       patchSnowGlobeShell({
                         shellFaces: DEFAULT_SNOW_GLOBE_SETTINGS.shellFaces,
                       })
-                  : skinId === "blue_gel"
-                    ? () =>
-                        patchBlueGelShell({
-                          shellFaces: DEFAULT_BLUE_GEL_SETTINGS.shellFaces,
-                        })
-                    : resetAllFaces
+                  : resetAllFaces
               }
               disabled={tuningLocked}
               modeLabel={
-                skinId === "snow_globe" || skinId === "blue_gel"
+                skinId === "snow_globe"
                   ? "glass shell"
                   : hasPowerPreview && powerMode
                   ? hasPowerEffect
@@ -1398,31 +1367,18 @@ export default function SpriteLab({ skinId }) {
               }
             />
             )}
-            {(skinId === "snow_globe" || skinId === "blue_gel") && (() => {
-              const shellSettings = skinId === "snow_globe" ? snowGlobeShell : blueGelShell;
-              const shellDefaults =
-                skinId === "snow_globe" ? DEFAULT_SNOW_GLOBE_SETTINGS : DEFAULT_BLUE_GEL_SETTINGS;
-              const patchShell =
-                skinId === "snow_globe" ? patchSnowGlobeShell : patchBlueGelShell;
-              const resetShell =
-                skinId === "snow_globe" ? resetSnowGlobeSettings : resetBlueGelSettings;
-              const setShell =
-                skinId === "snow_globe" ? setSnowGlobeShell : setBlueGelShell;
-              const panelAccent =
-                skinId === "snow_globe"
-                  ? {
+            {skinId === "snow_globe" && (() => {
+              const shellSettings = snowGlobeShell;
+              const shellDefaults = DEFAULT_SNOW_GLOBE_SETTINGS;
+              const patchShell = patchSnowGlobeShell;
+              const resetShell = resetSnowGlobeSettings;
+              const setShell = setSnowGlobeShell;
+              const panelAccent = {
                       border: "border-sky-500/30",
                       bg: "bg-sky-950/20",
                       title: "text-sky-200",
                       value: "text-sky-100",
                       slider: "accent-sky-400",
-                    }
-                  : {
-                      border: "border-cyan-500/30",
-                      bg: "bg-cyan-950/20",
-                      title: "text-cyan-200",
-                      value: "text-cyan-100",
-                      slider: "accent-cyan-400",
                     };
               return (
               <div className={cn("rounded-xl border p-3 space-y-3", panelAccent.border, panelAccent.bg)}>
@@ -1519,7 +1475,6 @@ export default function SpriteLab({ skinId }) {
                     powerMode={hasPowerPreview && powerMode}
                     iceFrozenOverlay={iceFreezeOn}
                     snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
-              blueGelShellSettings={skinId === "blue_gel" ? blueGelShell : undefined}
                     devSkin={labPreviewSkin}
                     includeJellyfish={skinId === "blue_gel" && face >= 2}
                     {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(face - 1) : {})}

@@ -602,6 +602,30 @@ export function spriteLabStorageKey(skinId) {
 
 export const DEFAULT_SPRITE_CROP = { zoom: 1, offsetY: 0, offsetX: 0, stretch: 0 };
 
+/** Reject corrupt sprite-lab zoom/offset saves that blow up the face crop. */
+export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
+  const fb = fallback && typeof fallback === "object" ? fallback : DEFAULT_SPRITE_CROP;
+  if (!crop || typeof crop !== "object") return { ...fb };
+  const fbZoom = Number(fb.zoom ?? 1);
+  const zoom = Number(crop.zoom);
+  const safeZoom = Number.isFinite(zoom) && zoom >= 0.45 && zoom <= 2.25 ? zoom : fbZoom;
+  const clampOff = (value, defaultValue = 0) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return defaultValue;
+    return Math.min(0.35, Math.max(-0.35, n));
+  };
+  const fbStretch = Number(fb.stretch ?? 0);
+  const stretch = Number(crop.stretch);
+  const safeStretch =
+    Number.isFinite(stretch) && stretch >= -0.15 && stretch <= 0.35 ? stretch : fbStretch;
+  return {
+    zoom: safeZoom,
+    offsetX: clampOff(crop.offsetX, fb.offsetX ?? 0),
+    offsetY: clampOff(crop.offsetY, fb.offsetY ?? 0),
+    stretch: safeStretch,
+  };
+}
+
 export const FACES = [1, 2, 3, 4, 5, 6];
 
 export function emptyFaceMap(source) {
@@ -624,7 +648,15 @@ export function loadSpriteLabDraft(skinId) {
   try {
     const lockedSnap = loadLockedTuningSnapshot(skinId);
     const rawDraft = loadRawSpriteLabDraft(skinId);
-    return preferRicherSnapshot(lockedSnap, rawDraft);
+    const draft = preferRicherSnapshot(lockedSnap, rawDraft);
+    if (!draft) return null;
+    const catalog = catalogSkinById(skinId);
+    const catalogCrop = catalog?.spriteCrop ?? DEFAULT_SPRITE_CROP;
+    const catalogPowerCrop = catalog?.powerSpriteCrop ?? catalogCrop;
+    const next = { ...draft };
+    if (draft.regularCrop) next.regularCrop = sanitizeSpriteCrop(draft.regularCrop, catalogCrop);
+    if (draft.powerCrop) next.powerCrop = sanitizeSpriteCrop(draft.powerCrop, catalogPowerCrop);
+    return next;
   } catch {
     return null;
   }
@@ -636,6 +668,17 @@ export function persistSpriteLabTuning(skinId, payload, { locked = isSpriteTunin
   const withMeta = {
     ...payload,
     savedAt: Date.now(),
+    ...(payload.regularCrop
+      ? { regularCrop: sanitizeSpriteCrop(payload.regularCrop, catalog?.spriteCrop ?? DEFAULT_SPRITE_CROP) }
+      : {}),
+    ...(payload.powerCrop
+      ? {
+          powerCrop: sanitizeSpriteCrop(
+            payload.powerCrop,
+            catalog?.powerSpriteCrop ?? catalog?.spriteCrop ?? DEFAULT_SPRITE_CROP
+          ),
+        }
+      : {}),
     ...(catalog && !AQUARIUM_OVERLAY_SKIN_IDS.has(skinId)
       ? {
           spriteUrl: payload.spriteUrl ?? catalog.spriteUrl,

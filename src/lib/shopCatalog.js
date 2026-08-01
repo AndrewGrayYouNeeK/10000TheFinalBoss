@@ -1348,7 +1348,7 @@ export function getSkin(id) {
       {
         ...skin,
         spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-        spriteCrop: base.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
+        spriteCrop: draft.regularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
         spriteFaceOffsets: {
           ...skin.spriteFaceOffsets,
           regular: mergeRegular(skin.spriteFaceOffsets?.regular),

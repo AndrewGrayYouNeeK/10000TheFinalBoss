@@ -44,7 +44,7 @@ const fx = (id, name, desc, effectId, pipEffect, opts = {}) =>
 
 export const EXPERIMENTAL_DICE = [
   // —— SPECTRAL (kept) ——
-  spectral("ghost", "Ghost", "Nearly invisible — pick a disguise. Steals opponent's pretend skin for power. Mind games.", "ghostPip", { phantomPulse: true }),
+  spectral("ghost", "Ghost", "Spectral tray + private faces. Pick a disguise for its power only — opponents never see your rolls.", "ghostPip", { phantomPulse: true }),
   spectral("clear_void", "Ultra Clear", "All clear. Body vanishes — pips float alone.", "whitePip", {
     fill: null,
     edge: "rgba(255,255,255,0.08)",
@@ -64,7 +64,7 @@ export const EXPERIMENTAL_DICE = [
 
   // —— CUSTOM SHOWCASE (user-specified) ——
   fx("pf_radar_sweep", "Radar Sweep", "Scan reveals pips left to right — return sweep wipes them away.", "radar_sweep", "radarReveal", { accentGlow: "rgba(0,255,255,0.4)" }),
-  fx("pf_tornado", "Tornado Core", "White debris whipping past like matrix rain inside the vortex.", "tornado_mono", "whitePip"),
+  fx("pf_tornado", "Tornado Core", "Katakana whipping sideways so fast you're inside the vortex.", "tornado_mono", "whitePip"),
   fx("pf_rainfall", "Rainfall", "Heavy rain pouring down the face.", "rainfall", "glow"),
   fx("pf_score_meter", "Score Meter", "Fill rises with your score — glows when you hit 10,000.", "score_meter", "scoreGlowPip", { accentGlow: "rgba(34,211,238,0.35)" }),
   fx("pf_binary_storm", "Binary Storm", "Columns of 1s and 0s ripping downward at max speed.", "binary_storm", "matrixPip", { accentGlow: "rgba(34,197,94,0.45)" }),

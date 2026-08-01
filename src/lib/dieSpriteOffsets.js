@@ -2,6 +2,7 @@
  * Per-skin sprite face alignment for photorealistic dice sheets.
  * Pixel nudges were tuned at DIE_SPRITE_REF_SIZE — scaled for any render size.
  */
+import { sanitizeSpriteCrop } from "./spriteLab";
 import { getPaperSpriteXNudge, getPaperSpriteYNudge } from "./paperSpriteTuning";
 import {
   getDragonScaleSpriteXNudge,
@@ -154,10 +155,11 @@ export function getSpriteSheetStyle(skin, value, size, { xNudge, yNudge }) {
   const rows = skin.spriteGrid?.rows ?? 2;
   const col = (value - 1) % cols;
   const row = Math.floor((value - 1) / cols);
-  const zoom = skin.spriteCrop?.zoom ?? 1;
-  const stretch = getDieSpriteStretch(skin.id, value, size, skin);
-  const spriteCropBgY = skin.spriteCrop?.offsetY ? size * skin.spriteCrop.offsetY : 0;
-  const spriteCropBgX = skin.spriteCrop?.offsetX ? size * skin.spriteCrop.offsetX : 0;
+  const spriteCrop = sanitizeSpriteCrop(skin.spriteCrop);
+  const zoom = spriteCrop.zoom ?? 1;
+  const stretch = getDieSpriteStretch(skin.id, value, size, { ...skin, spriteCrop });
+  const spriteCropBgY = spriteCrop.offsetY ? size * spriteCrop.offsetY : 0;
+  const spriteCropBgX = spriteCrop.offsetX ? size * spriteCrop.offsetX : 0;
 
   // Matrix + Galaxy: centered cell crop. Face nudges pan the sheet (they do
   // not shrink the layer) — avoids flashing the body gradient on edge faces.
@@ -166,13 +168,13 @@ export function getSpriteSheetStyle(skin, value, size, { xNudge, yNudge }) {
     // target die in the square viewport. `stretch` scales cells vertically to
     // square up the (slightly wide) die art: >0 = taller, <0 = shorter.
     const z = zoom;
-    const stretchY = skin.spriteCrop?.stretch ?? 0;
+    const stretchY = spriteCrop.stretch ?? 0;
     const cellW = size * z;
     const cellH = size * z * (1 + stretchY);
     const sheetW = cols * cellW;
     const sheetH = rows * cellH;
-    const offX = (skin.spriteCrop?.offsetX ?? 0) * size;
-    const offY = (skin.spriteCrop?.offsetY ?? 0) * size;
+    const offX = (spriteCrop.offsetX ?? 0) * size;
+    const offY = (spriteCrop.offsetY ?? 0) * size;
     const left = size / 2 - (col + 0.5) * cellW + offX + xNudge;
     const top = size / 2 - (row + 0.5) * cellH - offY + yNudge;
 

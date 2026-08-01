@@ -136,13 +136,19 @@ export default function ScorePanel({
             <div className="mt-2 h-1.5 rounded-full overflow-hidden relative" style={{ background: "rgba(0,0,0,0.6)" }}>
               <motion.div
                 className="h-full"
-                animate={{ width: `${pct}%` }}
+                animate={{ width: hidden ? "0%" : `${pct}%` }}
                 transition={{ type: "spring", stiffness: 120, damping: 20 }}
                 style={{
-                  background: active
+                  background: hidden
+                    ? "transparent"
+                    : active
                     ? "linear-gradient(90deg, #ff00aa, #00ffc8)"
                     : "linear-gradient(90deg, #00ffc8, #00d4a4)",
-                  boxShadow: active ? "0 0 8px rgba(0,255,200,0.8)" : "0 0 4px rgba(0,255,200,0.5)",
+                  boxShadow: hidden
+                    ? "none"
+                    : active
+                    ? "0 0 8px rgba(0,255,200,0.8)"
+                    : "0 0 4px rgba(0,255,200,0.5)",
                 }}
               />
             </div>

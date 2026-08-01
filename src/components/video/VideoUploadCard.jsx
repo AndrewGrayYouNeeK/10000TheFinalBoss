@@ -367,7 +367,9 @@ export default function VideoUploadCard({
         videoClassName={dialogVideoClassName}
         videoContainerClassName={dialogVideoContainerClassName}
         onVideoMetadata={isSharkBiteSlot ? syncPreviewVideoSize : undefined}
-        contentClassName={avatarBossId ? "max-w-md" : undefined}
+        contentClassName={
+          avatarBossId ? "max-w-md" : isSharkBiteSlot ? "max-w-3xl" : undefined
+        }
       >
         {pendingPreviewUrl ? (
           <>

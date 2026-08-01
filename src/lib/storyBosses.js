@@ -257,7 +257,7 @@ const ALL_BOSSES = [
     intro: "I bet rubies. You bet... whatever you have.",
     winLine: "I'll have my driver bring more rubies. Carry on.",
     loseLine: "Pay the baron. Or work it off.",
-    coins: 1400, xp: 1600, skin: "ruby",
+    coins: 1400, xp: 1600, skin: "diamond_ruby",
   }),
   fight({
     id: "labradorite_lord", name: "Lord Aurorus", title: "Flashstone Magnate",
@@ -433,7 +433,6 @@ const ALL_BOSSES = [
 export const STORY_LADDER_IDS = [
   "snowman",       // Frosty
   "dragon_knight", // Sir Scalewyrm (Sir Scale) — unlocks Dragon Scale
-  "phantom",       // The Phantom
   "ghost",         // The Ghost
   "lavadragon",    // Ragnarok
   "neo",           // Matrix
@@ -513,6 +512,7 @@ export function resolveStoryActiveBoss(savedBossId, bossesDefeated = []) {
   if (!fallback) return null;
   if (
     savedBossId &&
+    getBoss(savedBossId) &&
     isBossUnlocked(savedBossId, bossesDefeated) &&
     !bossesDefeated.includes(savedBossId)
   ) {

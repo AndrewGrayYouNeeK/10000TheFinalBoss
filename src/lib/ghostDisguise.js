@@ -12,35 +12,81 @@ export function isGhostPlayer(player) {
   return player?.skinId === GHOST_SKIN_ID;
 }
 
-/** Resolve saved/profile disguise for a Ghost player. */
+/**
+ * Ghost + disguise dice faces are private — only that player on their own turn may see them.
+ * Local/online: score, turn score, and power UI stay public; only die faces are redacted.
+ * Story Ghost boss: always invisible to the human (see storyGhostDiceHidden).
+ */
+export function canViewerSeeGhostDice(
+  currentPlayer,
+  { viewerPlayerIndex = null, currentIndex = null, allowSpectator = false } = {}
+) {
+  if (!isGhostDisguise(currentPlayer)) return true;
+  if (allowSpectator) return true;
+  if (viewerPlayerIndex == null || currentIndex == null) return false;
+  return viewerPlayerIndex === currentIndex;
+}
+
+/** True when Ghost privacy (hidden dice / local handoff) should apply. */
+export function ghostDicePrivacyActive(player) {
+  return isGhostDisguise(player);
+}
+
+/** Tray skin while Ghost dice are hidden from others — spectral body, not the disguise. */
+export function getGhostHiddenTraySkinId() {
+  return GHOST_SKIN_ID;
+}
+
+/** Story ladder: AI Ghost rolls stay invisible to the human player. */
+export function storyGhostDiceHidden(trayPlayer, trayPlayerIndex, humanIndex = 0) {
+  if (!isGhostPlayer(trayPlayer)) return false;
+  return trayPlayerIndex !== humanIndex;
+}
+
+/**
+ * Story ladder: when Ghost boss holds a power charge, hide their banked score from the human.
+ * @returns {Set<number>}
+ */
+export function storyGhostPowerHiddenScores(state, bossIndex = 1) {
+  const hidden = new Set();
+  const boss = state?.players?.[bossIndex];
+  if (isGhostPlayer(boss) && boss.powerCharge) hidden.add(bossIndex);
+  return hidden;
+}
+
+/** Resolve saved/profile disguise for a Ghost player (never Ghost itself). */
 export function resolveGhostDisguise(player, { ghostDisguiseId = null, ownedSkins = [] } = {}) {
   if (!isGhostPlayer(player)) return null;
   if (player.ghostBare) return null;
-  return player.trueSkinId || ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
+  const raw = player.trueSkinId || ghostDisguiseId || pickTrueSkinForGhost(ownedSkins);
+  const id = normalizeSkinId(raw);
+  if (!id || id === GHOST_SKIN_ID) return null;
+  return id;
 }
 
 /** The skin a player is pretending to be (disguise for Ghost, face skin for everyone else). */
 export function getPretendSkin(player, options) {
   if (!player) return "classic_white";
   const disguise = resolveGhostDisguise(player, options);
-  if (disguise) return normalizeSkinId(disguise);
+  if (disguise) return disguise;
   return normalizeSkinId(player.skinId || "classic_white");
 }
 
 /**
- * Dice on the table — always the player's real skinId.
- * Ghost stays spectral; disguise (`trueSkinId`) is for powers / privacy only.
+ * Dice body on the tray / home / previews — Ghost always keeps its spectral skin.
+ * Disguise (`trueSkinId`) is for powers + opponent privacy only, never tray look.
  */
 export function getDisplaySkinId(player, _options) {
   if (!player) return "classic_white";
   return normalizeSkinId(player.skinId || "classic_white");
 }
 
-/** Equipped/home previews — keep Ghost spectral unless caller opts into disguise. */
-export function resolveDiceSkinId(skinId, { ghostDisguiseId = null, ownedSkins = [], asDisguise = false } = {}) {
-  if (skinId !== GHOST_SKIN_ID) return normalizeSkinId(skinId);
-  if (!asDisguise) return GHOST_SKIN_ID;
-  return normalizeSkinId(ghostDisguiseId || pickTrueSkinForGhost(ownedSkins));
+/**
+ * Resolve a skin id for Die previews. Ghost stays spectral — do not swap to disguise.
+ * (Disguise is power/privacy identity only.)
+ */
+export function resolveDiceSkinId(skinId, _options = {}) {
+  return normalizeSkinId(skinId || "classic_white");
 }
 
 export function pickTrueSkinForGhost(ownedSkins = []) {
@@ -60,7 +106,12 @@ export function assignPlayerSkin(skinId, ownedSkins = [], disguiseSkinId = null,
   const id = skinId || "classic_white";
   if (id === GHOST_SKIN_ID) {
     if (options.bareGhost) return { skinId: GHOST_SKIN_ID, ghostBare: true };
-    const trueSkinId = disguiseSkinId || pickTrueSkinForGhost(ownedSkins);
+    const raw = disguiseSkinId || pickTrueSkinForGhost(ownedSkins);
+    const trueSkinId = normalizeSkinId(raw);
+    // Ghost-as-disguise = spectral only (no privacy identity / no borrowed power).
+    if (!trueSkinId || trueSkinId === GHOST_SKIN_ID) {
+      return { skinId: GHOST_SKIN_ID, ghostBare: true };
+    }
     return { skinId: GHOST_SKIN_ID, trueSkinId };
   }
   return { skinId: id };
@@ -69,14 +120,18 @@ export function assignPlayerSkin(skinId, ownedSkins = [], disguiseSkinId = null,
 export const SESSION_PLAYER_SKINS_KEY = "dice10k_player_skins";
 export const SESSION_PLAYER_DISGUISES_KEY = "dice10k_player_disguises";
 
-/** All owned skins selectable on Setup (includes Ghost when unlocked). */
+/** All owned skins selectable on Setup (Ghost pinned near the top when unlocked). */
 export function getSetupSkinOptions(ownedSkins = []) {
-  return ownedSkins.filter((id) => !!id);
+  const options = ownedSkins.filter((id) => !!id);
+  if (!options.includes(GHOST_SKIN_ID)) return options;
+  return [GHOST_SKIN_ID, ...options.filter((id) => id !== GHOST_SKIN_ID)];
 }
 
-/** Disguise skins Ghost can mimic (everything except Ghost itself). */
+/** Disguise skins Ghost can mimic (includes Ghost — treat as spectral / no further disguise). */
 export function getSetupDisguiseOptions(ownedSkins = []) {
-  return ownedSkins.filter((id) => id && id !== GHOST_SKIN_ID);
+  const options = ownedSkins.filter((id) => !!id);
+  if (!options.includes(GHOST_SKIN_ID)) return options;
+  return [GHOST_SKIN_ID, ...options.filter((id) => id !== GHOST_SKIN_ID)];
 }
 
 export function readSessionPlayerDisguiseIds() {
@@ -181,10 +236,8 @@ export function primaryOpponentIndex(state, playerIndex = state?.currentIndex ??
 
 /**
  * Resolve the secret power a player will fire.
- * Non-Ghost: power from their real skin (getDisplaySkinId).
- * Ghost + disguise: power from disguise (trueSkinId), not the spectral body.
- * Bare Ghost (no disguise) mimics the opponent's pretend skin.
- * Story overrides may set player.chargePowerId (e.g. Frosty arc, Marlin boss).
+ * Non-Ghost players use their tray skin. Ghost uses its disguise power
+ * (or mimics the opponent when bare). Story overrides may set player.chargePowerId.
  */
 export function resolvePlayerPower(state, playerIndex = state?.currentIndex ?? 0, options = {}) {
   const player = state?.players?.[playerIndex];

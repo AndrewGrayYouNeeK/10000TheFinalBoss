@@ -6,7 +6,7 @@ import { EyeOff, Smartphone } from "lucide-react";
 /**
  * Full-screen pass-and-play shield — shown between turns until the active player confirms.
  */
-export default function PassPlayHandoffOverlay({ open, playerName, onReady }) {
+export default function PassPlayHandoffOverlay({ open, playerName, onReady, ghostTurn = false }) {
   return (
     <AnimatePresence>
       {open && (
@@ -31,20 +31,36 @@ export default function PassPlayHandoffOverlay({ open, playerName, onReady }) {
             <div
               className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center border-2"
               style={{
-                borderColor: "rgba(255,0,170,0.55)",
-                background: "linear-gradient(135deg, rgba(255,0,170,0.15), rgba(0,255,200,0.12))",
-                boxShadow: "0 0 24px rgba(255,0,170,0.35), 0 0 24px rgba(0,255,200,0.2)",
+                borderColor: ghostTurn ? "rgba(165,243,252,0.55)" : "rgba(255,0,170,0.55)",
+                background: ghostTurn
+                  ? "linear-gradient(135deg, rgba(165,243,252,0.12), rgba(8,145,178,0.18))"
+                  : "linear-gradient(135deg, rgba(255,0,170,0.15), rgba(0,255,200,0.12))",
+                boxShadow: ghostTurn
+                  ? "0 0 24px rgba(34,211,238,0.35)"
+                  : "0 0 24px rgba(255,0,170,0.35), 0 0 24px rgba(0,255,200,0.2)",
               }}
             >
-              <EyeOff className="w-8 h-8 text-amber-200" style={{ filter: "drop-shadow(0 0 8px rgba(255,200,100,0.8))" }} />
+              <EyeOff
+                className={`w-8 h-8 ${ghostTurn ? "text-cyan-200" : "text-amber-200"}`}
+                style={{
+                  filter: ghostTurn
+                    ? "drop-shadow(0 0 8px rgba(34,211,238,0.8))"
+                    : "drop-shadow(0 0 8px rgba(255,200,100,0.8))",
+                }}
+              />
             </div>
 
             <div className="space-y-2">
               <p
                 className="text-[11px] font-black uppercase tracking-[0.35em]"
-                style={{ color: "#ffb347", textShadow: "0 0 10px rgba(255,140,0,0.6)" }}
+                style={{
+                  color: ghostTurn ? "#a5f3fc" : "#ffb347",
+                  textShadow: ghostTurn
+                    ? "0 0 10px rgba(34,211,238,0.6)"
+                    : "0 0 10px rgba(255,140,0,0.6)",
+                }}
               >
-                Private turn
+                {ghostTurn ? "Ghost turn" : "Private turn"}
               </p>
               <h2
                 className="text-2xl sm:text-3xl font-black uppercase leading-tight"
@@ -56,7 +72,9 @@ export default function PassPlayHandoffOverlay({ open, playerName, onReady }) {
                 </span>
               </h2>
               <p className="text-sm text-slate-400 leading-relaxed px-2">
-                Everyone else — look away. Only {playerName} should tap when ready.
+                {ghostTurn
+                  ? `Pass to ${playerName} before Ghost dice appear. Everyone else — look away. Scores stay visible once play resumes.`
+                  : `Everyone else — look away. Only ${playerName} should tap when ready.`}
               </p>
             </div>
 

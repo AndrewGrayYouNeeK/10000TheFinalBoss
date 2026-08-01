@@ -41,11 +41,9 @@ import {
   resolveSnowGlobeShellNudges,
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
-import {
-  resolveBlueGelShellNudges,
-  useBlueGelSettings,
-} from "@/lib/blueGelSettings";
 import { assetUrl } from "@/lib/assetUrl";
+import { BLUE_GEL_SPRITE_TUNING } from "@/lib/blueGelSpriteTuning";
+import { getBlueGelFaceImgStyle } from "@/lib/blueGelFaceStyle";
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -130,13 +128,13 @@ function Die({
   fishFeastMode = false,
   /** Online opponent view — face values withheld by server. */
   valueHidden = false,
+  /** Story Ghost — nearly invisible body; no face readout / ? badge. */
+  spectralHidden = false,
   bloodWaterLocked = false,
   onBloodWaterSettled,
   devSkin = null,
   /** Sprite Lab override for Snow Globe glass-shell alignment. */
   snowGlobeShellSettings: snowGlobeShellSettingsProp = null,
-  /** Sprite Lab override for Blue Gel glass-shell alignment. */
-  blueGelShellSettings: blueGelShellSettingsProp = null,
 }) {
   const stableSeedRef = React.useRef(Math.floor(Math.random() * 10000));
   const effectDieSeed = dieSeed ?? stableSeedRef.current;
@@ -272,20 +270,18 @@ function Die({
     effectiveSkinId === "snow_globe"
       ? snowGlobeShellSettingsProp ?? liveSnowGlobeSettings
       : null;
-  const liveBlueGelSettings = useBlueGelSettings();
-  const blueGelShellSettings =
-    effectiveSkinId === "blue_gel"
-      ? blueGelShellSettingsProp ?? liveBlueGelSettings
-      : null;
   // Convex squircle on the inner visual stack — never on the button (that hid sprites).
   const dieShapeStyle = getDieSquircleClipStyle(size);
 
   const showSpriteLayer =
-    (displaySpriteLayer || (isBlueGelTank && (skin.spriteUrl || BLUE_GEL_SPRITE_URL))) &&
+    !isBlueGelTank &&
+    displaySpriteLayer &&
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     spriteOk;
+  const showBlueGelFace = isBlueGelTank && !videoPlaying;
   const showPipFallback =
+    !isBlueGelTank &&
     !isAquariumOverlaySkin &&
     !videoPlaying &&
     !videoSkinActive &&
@@ -405,12 +401,50 @@ function Die({
     );
   };
 
+  const renderBlueGelFaceSprite = () => {
+    if (!showBlueGelFace) return null;
+    const faceSpriteUrl = skin.spriteUrl || BLUE_GEL_SPRITE_URL;
+    const spriteSkin = {
+      id: "blue_gel",
+      spriteUrl: faceSpriteUrl,
+      spriteCrop: skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
+      spriteFaceOffsets: skin.spriteFaceOffsets ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
+    };
+    const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
+    const { sheetUrl, imgStyle } = getBlueGelFaceImgStyle(spriteSkin, value, size, faceOffset);
+    return (
+      <div
+        className="absolute inset-0 pointer-events-none z-[10] overflow-hidden"
+        style={{ borderRadius: radius }}
+      >
+        <img
+          src={sheetUrl}
+          alt=""
+          draggable={false}
+          className="pointer-events-none select-none"
+          style={imgStyle}
+        />
+      </div>
+    );
+  };
+
   const isRollingAnim = rolling && !held && !used && rollMotion;
+  // Hover-rotate + squircle clip-path leaves a rotated "ghost" of portfolio FX (Soundwave, etc.).
+  const hoverMotion =
+    !used && !(rolling && !held)
+      ? isPortfolioFx
+        ? { y: -5 }
+        : { y: -5, rotate: 3 }
+      : {};
   return (
     <motion.div
       key={dieId != null ? `die-${dieId}` : "die"}
       className="relative flex-shrink-0 overflow-visible"
-      style={{ width: size, height: size }}
+      style={{
+        width: size,
+        height: size,
+        isolation: isPortfolioFx || skin.experimental ? "isolate" : undefined,
+      }}
       initial={false}
       animate={
         isRollingAnim
@@ -441,7 +475,7 @@ function Die({
             }
       }
       whileTap={!used && !(rolling && !held) ? { scale: 0.92 } : {}}
-      whileHover={!used && !(rolling && !held) ? { y: -5, rotate: 3 } : {}}>
+      whileHover={hoverMotion}>
 
       {held && !used && (
         <div className="absolute inset-0 z-20 pointer-events-none overflow-visible">
@@ -687,9 +721,7 @@ function Die({
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
         {showSpriteLayer ?
         (() => {
-          const faceSpriteUrl = isBlueGelTank
-            ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
-            : displaySpriteLayer.spriteUrl;
+          const faceSpriteUrl = displaySpriteLayer.spriteUrl;
           const spriteSkin = {
             ...skin,
             spriteUrl: faceSpriteUrl,
@@ -697,14 +729,11 @@ function Die({
           };
           const faceOffset = getSkinFaceOffset(skin, value, spriteOffsetMode);
           const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
-          const { xNudge, yNudge } = isBlueGelTank
-            ? resolveBlueGelShellNudges(value, size, blueGelShellSettings)
-            : resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
+          const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
-          const spriteZ = isBlueGelTank ? "z-[5]" : "z-[1]";
           return (
             <div
-              className={`absolute pointer-events-none ${spriteZ}`}
+              className="absolute pointer-events-none z-[1]"
               style={{
                 backgroundImage: `url(${assetUrl(faceSpriteUrl)})`,
                 backgroundColor: "transparent",
@@ -788,12 +817,14 @@ function Die({
 
         </div>
 
+        {renderBlueGelFaceSprite()}
+
         {/* Ice overlay OUTSIDE squircle clip — drips / edge frost can overhang the die. */}
         {icePowerActive && (
           <IcePowerOverlay value={value} size={size} radius={radius} allowOverflow skinId={skin.id} />
         )}
 
-        {valueHidden && (
+        {valueHidden && !spectralHidden && (
           <div
             className="absolute inset-0 z-[25] flex items-center justify-center pointer-events-none"
             style={{
@@ -806,6 +837,18 @@ function Die({
             <span className="text-lg font-black text-slate-500">?</span>
           </div>
         )}
+        {spectralHidden && (
+          <div
+            className="absolute inset-0 z-[25] pointer-events-none"
+            style={{
+              borderRadius: radius,
+              background:
+                "radial-gradient(circle at 40% 35%, rgba(165,243,252,0.12), transparent 62%)",
+              boxShadow: "inset 0 0 18px rgba(165,243,252,0.08)",
+            }}
+            aria-hidden
+          />
+        )}
       </button>
       </PortfolioDieProvider>
     </motion.div>);
@@ -815,12 +858,12 @@ function Die({
 function diePropsAreEqual(prev, next) {
   if (prev.devSkin !== next.devSkin) return false;
   if (prev.snowGlobeShellSettings !== next.snowGlobeShellSettings) return false;
-  if (prev.blueGelShellSettings !== next.blueGelShellSettings) return false;
   if (prev.powerMode !== next.powerMode) return false;
   if (prev.powerModeSubtle !== next.powerModeSubtle) return false;
   if (prev.allowXrayMorph !== next.allowXrayMorph) return false;
   if (prev.fishFeastMode !== next.fishFeastMode) return false;
   if (prev.valueHidden !== next.valueHidden) return false;
+  if (prev.spectralHidden !== next.spectralHidden) return false;
   if (prev.iceFrozenOverlay !== next.iceFrozenOverlay) return false;
   return (
     prev.value === next.value &&

@@ -49,12 +49,11 @@ export default function ExperimentalDieBody({
 
   if (kind === "clear" || kind === "glass") {
     const body = (
-      <>
+      <div className="absolute inset-0 pointer-events-none" style={base}>
         {fill && (
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              ...base,
               background: fill,
               backdropFilter: backdropBlur ? `blur(${backdropBlur}px)` : undefined,
               boxShadow: `inset 0 0 0 ${edgeWidth}px ${edgeColor}${edgeGlow ? `, ${edgeGlow}` : ""}`,
@@ -65,13 +64,12 @@ export default function ExperimentalDieBody({
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              ...base,
               boxShadow: `inset 0 0 0 ${edgeWidth}px ${edgeColor}${edgeGlow ? `, ${edgeGlow}` : ""}`,
             }}
           />
         )}
         {highlight && (
-          <div className="absolute inset-0 pointer-events-none opacity-50" style={{ ...base, background: highlight }} />
+          <div className="absolute inset-0 pointer-events-none opacity-50" style={{ background: highlight }} />
         )}
         {shimmer && (
           <motion.div
@@ -79,12 +77,11 @@ export default function ExperimentalDieBody({
             animate={{ opacity: [0.2, 0.55, 0.2] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             style={{
-              ...base,
               background: "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.25) 50%, transparent 65%)",
             }}
           />
         )}
-      </>
+      </div>
     );
 
     if (phantomPulse) {
