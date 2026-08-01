@@ -4,6 +4,7 @@ import { isFishDicePlayer } from "@/lib/fishDice";
 import { loadProfile } from "@/lib/localProfile";
 import { getLocalSkinPowerLevel } from "@/lib/progression";
 import { glitchDiceCountForLevel } from "@/lib/matrixGlitch";
+import { resolvePlayerPower } from "@/lib/ghostDisguise";
 
 function opponentIndex(state) {
   const n = state.players?.length ?? 0;
@@ -114,7 +115,11 @@ export function applySkinPower(state, powerId) {
 
     case "matrix_glitch": {
       const profile = loadProfile();
-      const skinId = profile.equipped_skin || "matrix";
+      const { mimicSkinId } = resolvePlayerPower(state, state.currentIndex, {
+        ghostDisguiseId: profile.ghost_disguise,
+        ownedSkins: profile.owned_skins ?? [],
+      });
+      const skinId = mimicSkinId || "matrix";
       const level = getLocalSkinPowerLevel(skinId, profile);
       const diceCount = glitchDiceCountForLevel(level);
       return {
