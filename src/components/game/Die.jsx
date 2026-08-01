@@ -40,11 +40,6 @@ import {
   resolveSnowGlobeShellNudges,
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
-import {
-  getBlueGelShellCrop,
-  resolveBlueGelShellNudges,
-  useBlueGelSettings,
-} from "@/lib/blueGelSettings";
 import { assetUrl } from "@/lib/assetUrl";
 
 const LOCAL_POWER_VIDEO_SKINS = {
@@ -268,24 +263,22 @@ function Die({
     effectiveSkinId === "snow_globe"
       ? snowGlobeShellSettingsProp ?? liveSnowGlobeSettings
       : null;
-  const liveBlueGelSettings = useBlueGelSettings();
-  const blueGelShellSettings =
-    effectiveSkinId === "blue_gel"
-      ? blueGelShellSettingsProp ?? liveBlueGelSettings
-      : null;
   // Convex squircle on the inner visual stack — never on the button (that hid sprites).
   const dieShapeStyle = getDieSquircleClipStyle(size);
+  void blueGelShellSettingsProp;
 
   const showSpriteLayer =
     displaySpriteLayer &&
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     spriteOk;
+  // Blue Gel builds its body in-Die (water + fish) with no face sprite — always draw pips.
+  const showBlueGelPips = effectiveSkinId === "blue_gel";
   const showPipFallback =
-    !isAquariumOverlaySkin &&
     !videoPlaying &&
     !videoSkinActive &&
-    (!displaySpriteLayer || !spriteOk);
+    (showBlueGelPips ||
+      (!isAquariumOverlaySkin && (!displaySpriteLayer || !spriteOk)));
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -359,7 +352,7 @@ function Die({
 
     return (
     <div
-      className="absolute grid grid-cols-3 grid-rows-3"
+      className={`absolute grid grid-cols-3 grid-rows-3 ${showBlueGelPips ? "z-[5]" : ""}`}
       style={{ inset: padding, gap: Math.round(size * 0.045) }}
     >
       {flat.map((p, i) => {
@@ -379,6 +372,9 @@ function Die({
         let effect = null;
         if (skin.experimental) {
           effect = style?.pipEffect;
+        } else if (skin.id === "blue_gel") {
+          // Bright white orbs read on the aquarium water (default inset pips are near-black).
+          effect = "whitePip";
         } else if (skin.id === "diamond") {
           effect = diamondEffects[i % 3];
         }
@@ -387,7 +383,7 @@ function Die({
             <Pip
               size={pipSize}
               colorClass={skin.pipColor}
-              inset={skin.realistic && !skin.experimental}
+              inset={skin.id !== "blue_gel" && skin.realistic && !skin.experimental}
               animationEffect={effect}
               pipCol={pipCol}
               pipRow={pipRow}
@@ -584,22 +580,9 @@ function Die({
           );
         })()}
 
-        {/* Blue Gel — borrows the Aquamarine glass shell with a fish swimming inside */}
-        {effectiveSkinId === "blue_gel" && (() => {
-          const aqua = aquamarineShellSkin ?? getSkin("aquamarine");
-          const { xNudge, yNudge } = resolveBlueGelShellNudges(
-            value,
-            size,
-            blueGelShellSettings
-          );
-          const aquaForShell = {
-            ...aqua,
-            spriteCrop: getBlueGelShellCrop(aqua.spriteCrop, blueGelShellSettings),
-          };
-          const shellStyle = getAquamarineShellStyle(aquaForShell, value, size, { xNudge, yNudge });
-          return (
+        {/* Blue Gel — aquarium water + fish + glass rim; pips drawn via showBlueGelPips */}
+        {effectiveSkinId === "blue_gel" && (
             <>
-              {/* Bright aquarium water — clear body, no catalog sprite sheet */}
               <div
                 className="absolute inset-0 pointer-events-none z-0"
                 style={{
@@ -607,7 +590,6 @@ function Die({
                     "linear-gradient(160deg, rgba(125,211,252,0.55) 0%, rgba(56,189,248,0.65) 35%, rgba(37,99,235,0.75) 70%, rgba(30,64,175,0.85) 100%)",
                 }}
               />
-              {/* Fish swim between water and glass shell */}
               <div className="absolute inset-0 z-[1] pointer-events-none">
               {fishFeastMode && !reduceEffects ? (
                 <BlueGelSharkAttack
@@ -660,18 +642,6 @@ function Die({
                 </>
               )}
               </div>
-              {showAquamarineShell ? (
-                <div
-                  className="absolute pointer-events-none z-[2]"
-                  style={{
-                    backgroundImage: `url(${assetUrl(aqua.spriteUrl)})`,
-                    opacity: 0.7,
-                    mixBlendMode: "multiply",
-                    ...shellStyle,
-                  }}
-                />
-              ) : null}
-              {/* Glass rim — thickness */}
               <div
                 className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
@@ -680,8 +650,7 @@ function Die({
                 }}
               />
             </>
-          );
-        })()}
+        )}
 
         {/* Default power move for skins without dedicated power visuals — bloody water */}
         {showBloodPowerFx ? (
