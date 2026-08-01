@@ -721,9 +721,7 @@ function Die({
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
         {showSpriteLayer ?
         (() => {
-          const faceSpriteUrl = isBlueGelTank
-            ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
-            : displaySpriteLayer.spriteUrl;
+          const faceSpriteUrl = displaySpriteLayer.spriteUrl;
           const spriteSkin = {
             ...skin,
             spriteUrl: faceSpriteUrl,
@@ -733,10 +731,9 @@ function Die({
           const nudgeSkinId = displaySpriteLayer.offsetSkinId ?? skin.id;
           const { xNudge, yNudge } = resolveFaceSpriteNudges(nudgeSkinId, value, size, faceOffset);
           const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
-          const spriteZ = "z-[1]";
           return (
             <div
-              className={`absolute pointer-events-none ${spriteZ}`}
+              className="absolute pointer-events-none z-[1]"
               style={{
                 backgroundImage: `url(${assetUrl(faceSpriteUrl)})`,
                 backgroundColor: "transparent",

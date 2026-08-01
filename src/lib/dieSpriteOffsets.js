@@ -2,7 +2,7 @@
  * Per-skin sprite face alignment for photorealistic dice sheets.
  * Pixel nudges were tuned at DIE_SPRITE_REF_SIZE — scaled for any render size.
  */
-import { DEFAULT_SPRITE_CROP, sanitizeSpriteCrop } from "./spriteLab";
+import { sanitizeSpriteCrop } from "./spriteLab";
 import { getPaperSpriteXNudge, getPaperSpriteYNudge } from "./paperSpriteTuning";
 import {
   getDragonScaleSpriteXNudge,
@@ -175,6 +175,30 @@ export function getSpriteSheetStyle(skin, value, size, { xNudge, yNudge }) {
     const sheetH = rows * cellH;
     const offX = (spriteCrop.offsetX ?? 0) * size;
     const offY = (spriteCrop.offsetY ?? 0) * size;
+    const left = size / 2 - (col + 0.5) * cellW + offX + xNudge;
+    const top = size / 2 - (row + 0.5) * cellH - offY + yNudge;
+
+    return {
+      inset: 0,
+      backgroundSize: `${sheetW}px ${sheetH}px`,
+      backgroundPosition: `${left}px ${top}px`,
+      backgroundRepeat: "no-repeat",
+    };
+  }
+
+  // Blue Gel — portrait 3×2 cells on a square sheet; generic crop hides corner pips.
+  if (skin.id === "blue_gel") {
+    const z = zoom;
+    const sheetSize = skin.spriteSheetSize ?? { width: 1024, height: 1024 };
+    const nativeCellW = sheetSize.width / cols;
+    const nativeCellH = sheetSize.height / rows;
+    const cellAspect = nativeCellH / nativeCellW;
+    const cellW = size * z;
+    const cellH = size * z * cellAspect;
+    const sheetW = cols * cellW;
+    const sheetH = rows * cellH;
+    const offX = (skin.spriteCrop?.offsetX ?? 0) * size;
+    const offY = (skin.spriteCrop?.offsetY ?? 0) * size;
     const left = size / 2 - (col + 0.5) * cellW + offX + xNudge;
     const top = size / 2 - (row + 0.5) * cellH - offY + yNudge;
 
