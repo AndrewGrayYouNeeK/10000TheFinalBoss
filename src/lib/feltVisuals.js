@@ -91,15 +91,34 @@ const PORTRAIT_CANVAS_FELT_IDS = new Set([
   "tiedye_neon",
 ]);
 
+/** Approx. opaque tray height ÷ full PNG height (~358px of 1024px). */
+export const PORTRAIT_CANVAS_TRAY_HEIGHT_RATIO = 0.35;
+
 export function isPortraitCanvasFelt(feltId) {
   return PORTRAIT_CANVAS_FELT_IDS.has(feltId);
+}
+
+/** Zoom so the centered tray art fills the element (crops transparent padding). */
+export function getPortraitCanvasZoom(felt) {
+  const scale = felt?.textureScale ?? 1;
+  return (1 / PORTRAIT_CANVAS_TRAY_HEIGHT_RATIO) * scale;
+}
+
+/** Frame PNGs render cleaner as an img layer (object-fit cover + zoom). */
+export function usesFramePhotoLayer(felt) {
+  return Boolean(felt?.includesFrame && felt?.textureUrl);
+}
+
+function framePhotoZoom(felt) {
+  if (isPortraitCanvasFelt(felt?.id)) return getPortraitCanvasZoom(felt);
+  return felt?.textureScale ?? 1;
 }
 
 function photoBackgroundSize(felt, compact) {
   const scale = felt?.textureScale ?? 1;
   if (isPortraitCanvasFelt(felt?.id)) {
-    if (scale === 1) return "100% auto";
-    return `${Math.round(scale * 100)}% auto`;
+    if (scale === 1) return "cover";
+    return `${Math.round(scale * 100)}%`;
   }
   if (scale === 1) return "cover";
   return `${Math.round(scale * 100)}%`;
@@ -273,8 +292,31 @@ function buildTextureFilter(felt, baseFilter) {
   return parts.length ? parts.join(" ") : "none";
 }
 
+/** Styles for includesFrame photo layer — img + object-fit crops transparent padding. */
+export function getFramePhotoImgStyle(felt, compact = false) {
+  const zoom = framePhotoZoom(felt);
+  const posX = felt?.texturePosX ?? 50;
+  const posY = felt?.texturePosY ?? 50;
+  const opacity = felt?.textureOpacity ?? (compact ? 0.98 : 1);
+  const style = {
+    objectFit: "cover",
+    objectPosition: `${posX}% ${posY}%`,
+    opacity,
+    filter: buildTextureFilter(felt, "none"),
+    imageRendering: felt?.textureBlur > 0 ? "auto" : "-webkit-optimize-contrast",
+  };
+  if (zoom !== 1) {
+    style.transform = `scale(${zoom})`;
+    style.transformOrigin = `${posX}% ${posY}%`;
+  }
+  return style;
+}
+
 export function getPhotoTextureStyle(felt, compact = false) {
   const id = felt?.id;
+  if (usesFramePhotoLayer(felt)) {
+    return getFramePhotoImgStyle(felt, compact);
+  }
   if (isDedicatedPhotoFelt(id)) {
     return dedicatedPhotoStyle(compact, felt);
   }

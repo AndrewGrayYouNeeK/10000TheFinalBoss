@@ -49,8 +49,11 @@ export function getCatalogFeltTuningDefaults(felt) {
   if (felt.textureScale != null) base.textureScale = felt.textureScale;
   if (isPortraitCanvasFelt(felt.id)) {
     base.textureScale = 1;
-    base.textureOpacity = 0.98;
-    base.overlayStrength = 0.35;
+    base.textureOpacity = 1;
+    base.overlayStrength = 0;
+  } else if (felt.includesFrame) {
+    base.textureOpacity = 1;
+    base.overlayStrength = 0;
   } else if (isDedicatedPhotoFelt(felt.id)) {
     base.textureOpacity = 0.92;
     base.textureContrast = 1.08;
