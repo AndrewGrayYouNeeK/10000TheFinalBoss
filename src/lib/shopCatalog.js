@@ -14,6 +14,7 @@ import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
 import { TEAL_CRACKLE_SPRITE_TUNING } from "./tealCrackleSpriteTuning";
 import { AQUAMARINE_LIGHT_SPRITE_TUNING } from "./aquamarineLightSpriteTuning";
 import { AQUAMARINE_SPRITE_TUNING } from "./aquamarineSpriteTuning";
+import { BLUE_GEL_SPRITE_TUNING } from "./blueGelSpriteTuning";
 import { WOOD_SPRITE_TUNING } from "./woodSpriteTuning";
 import { SILVER_SPRITE_TUNING } from "./silverSpriteTuning";
 import { CIRCUIT_BOARD_SPRITE_TUNING } from "./circuitBoardSpriteTuning";
@@ -411,6 +412,7 @@ export const PRODUCTION_DICE_SKINS = [
     powerDice: true,
     spriteUrl: "/assets/999d8760b_generated_image.png",
     spriteGrid: { cols: 3, rows: 2 },
+    ...BLUE_GEL_SPRITE_TUNING,
   },
   {
     id: "plasma",
@@ -1341,10 +1343,12 @@ export function getSkin(id) {
   }
 
   if (skin.id === "blue_gel") {
+    // Face crop comes from catalog tuning — stale sprite-lab drafts used aquamarine shell crops.
     return withBlueGelSpriteUrl(
       {
         ...skin,
-        spriteCrop: draft.regularCrop ?? skin.spriteCrop,
+        spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
+        spriteCrop: base.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
         spriteFaceOffsets: {
           ...skin.spriteFaceOffsets,
           regular: mergeRegular(skin.spriteFaceOffsets?.regular),
