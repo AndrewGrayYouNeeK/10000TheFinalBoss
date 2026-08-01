@@ -43,6 +43,7 @@ import {
 } from "@/lib/snowGlobeSettings";
 import { assetUrl } from "@/lib/assetUrl";
 import { BLUE_GEL_SPRITE_TUNING } from "@/lib/blueGelSpriteTuning";
+import { getBlueGelFaceImgStyle } from "@/lib/blueGelFaceStyle";
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -405,26 +406,23 @@ function Die({
     const faceSpriteUrl = skin.spriteUrl || BLUE_GEL_SPRITE_URL;
     const spriteSkin = {
       id: "blue_gel",
-      spriteGrid: { cols: 3, rows: 2 },
       spriteUrl: faceSpriteUrl,
-      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
+      spriteCrop: skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
       spriteFaceOffsets: skin.spriteFaceOffsets ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
     };
     const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
-    const { xNudge, yNudge } = resolveFaceSpriteNudges("blue_gel", value, size, faceOffset);
-    const sheetStyle = getSpriteSheetStyle(spriteSkin, value, size, { xNudge, yNudge });
+    const { sheetUrl, imgStyle } = getBlueGelFaceImgStyle(spriteSkin, value, size, faceOffset);
     return (
       <div
         className="absolute inset-0 pointer-events-none z-[10] overflow-hidden"
-        style={dieShapeStyle}
+        style={{ borderRadius: radius }}
       >
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage: `url(${assetUrl(faceSpriteUrl)})`,
-            backgroundColor: "transparent",
-            ...sheetStyle,
-          }}
+        <img
+          src={sheetUrl}
+          alt=""
+          draggable={false}
+          className="pointer-events-none select-none"
+          style={imgStyle}
         />
       </div>
     );

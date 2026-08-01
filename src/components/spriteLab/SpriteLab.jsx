@@ -1146,13 +1146,8 @@ export default function SpriteLab({ skinId }) {
         {skinId === "blue_gel" && (
           <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 text-xs text-cyan-100 space-y-2">
             <p>
-              Blue Gel has <b>no dice sheet of its own</b> — face + pips come from the borrowed{" "}
-              <b>Aquamarine glass shell</b> (3×2 sprite). Use shell shift below to align; tune the shell
-              crop on{" "}
-              <Link to="/sprite-lab/aquamarine" className="text-cyan-200 underline font-bold">
-                Aquamarine Sprite Lab
-              </Link>
-              .
+              Blue Gel uses its own <b>face sprite sheet</b> (<code className="text-cyan-200">999d8760b_generated_image.png</code>)
+              with <b>baked-in dark pips</b> painted above the fish tank. Use crop + nudge below to align each face.
             </p>
             <div className="flex flex-wrap gap-2">
               <Link
@@ -1226,8 +1221,8 @@ export default function SpriteLab({ skinId }) {
           ) : skinId === "blue_gel" ? (
             <ol className="list-decimal pl-4 space-y-1 text-slate-300">
               <li>Pick a face with the <b>1–6 buttons</b></li>
-              <li>Shift the borrowed <b>Aquamarine glass shell</b> until pips read clearly over the fish</li>
-              <li>Tune global shell zoom/offset, then fine-tune each face</li>
+              <li>Drag <b>Nudge X / Y</b> until the dark pips/digits read clearly over the fish</li>
+              <li>Tune global crop, then fine-tune each face</li>
               <li>Settings autosave in this browser — apply in-game immediately</li>
               <li>
                 Shark Bite videos tune on{" "}
