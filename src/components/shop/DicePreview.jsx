@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getBlueGelTrayFishProps } from "@/lib/fishDice";
@@ -28,31 +28,14 @@ export default function DicePreview({
     renderSkinId === "blue_gel" ? 1 : isAquariumOverlaySkinId(renderSkinId) ? 1 : value;
   const blueGelFishProps =
     renderSkinId === "blue_gel" ? getBlueGelTrayFishProps(0) : {};
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+  const ref = React.useRef(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
-
-    let leavePreview = null;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          if (!leavePreview) leavePreview = enterShopPreviewSession();
-        } else {
-          leavePreview?.();
-          leavePreview = null;
-        }
-      },
-      { rootMargin: "140px" },
-    );
-
-    io.observe(el);
+    let leavePreview = enterShopPreviewSession();
     return () => {
       leavePreview?.();
-      io.disconnect();
     };
   }, []);
 
@@ -60,14 +43,13 @@ export default function DicePreview({
 
   return (
     <div ref={ref} className="flex items-center justify-center shrink-0" style={{ minHeight }}>
-      {visible ? (
-        <FeltTrayFrame
-          felt={felt}
-          compact={compact}
-          innerClassName="flex items-center justify-center px-2 py-1.5"
-        >
-          <div className="relative z-10">
-            <Die
+      <FeltTrayFrame
+        felt={felt}
+        compact={compact}
+        innerClassName="flex items-center justify-center px-2 py-1.5"
+      >
+        <div className="relative z-10">
+          <Die
             value={previewValue}
             skinId={renderSkinId}
             size={size}
@@ -75,14 +57,8 @@ export default function DicePreview({
             dieSeed={stableSeed(renderSkinId)}
             {...blueGelFishProps}
           />
-          </div>
-        </FeltTrayFrame>
-      ) : (
-        <div
-          className="rounded-xl bg-slate-800/30 animate-pulse"
-          style={{ width: size + 24, height: minHeight - 4 }}
-        />
-      )}
+        </div>
+      </FeltTrayFrame>
     </div>
   );
 }

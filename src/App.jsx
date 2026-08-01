@@ -6,11 +6,14 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
+import { recoverCorruptDiceState } from '@/lib/skinRecovery';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
 import Story from '@/pages/Story';
 import StoryGame from '@/pages/StoryGame';
 
+// Repair corrupt sprite-lab saves before hydration syncs them into the profile.
+recoverCorruptDiceState();
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
 hydrateSpriteLabPersistence();
 
