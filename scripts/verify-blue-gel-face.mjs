@@ -1,14 +1,15 @@
 /**
- * Verifies Blue Gel die renders the catalog face sprite (baked pips) above the fish tank.
+ * Verifies Blue Gel uses the original live aquarium and stable pip grid.
  * Run: npm run build && node scripts/verify-blue-gel-face.mjs
  */
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(ROOT, "dist");
 const PORT = 4190;
 const SPRITE_FRAGMENT = "999d8760b_generated_image";
@@ -34,34 +35,31 @@ async function openSpriteLab(page) {
 
 async function verifyBlueGelFaces(page) {
   const result = await page.evaluate((fragment) => {
-    const imgs = [...document.querySelectorAll("img")].filter((img) =>
+    const aquarium = document.querySelector("[data-fish-overlay]");
+    const die = aquarium?.closest("button");
+    const generatedImgs = [...(die?.querySelectorAll("img") ?? [])].filter((img) =>
       (img.getAttribute("src") || "").includes(fragment)
     );
-    const badRelative = imgs.filter((img) => {
-      const src = img.getAttribute("src") || "";
-      return src.startsWith("./") || src.startsWith("../");
-    });
-    const loaded = imgs.filter((img) => img.complete && img.naturalWidth > 0);
     return {
-      imgCount: imgs.length,
-      badRelative: badRelative.length,
-      loadedCount: loaded.length,
-      sampleSrc: imgs[0]?.getAttribute("src") || null,
+      aquariumCount: die?.querySelectorAll("[data-fish-overlay]").length ?? 0,
+      fishSvgCount: die?.querySelectorAll("[data-fish-overlay] svg").length ?? 0,
+      pipGridCount: die?.querySelectorAll("[data-die-pip-grid]").length ?? 0,
+      generatedImgCount: generatedImgs.length,
     };
   }, SPRITE_FRAGMENT);
 
-  if (result.imgCount < 1) {
-    throw new Error("no Blue Gel face <img> with catalog sheet");
+  if (result.aquariumCount < 1 || result.fishSvgCount < 1) {
+    throw new Error("Blue Gel original swimming-fish aquarium is missing");
   }
-  if (result.badRelative > 0) {
-    throw new Error("face img uses relative asset URL (breaks on nested routes)");
+  if (result.pipGridCount !== 1) {
+    throw new Error(`expected one stable pip grid, found ${result.pipGridCount}`);
   }
-  if (result.loadedCount < 1) {
-    throw new Error(`face sprite image did not load — src=${result.sampleSrc}`);
+  if (result.generatedImgCount > 0) {
+    throw new Error("opaque generated face image still covers the swimming fish");
   }
 
   mkdirSync(join(ROOT, "artifacts"), { recursive: true });
-  const previewDie = page.locator("button").filter({ has: page.locator(`img[src*="${SPRITE_FRAGMENT}"]`) }).first();
+  const previewDie = page.locator("button").filter({ has: page.locator("[data-fish-overlay]") }).first();
   await previewDie.screenshot({ path: join(ROOT, "artifacts/blue-gel-die-verify.png") });
 
   return result;
@@ -75,7 +73,9 @@ async function main() {
   try {
     await openSpriteLab(page);
     const result = await verifyBlueGelFaces(page);
-    console.log(`OK: ${result.loadedCount} loaded face sprite(s), src=${result.sampleSrc}`);
+    console.log(
+      `OK: ${result.fishSvgCount} live fish, ${result.pipGridCount} pip grid, no opaque face sprite`
+    );
     console.log("Screenshot: artifacts/blue-gel-die-verify.png");
   } finally {
     await browser.close();

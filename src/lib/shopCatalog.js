@@ -15,7 +15,6 @@ import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
 import { TEAL_CRACKLE_SPRITE_TUNING } from "./tealCrackleSpriteTuning";
 import { AQUAMARINE_LIGHT_SPRITE_TUNING } from "./aquamarineLightSpriteTuning";
 import { AQUAMARINE_SPRITE_TUNING } from "./aquamarineSpriteTuning";
-import { BLUE_GEL_SPRITE_TUNING } from "./blueGelSpriteTuning";
 import { WOOD_SPRITE_TUNING } from "./woodSpriteTuning";
 import { SILVER_SPRITE_TUNING } from "./silverSpriteTuning";
 import { CIRCUIT_BOARD_SPRITE_TUNING } from "./circuitBoardSpriteTuning";
@@ -425,9 +424,8 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Marlin Joe's fish-tank dice — Shark Bite eats the opponent's next bank.",
     realistic: true,
     powerDice: true,
-    spriteUrl: "/assets/999d8760b_generated_image.png",
-    spriteGrid: { cols: 3, rows: 2 },
-    ...BLUE_GEL_SPRITE_TUNING,
+    // Face is built in Die.jsx: original swimming fish, glass, and stable white pips.
+    // Never add a sprite/video face here; it covers the live aquarium.
   },
   {
     id: "plasma",
@@ -935,16 +933,8 @@ function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
   return draftZoom;
 }
 
-/** Snow globe — custom Die.jsx overlay (no sprite face). Blue Gel uses sprite + fish tank. */
-export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe"]);
-
-export const BLUE_GEL_SPRITE_URL = "/assets/999d8760b_generated_image.png";
-
-function withBlueGelSpriteUrl(skin, base) {
-  if (skin?.id !== "blue_gel") return skin;
-  const url = base?.spriteUrl || BLUE_GEL_SPRITE_URL;
-  return skin.spriteUrl === url ? skin : { ...skin, spriteUrl: url };
-}
+/** Fish tank / snow globe — custom Die.jsx overlays, never sprite or video faces. */
+export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["blue_gel", "snow_globe"]);
 
 function withoutAquariumSpriteSheets(skin) {
   if (!AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
@@ -952,7 +942,7 @@ function withoutAquariumSpriteSheets(skin) {
   delete next.spriteUrl;
   delete next.powerSpriteUrl;
   delete next.powerSpriteCrop;
-  // Face is built in Die.jsx (fish/snow + borrowed Aquamarine shell) — never a video/sprite sheet die.
+  // Face is built in Die.jsx — never a video/sprite sheet die.
   delete next.videoUrl;
   delete next.powerVideoUrl;
   return next;
@@ -992,8 +982,6 @@ export function skinHasPowerSprite(skin) {
 export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
-  // Blue Gel — face is a sprite sheet above the fish tank; shark bite uses fullscreen video FX.
-  if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return skin.powerVideoUrl;
   if (!powerMode && skin.videoUrl) return skin.videoUrl;
   return null;
@@ -1029,10 +1017,7 @@ export function getSkin(id) {
     };
   }
   const locked = isSpriteTuningLocked(base.id);
-  const skin = withBlueGelSpriteUrl(
-    withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked)),
-    base,
-  );
+  const skin = withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked));
   if (!draft) return skin;
   const mergeRegular = (offsetsBase) => {
     if (!draft?.regularFaces || !hasUserFaceTuning(draft.regularFaces)) return offsetsBase;
@@ -1390,30 +1375,6 @@ export function getSkin(id) {
     };
   }
 
-  if (skin.id === "blue_gel") {
-    // Face crop must stay on the Blue Gel sheet — stale lab drafts used aquamarine shell crops.
-    const blueGelCrop = sanitizeSpriteCrop(
-      draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      BLUE_GEL_SPRITE_TUNING.spriteCrop
-    );
-    const next = withBlueGelSpriteUrl(
-      {
-        ...skin,
-        spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-        spriteCrop: blueGelCrop,
-        spriteFaceOffsets: {
-          ...skin.spriteFaceOffsets,
-          regular: mergeRegular(skin.spriteFaceOffsets?.regular),
-          power: mergePower(skin.spriteFaceOffsets?.power),
-        },
-      },
-      base,
-    );
-    // Never play an in-die video layer — it hides the baked pips on the face sheet.
-    delete next.videoUrl;
-    return next;
-  }
-
   if (skin.spriteCrop) {
     return {
       ...skin,
@@ -1427,7 +1388,7 @@ export function getSkin(id) {
     };
   }
 
-  return withBlueGelSpriteUrl(withoutAquariumSpriteSheets(skin), base);
+  return withoutAquariumSpriteSheets(skin);
 }
 export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;

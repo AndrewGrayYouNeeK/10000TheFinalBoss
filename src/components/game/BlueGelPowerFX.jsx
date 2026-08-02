@@ -384,6 +384,8 @@ export function ChromaKeyVideo({
   layoutOffsetY = null,
   /** Which shark-bite clip rotation to apply (`chomp` vs `intro`). */
   rotationSlot = "chomp",
+  /** Gameplay always removes the plate, even if an old lab setting disabled preview keying. */
+  forceKey = false,
 }) {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
@@ -575,7 +577,7 @@ export function ChromaKeyVideo({
       };
 
       // Keying disabled — show the raw frame.
-      if (cfg && cfg.enabled === false) {
+      if (!forceKey && cfg && cfg.enabled === false) {
         blit(work);
         scheduleNext();
         return;
@@ -747,7 +749,7 @@ export function ChromaKeyVideo({
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot, onTimeUpdate, onEnded, onError]);
+  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot, forceKey, onTimeUpdate, onEnded, onError]);
 
   return (
     <>
@@ -805,6 +807,8 @@ export function BlueGelPowerVideoScreen({
   videoKey = VIDEO_KEYS.BLUE_GEL_POWER,
   /** auto = upload or catalog; catalog = shipped blue_gel_power.mp4; local = upload only. */
   videoSource = "auto",
+  /** Visual orientation/layout, independent of which video file supplies the beat. */
+  presentationSlot = null,
   /** When false (intro swim-in), skip chomp sync and end fade. */
   syncChomp = true,
   /** Extra wrapper opacity (e.g. intro→chomp crossfade). */
@@ -818,7 +822,10 @@ export function BlueGelPowerVideoScreen({
 }) {
   const url = useSharkBiteVideoUrl(videoKey, active, videoSource);
   const biteSettings = useSharkBiteSettings();
-  const isIntro = videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
+  const isIntro =
+    presentationSlot != null
+      ? presentationSlot === "intro"
+      : videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
   const layoutOffsetX = isIntro
     ? biteSettings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX ?? 0
     : biteSettings.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX ?? 0;
@@ -843,7 +850,7 @@ export function BlueGelPowerVideoScreen({
     setFadeOpacity(1);
     chompSent.current = false;
     endedSent.current = false;
-  }, [url, active, videoKey]);
+  }, [url, active, videoKey, presentationSlot]);
 
   const finishOnce = React.useCallback(() => {
     if (loop || endedSent.current) return;
@@ -930,6 +937,7 @@ export function BlueGelPowerVideoScreen({
             layoutOffsetX={layoutOffsetX}
             layoutOffsetY={layoutOffsetY}
             rotationSlot={isIntro ? "intro" : "chomp"}
+            forceKey={overGameplay}
             playbackStartAtSeconds={startAt}
             playbackStopAtProgress={stopAt}
             skipExitPan={skipExitPan}
@@ -975,7 +983,7 @@ export function BlueGelPowerVideoScreen({
 const SHARK_BITE_ABSOLUTE_MAX_MS = 90000;
 
 /**
- * Full-screen shark bite: optional intro → chomp (local upload or catalog fallback),
+ * Full-screen shark bite: sideways chomp → forward swallow,
  * or SVG when no video is available. Never stacks catalog before uploads.
  */
 export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
@@ -1199,6 +1207,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
           syncChomp={!!currentBeat.syncChomp}
           videoKey={currentBeat.videoKey ?? VIDEO_KEYS.BLUE_GEL_POWER}
           videoSource={currentBeat.source ?? "auto"}
+          presentationSlot={currentBeat.presentationSlot ?? null}
           zIndex={55}
           onChompProgress={currentBeat.syncChomp ? fireChomp : undefined}
           onEnded={handleBeatEnded}
