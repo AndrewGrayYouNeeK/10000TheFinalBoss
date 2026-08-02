@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Users, BookOpen, Sparkles, Coins, Zap, Wifi, Swords } from "lucide-react";
+import { Users, BookOpen, Sparkles, Coins, Zap, Wifi, Swords, Play } from "lucide-react";
 import RulesSheet from "@/components/game/RulesSheet";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import DiceRain from "@/components/game/DiceRain";
@@ -9,11 +9,13 @@ import DiamondShowcase from "@/components/home/DiamondShowcase";
 import DevServerTip from "@/components/home/DevServerTip";
 import { isNativeApp } from "@/lib/platform";
 import { assetUrl } from "@/lib/assetUrl";
+import { hasResumableLocalGame } from "@/lib/localGameSave";
 
 export default function Home() {
   const { coins, isLoading } = useCosmetics();
   const native = isNativeApp();
   const particleCount = native ? 0 : 14;
+  const canContinueGame = hasResumableLocalGame();
 
   return (
     <div
@@ -191,6 +193,26 @@ export default function Home() {
 
         {/* Buttons — above DiceRain canvas (z-20) so taps always register */}
         <div className={`relative z-30 space-y-3 ${native ? "shrink-0" : ""}`}>
+          {canContinueGame && (
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                data-dice-obstacle
+                data-dice-solid
+                to="/game"
+                className="flex items-center justify-center w-full h-14 text-base font-black rounded-lg gap-2 relative overflow-hidden border"
+                style={{
+                  background: "rgba(255,200,0,0.1)",
+                  borderColor: "rgba(255,200,0,0.55)",
+                  color: "#fde047",
+                  boxShadow: "0 0 20px rgba(255,200,0,0.2)",
+                }}
+              >
+                <Play className="w-5 h-5" />
+                CONTINUE GAME
+              </Link>
+            </motion.div>
+          )}
+
           {/* Primary CTA */}
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
             <Link
