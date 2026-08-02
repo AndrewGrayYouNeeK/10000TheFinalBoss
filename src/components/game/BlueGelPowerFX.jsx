@@ -81,6 +81,12 @@ export const SHARK_BITE_FALLBACK_VANISH_MS = DEFAULT_SHARK_BITE_SETTINGS.fallbac
 export const SHARK_BITE_CHOMP_PROGRESS = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
 export const SHARK_BITE_FADE_START = DEFAULT_SHARK_BITE_SETTINGS.fadeStart;
 export const SHARK_BITE_STOP_AT_PROGRESS = DEFAULT_SHARK_BITE_SETTINGS.stopAtProgress;
+
+/** Front-facing section of the shipped clip, slowed and enlarged for the final swallow. */
+const FORWARD_SWALLOW_START_SECONDS = 2.65;
+const FORWARD_SWALLOW_END_SECONDS = 5.85;
+const FORWARD_SWALLOW_PLAYBACK_RATE = 0.65;
+
 /** Soft fade band (px at process res) so the video rect never shows a hard edge/line. */
 const CHROMA_EDGE_FEATHER_PX = 12;
 
@@ -375,7 +381,13 @@ export function ChromaKeyVideo({
   fullViewport = false,
   /** Override shark-bite trim for this clip (e.g. intro swim-in). */
   playbackStartAtSeconds = null,
+  /** Optional source-timeline endpoint in seconds. */
+  playbackEndAtSeconds = null,
   playbackStopAtProgress = null,
+  /** Playback speed; the shipped front-facing swallow uses slow motion. */
+  playbackRate = 1,
+  /** Give the final front-facing swallow a centered push toward the viewer. */
+  forwardSwallow = false,
   /** When true, call onEnded immediately instead of sliding off-screen. */
   skipExitPan = false,
   /** Horizontal nudge override (viewport fraction; + = right). Defaults to biteSettings.offsetX. */
@@ -384,6 +396,8 @@ export function ChromaKeyVideo({
   layoutOffsetY = null,
   /** Which shark-bite clip rotation to apply (`chomp` vs `intro`). */
   rotationSlot = "chomp",
+  /** Gameplay always removes the plate, even if an old lab setting disabled preview keying. */
+  forceKey = false,
 }) {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
@@ -395,7 +409,10 @@ export function ChromaKeyVideo({
   const settingsRef = React.useRef(settings);
   const biteRef = React.useRef(biteSettings);
   const playbackStartRef = React.useRef(playbackStartAtSeconds);
+  const playbackEndRef = React.useRef(playbackEndAtSeconds);
   const playbackStopRef = React.useRef(playbackStopAtProgress);
+  const playbackRateRef = React.useRef(playbackRate);
+  const forwardSwallowRef = React.useRef(forwardSwallow);
   const skipExitPanRef = React.useRef(skipExitPan);
   const layoutOffsetXRef = React.useRef(layoutOffsetX);
   const layoutOffsetYRef = React.useRef(layoutOffsetY);
@@ -403,7 +420,10 @@ export function ChromaKeyVideo({
   fadeOpacityRef.current = fadeOpacity;
   fadeOutFromRef.current = fadeOutFrom;
   playbackStartRef.current = playbackStartAtSeconds;
+  playbackEndRef.current = playbackEndAtSeconds;
   playbackStopRef.current = playbackStopAtProgress;
+  playbackRateRef.current = playbackRate;
+  forwardSwallowRef.current = forwardSwallow;
   skipExitPanRef.current = skipExitPan;
   layoutOffsetXRef.current = layoutOffsetX;
   layoutOffsetYRef.current = layoutOffsetY;
@@ -532,7 +552,20 @@ export function ChromaKeyVideo({
         outW = Math.max(1, Math.round(window.innerWidth * dpr));
         outH = Math.max(1, Math.round(window.innerHeight * dpr));
         const bs = biteRef.current;
-        const fit = Math.min(outW / fw, outH / fh) * (Number(bs?.videoScale) || 1.18);
+        const startAtSec =
+          playbackStartRef.current ?? bs?.startAtSeconds ?? DEFAULT_SHARK_BITE_SETTINGS.startAtSeconds;
+        const endAtSec = playbackEndRef.current;
+        const forwardProgress =
+          forwardSwallowRef.current && Number.isFinite(endAtSec) && endAtSec > startAtSec
+            ? Math.max(0, Math.min(1, (video.currentTime - startAtSec) / (endAtSec - startAtSec)))
+            : 0;
+        const forwardPush = forwardSwallowRef.current
+          ? 1.12 + 0.48 * forwardProgress * forwardProgress
+          : 1;
+        const fit =
+          Math.min(outW / fw, outH / fh) *
+          (Number(bs?.videoScale) || 1.18) *
+          forwardPush;
         drawW = fw * fit;
         drawH = fh * fit;
         const offsetX =
@@ -575,7 +608,7 @@ export function ChromaKeyVideo({
       };
 
       // Keying disabled — show the raw frame.
-      if (cfg && cfg.enabled === false) {
+      if (!forceKey && cfg && cfg.enabled === false) {
         blit(work);
         scheduleNext();
         return;
@@ -637,6 +670,18 @@ export function ChromaKeyVideo({
         const bs = biteRef.current;
         const startAtSec =
           playbackStartRef.current ?? bs?.startAtSeconds ?? DEFAULT_SHARK_BITE_SETTINGS.startAtSeconds;
+        const endAtSec = playbackEndRef.current;
+        if (
+          Number.isFinite(endAtSec) &&
+          endAtSec > startAtSec &&
+          video.currentTime >= endAtSec &&
+          !earlyEndTriggered
+        ) {
+          earlyEndTriggered = true;
+          video.pause();
+          handleEnded();
+          return;
+        }
         const p = sharkBiteClipProgress(video, startAtSec);
         const stopAt =
           playbackStopRef.current ?? bs?.stopAtProgress ?? DEFAULT_SHARK_BITE_SETTINGS.stopAtProgress;
@@ -722,6 +767,7 @@ export function ChromaKeyVideo({
     const muteAt = Math.max(0, Number(biteRef.current?.muteAtSeconds) || 0);
     const begin = () => {
       applyVideoStartOffset(video, startAt);
+      video.playbackRate = Math.max(0.25, Math.min(2, Number(playbackRateRef.current) || 1));
       if (muteAt > 0) {
         muteCleanup = bindVideoMuteAt(video, muteAt, () => {
           video.muted = true;
@@ -747,7 +793,7 @@ export function ChromaKeyVideo({
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot, onTimeUpdate, onEnded, onError]);
+  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot, forceKey, onTimeUpdate, onEnded, onError]);
 
   return (
     <>
@@ -805,6 +851,8 @@ export function BlueGelPowerVideoScreen({
   videoKey = VIDEO_KEYS.BLUE_GEL_POWER,
   /** auto = upload or catalog; catalog = shipped blue_gel_power.mp4; local = upload only. */
   videoSource = "auto",
+  /** Visual orientation/layout, independent of which video file supplies the beat. */
+  presentationSlot = null,
   /** When false (intro swim-in), skip chomp sync and end fade. */
   syncChomp = true,
   /** Extra wrapper opacity (e.g. intro→chomp crossfade). */
@@ -815,19 +863,27 @@ export function BlueGelPowerVideoScreen({
   playFullClip = false,
   /** Last beat in a shark-bite queue — allow exit pan when the clip ends. */
   isSequenceEnd = false,
+  /** Replay only the unmistakable head-on section of the shipped clip. */
+  forwardSwallow = false,
 }) {
   const url = useSharkBiteVideoUrl(videoKey, active, videoSource);
   const biteSettings = useSharkBiteSettings();
-  const isIntro = videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
+  const isIntro =
+    presentationSlot != null
+      ? presentationSlot === "intro"
+      : videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
   const layoutOffsetX = isIntro
     ? biteSettings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX ?? 0
     : biteSettings.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX ?? 0;
   const layoutOffsetY = isIntro
     ? biteSettings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY ?? 0
     : biteSettings.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY ?? 0;
-  const startAt = isIntro
-    ? biteSettings.introStartAtSeconds ?? 0
-    : biteSettings.startAtSeconds ?? 0;
+  const startAt = forwardSwallow
+    ? FORWARD_SWALLOW_START_SECONDS
+    : isIntro
+      ? biteSettings.introStartAtSeconds ?? 0
+      : biteSettings.startAtSeconds ?? 0;
+  const endAt = forwardSwallow ? FORWARD_SWALLOW_END_SECONDS : null;
   const stopAt = playFullClip
     ? 1
     : isIntro
@@ -843,7 +899,7 @@ export function BlueGelPowerVideoScreen({
     setFadeOpacity(1);
     chompSent.current = false;
     endedSent.current = false;
-  }, [url, active, videoKey]);
+  }, [url, active, videoKey, presentationSlot]);
 
   const finishOnce = React.useCallback(() => {
     if (loop || endedSent.current) return;
@@ -930,8 +986,12 @@ export function BlueGelPowerVideoScreen({
             layoutOffsetX={layoutOffsetX}
             layoutOffsetY={layoutOffsetY}
             rotationSlot={isIntro ? "intro" : "chomp"}
+            forceKey={overGameplay}
             playbackStartAtSeconds={startAt}
+            playbackEndAtSeconds={endAt}
             playbackStopAtProgress={stopAt}
+            playbackRate={forwardSwallow ? FORWARD_SWALLOW_PLAYBACK_RATE : 1}
+            forwardSwallow={forwardSwallow}
             skipExitPan={skipExitPan}
             onTimeUpdate={handleChompProgress}
             onEnded={() => {
@@ -975,7 +1035,7 @@ export function BlueGelPowerVideoScreen({
 const SHARK_BITE_ABSOLUTE_MAX_MS = 90000;
 
 /**
- * Full-screen shark bite: optional intro → chomp (local upload or catalog fallback),
+ * Full-screen shark bite: sideways chomp → forward swallow,
  * or SVG when no video is available. Never stacks catalog before uploads.
  */
 export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
@@ -1186,6 +1246,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   if (phase === "video" && currentBeat) {
     const beatKey = `${beatIndex}-${currentBeat.id}-${currentBeat.source ?? "auto"}`;
     const isLastBeat = beatIndex >= queueRef.current.length - 1;
+    const forwardSwallow = currentBeat.id === "forward-catalog";
     return (
       <div className="fixed inset-0 z-[55] pointer-events-none">
         <BlueGelPowerVideoScreen
@@ -1196,9 +1257,11 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
           overGameplay
           playFullClip
           isSequenceEnd={isLastBeat}
+          forwardSwallow={forwardSwallow}
           syncChomp={!!currentBeat.syncChomp}
           videoKey={currentBeat.videoKey ?? VIDEO_KEYS.BLUE_GEL_POWER}
           videoSource={currentBeat.source ?? "auto"}
+          presentationSlot={currentBeat.presentationSlot ?? null}
           zIndex={55}
           onChompProgress={currentBeat.syncChomp ? fireChomp : undefined}
           onEnded={handleBeatEnded}

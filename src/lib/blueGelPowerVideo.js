@@ -94,67 +94,91 @@ export function hasUploadedSharkBiteBeatSync() {
 /**
  * Build the ordered shark-bite beat list.
  *
- * Rules (intro → chomp, never catalog-first stacking):
- * - Optional uploaded intro (swim forward) plays first — never syncs dice vanish when a chomp beat follows.
- * - Chomp beat: local upload wins; otherwise catalog `blue_gel_power.mp4`; dice vanish on this beat.
- * - Intro alone with no catalog/chomp → intro syncs chomp as last resort.
+ * Rules (side bite → forward swallow):
+ * - Chomp beat plays first, rotated sideways; dice vanish when its jaws close.
+ * - Forward beat plays second. An uploaded approach clip wins; otherwise the
+ *   shipped shark clip is replayed upright so it swims directly at the screen.
+ * - Intro alone with no catalog/chomp syncs the dice vanish as a last resort.
  * - Nothing available → SVG fallback.
  *
- * @returns {Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean }>}
+ * @returns {Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean, presentationSlot?: 'chomp'|'intro' }>}
  */
-function buildQueue(hasIntro, hasChompUpload) {
+export function buildSharkBiteQueueForAvailability(hasIntro, hasChompUpload) {
   const catalog = getCatalogChompVideoUrl();
 
   if (!catalog && !hasIntro && !hasChompUpload) {
     return [{ id: "svg", source: "svg", syncChomp: false }];
   }
 
-  const queue = [];
-
-  if (hasIntro) {
-    queue.push({
-      id: "intro",
-      videoKey: INTRO_KEY,
-      source: "local",
-      // Dice vanish only if this is the sole beat (no chomp upload and no catalog).
-      syncChomp: !hasChompUpload && !catalog,
-    });
-  }
-
-  if (hasChompUpload) {
-    queue.push({
+  const chompBeat = hasChompUpload
+    ? {
       id: "chomp",
       videoKey: KEY,
       source: "local",
       syncChomp: true,
-    });
-  } else if (catalog) {
-    queue.push({
+      presentationSlot: "chomp",
+    }
+    : catalog
+      ? {
       id: "catalog",
       videoKey: KEY,
       source: "catalog",
       syncChomp: true,
-    });
+      presentationSlot: "chomp",
+    }
+      : null;
+
+  if (!chompBeat) {
+    return hasIntro
+      ? [{
+          id: "intro",
+          videoKey: INTRO_KEY,
+          source: "local",
+          syncChomp: true,
+          presentationSlot: "intro",
+        }]
+      : [{ id: "svg", source: "svg", syncChomp: false }];
   }
 
-  return queue.length ? queue : [{ id: "svg", source: "svg", syncChomp: false }];
+  const forwardBeat = hasIntro
+    ? {
+        id: "forward",
+        videoKey: INTRO_KEY,
+        source: "local",
+        syncChomp: false,
+        presentationSlot: "intro",
+      }
+    : {
+        id: "forward-catalog",
+        videoKey: KEY,
+        // The timed head-on section below is calibrated to the shipped clip,
+        // not to an arbitrary user-uploaded sideways bite.
+        source: catalog ? "catalog" : chompBeat.source,
+        syncChomp: false,
+        presentationSlot: "intro",
+      };
+
+  return [chompBeat, forwardBeat];
 }
 
 /**
  * Ordered fullscreen beats for SharkBiteScreenFX — strictly sequential, no overlap.
  *
- * @returns {Promise<Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean }>>}
+ * @returns {Promise<Array<{ id: string, videoKey?: string, source: 'catalog'|'local'|'svg', syncChomp: boolean, presentationSlot?: 'chomp'|'intro' }>>}
  */
 export async function buildSharkBitePhaseQueue() {
   const hasIntro =
     hasSharkBiteIntroVideoSync() || (await hasSharkBiteIntroVideo());
   const hasChompUpload = hasLocalChompVideoSync() || (await hasLocalVideo(KEY));
-  return buildQueue(hasIntro, hasChompUpload);
+  return buildSharkBiteQueueForAvailability(hasIntro, hasChompUpload);
 }
 
 /** Sync queue builder — uses warm cache only (may miss cold IndexedDB). */
 export function buildSharkBitePhaseQueueSync() {
-  return buildQueue(hasSharkBiteIntroVideoSync(), hasLocalChompVideoSync());
+  return buildSharkBiteQueueForAvailability(
+    hasSharkBiteIntroVideoSync(),
+    hasLocalChompVideoSync()
+  );
 }
 
 /**

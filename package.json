@@ -10,6 +10,7 @@
     "play": "bash scripts/play.sh",
     "smoke": "node scripts/smoke-test.mjs",
     "verify:dice": "npm run build && node scripts/verify-all-dice-skins.mjs",
+    "verify:powers": "node scripts/verify-power-behavior.mjs",
     "check:aquarium": "node scripts/check-aquarium-skins.mjs",
     "build": "vite build",
     "lint": "eslint . --quiet",

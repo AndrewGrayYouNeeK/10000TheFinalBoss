@@ -290,6 +290,7 @@ export default function FishOverlay({
 
   return (
     <div
+      data-fish-overlay
       className="absolute inset-0 pointer-events-none overflow-hidden"
       style={{ borderRadius: radius }}
     >

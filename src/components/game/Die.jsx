@@ -12,7 +12,6 @@ import {
 } from "@/lib/diamondCutPowerVideo";
 import {
   AQUARIUM_OVERLAY_SKIN_IDS,
-  BLUE_GEL_SPRITE_URL,
   getSkin,
   getSkinSpriteLayer,
   getActiveVideoUrl,
@@ -42,8 +41,6 @@ import {
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
 import { assetUrl } from "@/lib/assetUrl";
-import { BLUE_GEL_SPRITE_TUNING } from "@/lib/blueGelSpriteTuning";
-import { getBlueGelFaceImgStyle } from "@/lib/blueGelFaceStyle";
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -203,11 +200,8 @@ function Die({
       ? "powerSprite"
       : "regular";
   const [spriteFailed, setSpriteFailed] = React.useState(false);
-  const isBlueGelTankEarly = (devSkin?.id ?? skinId) === "blue_gel";
   React.useEffect(() => {
-    const url = isBlueGelTankEarly
-      ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
-      : displaySpriteLayer?.spriteUrl;
+    const url = displaySpriteLayer?.spriteUrl;
     if (!url) {
       setSpriteFailed(false);
       return undefined;
@@ -222,7 +216,7 @@ function Die({
       if (ok) setSpriteFailed(false);
       else setSpriteFailed(true);
     });
-  }, [displaySpriteLayer?.spriteUrl, isBlueGelTankEarly, skin.spriteUrl, skin.id]);
+  }, [displaySpriteLayer?.spriteUrl]);
   const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
   const showBloodPowerFx =
     !reducePowerPresentation && usesBloodPowerFx && (powerMode || bloodWaterLocked);
@@ -288,15 +282,13 @@ function Die({
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     !spriteFailed;
-  // Face sheet must stay visible — in-die video would hide baked pips (shark uses fullscreen FX).
-  const showBlueGelFace = isBlueGelTank;
-  // Pip grid only when there is no sprite sheet, or the sheet failed to load — never flash during load.
+  // Blue Gel builds its face here (live fish + glass), so its stable pips are always visible.
   const showPipFallback =
-    !isBlueGelTank &&
-    !isAquariumOverlaySkin &&
-    !videoPlaying &&
-    !videoSkinActive &&
-    (!displaySpriteLayer || spriteFailed);
+    isBlueGelTank ||
+    (!isAquariumOverlaySkin &&
+      !videoPlaying &&
+      !videoSkinActive &&
+      (!displaySpriteLayer || spriteFailed));
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -371,6 +363,7 @@ function Die({
 
     return (
     <div
+      data-die-pip-grid
       className="absolute grid grid-cols-3 grid-rows-3"
       style={{ inset: padding, gap: Math.round(size * 0.045) }}
     >
@@ -391,6 +384,8 @@ function Die({
         let effect = null;
         if (skin.experimental) {
           effect = style?.pipEffect;
+        } else if (isBlueGelTank) {
+          effect = "whitePip";
         } else if (skin.id === "diamond") {
           effect = diamondEffects[i % 3];
         }
@@ -399,7 +394,7 @@ function Die({
             <Pip
               size={pipSize}
               colorClass={skin.pipColor}
-              inset={skin.realistic && !skin.experimental}
+              inset={!isBlueGelTank && skin.realistic && !skin.experimental}
               animationEffect={effect}
               pipCol={pipCol}
               pipRow={pipRow}
@@ -409,32 +404,6 @@ function Die({
         );
       })}
     </div>
-    );
-  };
-
-  const renderBlueGelFaceSprite = () => {
-    if (!showBlueGelFace) return null;
-    const spriteSkin = {
-      id: "blue_gel",
-      spriteUrl: BLUE_GEL_SPRITE_URL,
-      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      spriteFaceOffsets: BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
-    };
-    const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
-    const { sheetUrl, imgStyle } = getBlueGelFaceImgStyle(spriteSkin, value, size, faceOffset);
-    return (
-      <div
-        className="absolute inset-0 pointer-events-none z-[20] overflow-hidden"
-        style={dieShapeStyle}
-      >
-        <img
-          src={sheetUrl}
-          alt=""
-          draggable={false}
-          className="pointer-events-none select-none"
-          style={imgStyle}
-        />
-      </div>
     );
   };
 
@@ -633,7 +602,7 @@ function Die({
           );
         })()}
 
-        {/* Blue Gel — fish tank behind the catalog sprite face (pips on sprite sheet) */}
+        {/* Blue Gel — original live aquarium with stable white pips above it. */}
         {effectiveSkinId === "blue_gel" && (
             <>
               <div
@@ -734,9 +703,7 @@ function Die({
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
         {showSpriteLayer ?
         (() => {
-          const faceSpriteUrl = isBlueGelTank
-            ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
-            : displaySpriteLayer.spriteUrl;
+          const faceSpriteUrl = displaySpriteLayer.spriteUrl;
           const spriteSkin = {
             ...skin,
             spriteUrl: faceSpriteUrl,
@@ -832,8 +799,6 @@ function Die({
         }
 
         </div>
-
-        {renderBlueGelFaceSprite()}
 
         {/* Ice overlay OUTSIDE squircle clip — drips / edge frost can overhang the die. */}
         {icePowerActive && (
