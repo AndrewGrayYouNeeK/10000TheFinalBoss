@@ -59,7 +59,6 @@ import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
   SharkBiteScreenFX,
 } from "@/components/game/BlueGelPowerFX";
-import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
 import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
 import PowerModePracticeBar, {
@@ -180,12 +179,10 @@ export default function StoryGame() {
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
   const [bloodWaterLocked, setBloodWaterLocked] = useState(() => initialSave?.bloodWaterLocked ?? false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
-
-  useEffect(() => {
-    if (game?.sharkFishFeast && hasSharkBiteChompVideoSync() && game?.sharkBiteFx) {
-      lockBloodWater();
-    }
-  }, [game?.sharkFishFeast, game?.sharkBiteFx, lockBloodWater]);
+  const onFeastSettled = useCallback(() => {
+    lockBloodWater();
+    setGame((g) => clearSharkBiteFx(g));
+  }, [lockBloodWater]);
 
   useEffect(() => {
     if (!game?.matrixGlitchFx) return undefined;
@@ -1208,13 +1205,11 @@ export default function StoryGame() {
               powerMode={trayPowerMode && !showFrozenEnemyDice}
               spectralHidden={hideStoryGhostDice}
               iceFrozenOverlay={trayIceFrozen}
-              fishFeastMode={fishFeastOnTray && !hasSharkBiteChompVideoSync()}
+              fishFeastMode={fishFeastOnTray}
               sharkBiteFx={!!game.sharkBiteFx}
               sharkDiceHidden={!!game.sharkDiceHidden}
               bloodWaterLocked={trayBloodWater}
-              onBloodWaterSettled={
-                fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
-              }
+              onBloodWaterSettled={fishFeastOnTray ? onFeastSettled : undefined}
               matrixGlitchDieIds={
                 game.matrixGlitchFx ? (game.matrixGlitchDieIds ?? []) : []
               }

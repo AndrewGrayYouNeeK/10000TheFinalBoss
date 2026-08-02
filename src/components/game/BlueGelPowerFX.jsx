@@ -107,6 +107,16 @@ export function emitSharkBiteChomp() {
   window.dispatchEvent(new CustomEvent(SHARK_BITE_CHOMP_EVENT));
 }
 
+function anchorsNearlyEqual(a, b) {
+  if (!a || !b) return false;
+  return (
+    Math.abs(a.x - b.x) < 1 &&
+    Math.abs(a.y - b.y) < 1 &&
+    Math.abs(a.w - b.w) < 1 &&
+    Math.abs(a.h - b.h) < 1
+  );
+}
+
 /** Live dice-tray center for aligning the fullscreen shark bite. */
 export function useGameplayDiceTrayAnchor(active) {
   const [anchor, setAnchor] = React.useState(null);
@@ -119,22 +129,23 @@ export function useGameplayDiceTrayAnchor(active) {
 
     const measure = () => {
       const el = document.getElementById("gameplay-dice-tray");
-      if (!el) {
-        setAnchor({
-          x: window.innerWidth * 0.5,
-          y: window.innerHeight * 0.72,
-          w: Math.min(window.innerWidth * 0.88, 420),
-          h: 140,
-        });
-        return;
-      }
-      const r = el.getBoundingClientRect();
-      setAnchor({
-        x: r.left + r.width / 2,
-        y: r.top + r.height / 2,
-        w: r.width,
-        h: r.height,
-      });
+      const next = !el
+        ? {
+            x: window.innerWidth * 0.5,
+            y: window.innerHeight * 0.72,
+            w: Math.min(window.innerWidth * 0.88, 420),
+            h: 140,
+          }
+        : (() => {
+            const r = el.getBoundingClientRect();
+            return {
+              x: r.left + r.width / 2,
+              y: r.top + r.height / 2,
+              w: r.width,
+              h: r.height,
+            };
+          })();
+      setAnchor((prev) => (anchorsNearlyEqual(prev, next) ? prev : next));
     };
 
     measure();
@@ -408,6 +419,12 @@ export function ChromaKeyVideo({
   layoutOffsetXRef.current = layoutOffsetX;
   layoutOffsetYRef.current = layoutOffsetY;
   rotationSlotRef.current = rotationSlot;
+  const onTimeUpdateRef = React.useRef(onTimeUpdate);
+  const onEndedRef = React.useRef(onEnded);
+  const onErrorRef = React.useRef(onError);
+  onTimeUpdateRef.current = onTimeUpdate;
+  onEndedRef.current = onEnded;
+  onErrorRef.current = onError;
 
   // Live settings without restarting the render loop. Re-sample when the key
   // mode / color changes so the preview updates immediately.
@@ -631,7 +648,7 @@ export function ChromaKeyVideo({
       wctx.putImageData(frame, 0, 0);
 
       blit(work);
-      onTimeUpdate?.(video);
+      onTimeUpdateRef.current?.(video);
 
       if (!loop && video.duration > 0) {
         const bs = biteRef.current;
@@ -660,12 +677,12 @@ export function ChromaKeyVideo({
       }
     };
 
-    const handleTime = () => onTimeUpdate?.(video);
+    const handleTime = () => onTimeUpdateRef.current?.(video);
     const handleEnded = () => {
       if (skipExitPanRef.current) {
         canvas.style.opacity = "0";
         octx.clearRect(0, 0, canvas.width, canvas.height);
-        onEnded?.();
+        onEndedRef.current?.();
         return;
       }
       // Hold the last frame and finish sliding off-screen so the shark
@@ -673,7 +690,7 @@ export function ChromaKeyVideo({
       if (!fullViewport || !lastBlit.ready) {
         canvas.style.opacity = "0";
         octx.clearRect(0, 0, canvas.width, canvas.height);
-        onEnded?.();
+        onEndedRef.current?.();
         return;
       }
       let start = null;
@@ -696,12 +713,12 @@ export function ChromaKeyVideo({
         } else {
           octx.clearRect(0, 0, canvas.width, canvas.height);
           canvas.style.opacity = "0";
-          onEnded?.();
+          onEndedRef.current?.();
         }
       };
       rafId = requestAnimationFrame(step);
     };
-    const handleError = () => onError?.();
+    const handleError = () => onErrorRef.current?.();
 
     const onResize = () => {
       // Next frame recalculates full-viewport canvas size.
@@ -728,7 +745,7 @@ export function ChromaKeyVideo({
           video.volume = 0;
         });
       }
-      video.play().catch(() => onError?.());
+      video.play().catch(() => onErrorRef.current?.());
     };
     if (video.readyState >= 1) begin();
     else video.addEventListener("loadedmetadata", begin, { once: true });
@@ -747,7 +764,7 @@ export function ChromaKeyVideo({
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot, onTimeUpdate, onEnded, onError]);
+  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot]);
 
   return (
     <>
@@ -837,6 +854,8 @@ export function BlueGelPowerVideoScreen({
   const [fadeOpacity, setFadeOpacity] = React.useState(1);
   const chompSent = React.useRef(false);
   const endedSent = React.useRef(false);
+  const onEndedPropRef = React.useRef(onEnded);
+  onEndedPropRef.current = onEnded;
 
   React.useEffect(() => {
     setFailed(false);
@@ -849,8 +868,16 @@ export function BlueGelPowerVideoScreen({
     if (loop || endedSent.current) return;
     endedSent.current = true;
     setFadeOpacity(0);
-    onEnded?.();
-  }, [loop, onEnded]);
+    onEndedPropRef.current?.();
+  }, [loop]);
+
+  const handleChromaEnded = React.useCallback(() => {
+    if (!loop) finishOnce();
+  }, [loop, finishOnce]);
+
+  const handlePlainEnded = React.useCallback(() => {
+    if (!loop) finishOnce();
+  }, [loop, finishOnce]);
 
   const handleChompProgress = React.useCallback(
     (video) => {
@@ -934,9 +961,7 @@ export function BlueGelPowerVideoScreen({
             playbackStopAtProgress={stopAt}
             skipExitPan={skipExitPan}
             onTimeUpdate={handleChompProgress}
-            onEnded={() => {
-              if (!loop) finishOnce();
-            }}
+            onEnded={handleChromaEnded}
             onError={handleError}
             className="w-full h-full"
           />
@@ -953,9 +978,7 @@ export function BlueGelPowerVideoScreen({
                 playsInline
                 preload="auto"
                 onTimeUpdate={(e) => handlePlainVideoTimeUpdate(e.currentTarget)}
-                onEnded={() => {
-                  if (!loop) finishOnce();
-                }}
+                onEnded={handlePlainEnded}
                 onError={handleError}
                 className="absolute inset-0 w-full h-full"
                 style={{
@@ -987,6 +1010,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const completeEmitted = React.useRef(false);
   const queueRef = React.useRef([]);
   const beatIndexRef = React.useRef(0);
+  const beatEndedRef = React.useRef(false);
   const onChompRef = React.useRef(onChomp);
   const onCompleteRef = React.useRef(onComplete);
   const trayAnchor = useGameplayDiceTrayAnchor(active);
@@ -1014,6 +1038,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   }, []);
 
   const advanceBeat = React.useCallback(() => {
+    beatEndedRef.current = false;
     const next = beatIndexRef.current + 1;
     if (next >= queueRef.current.length) {
       fireComplete();
@@ -1032,6 +1057,8 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   }, []);
 
   const handleBeatEnded = React.useCallback(() => {
+    if (beatEndedRef.current) return;
+    beatEndedRef.current = true;
     const beat = queueRef.current[beatIndexRef.current];
     if (beat?.syncChomp) fireChomp();
     const next = beatIndexRef.current + 1;
@@ -1045,10 +1072,12 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     if (pauseMs > 0) {
       interBeatTimerRef.current = setTimeout(() => {
         interBeatTimerRef.current = null;
+        beatEndedRef.current = false;
         advanceBeat();
       }, pauseMs);
       return;
     }
+    beatEndedRef.current = false;
     advanceBeat();
   }, [advanceBeat, fireChomp, biteSettings.interBeatMs]);
 
@@ -1067,6 +1096,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       setChomping(false);
       chompEmitted.current = false;
       completeEmitted.current = false;
+      beatEndedRef.current = false;
       queueRef.current = [];
       if (interBeatTimerRef.current) {
         clearTimeout(interBeatTimerRef.current);
@@ -1077,6 +1107,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
 
     chompEmitted.current = false;
     completeEmitted.current = false;
+    beatEndedRef.current = false;
     setSwim(false);
     setChomping(false);
     setBeatIndex(0);

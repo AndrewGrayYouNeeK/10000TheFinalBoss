@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dices, PiggyBank, Film, Sparkles, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
-import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
 import {
   createInitialState,
   rollDice,
@@ -93,12 +92,10 @@ export default function Game() {
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
   const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
-
-  useEffect(() => {
-    if (state?.sharkFishFeast && hasSharkBiteChompVideoSync() && state?.sharkBiteFx) {
-      lockBloodWater();
-    }
-  }, [state?.sharkFishFeast, state?.sharkBiteFx, lockBloodWater]);
+  const onFeastSettled = useCallback(() => {
+    lockBloodWater();
+    setState((s) => clearSharkBiteFx(s));
+  }, [lockBloodWater]);
 
   useEffect(() => {
     if (!state?.matrixGlitchFx) return undefined;
@@ -979,13 +976,11 @@ export default function Game() {
             powerMode={trayPowerVisible}
             powerModeSubtle={subtlePowerUi}
             iceFrozenOverlay={trayIceFrozen}
-            fishFeastMode={fishFeastOnTray && !hasSharkBiteChompVideoSync()}
+            fishFeastMode={fishFeastOnTray}
             sharkBiteFx={!!state.sharkBiteFx}
             sharkDiceHidden={!!state.sharkDiceHidden}
             bloodWaterLocked={trayBloodWater}
-            onBloodWaterSettled={
-              fishFeastOnTray && !hasSharkBiteChompVideoSync() ? lockBloodWater : undefined
-            }
+            onBloodWaterSettled={fishFeastOnTray ? onFeastSettled : undefined}
             matrixGlitchDieIds={
               state.matrixGlitchFx ? (state.matrixGlitchDieIds ?? []) : []
             }

@@ -1,7 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import {
-  BlueGelPowerVideoScreen,
   useSharkBiteSettings,
 } from "@/components/game/BlueGelPowerFX";
 import {
@@ -431,17 +430,11 @@ export default function SharkBiteControls({
                   "repeating-linear-gradient(45deg, #0b3b2e 0 14px, #0e4a39 14px 28px)",
               }}
             >
-              <BlueGelPowerVideoScreen
-                active={previewActive}
-                loop={false}
-                overGameplay
-                zIndex={1}
-              />
-              {!previewActive ? (
-                <p className="text-[11px] text-slate-400 px-4 py-8 text-center">
-                  Tap ▶ Preview bite to test timing over this checkerboard.
-                </p>
-              ) : null}
+              <p className="text-[11px] text-slate-400 px-4 py-8 text-center">
+                {previewActive
+                  ? "Fullscreen preview is playing above — use Replay bite to run it again."
+                  : "Tap ▶ Preview bite to test timing over this checkerboard."}
+              </p>
             </div>
           ) : null}
         </div>

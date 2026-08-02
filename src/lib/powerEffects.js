@@ -358,8 +358,6 @@ export function applySkinPower(state, powerId) {
           state: {
             ...state,
             players,
-            sharkBiteFx: true,
-            sharkDiceHidden: true,
             sharkFishFeast: true,
             sharkFishFeastTargetIdx: targetIdx,
             message:
