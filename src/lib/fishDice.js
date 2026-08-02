@@ -1,8 +1,8 @@
-/** Skins that show fish inside the dice (Angelfish / aquarium family). */
+/** Skins that show fish inside the dice (aquarium family). */
 export const FISH_DICE_SKINS = ["blue_gel", "aquamarine", "aquamarine_light"];
 
-/** Per-die big-fish variant index for Blue Gel tray previews (face 1 = angelfish in pip area). */
-export const BLUE_GEL_TRAY_FISH_VARIANTS = [7, 1, 6, 3, 1, 4];
+/** Per-die big-fish variant index for Blue Gel tray — reef fish only (indices 0–5). */
+export const BLUE_GEL_TRAY_FISH_VARIANTS = [1, 1, 0, 3, 1, 4];
 export const BLUE_GEL_TRAY_FISH_SCALES = [2.1, 1.15, 1.15, 1.15, 2.0, 1.15];
 
 export function getBlueGelTrayFishProps(dieIndex) {

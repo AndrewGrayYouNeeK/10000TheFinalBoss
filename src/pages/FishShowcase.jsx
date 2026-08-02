@@ -313,7 +313,7 @@ export default function FishShowcase() {
               <WaterTile
                 key={v.id}
                 label={v.name}
-                sub={v.angelfish ? "Angelfish shape" : "Reef fish shape"}
+                sub="Reef fish shape"
               >
                 <Fish
                   size={160}

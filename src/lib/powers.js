@@ -218,7 +218,7 @@ export const POWERS = [
     icon: "🦈",
     color: "#0ea5e9",
     description:
-      "Shark Bite: mark the next player — when they bank, a shark eats that round's points. Feeding Frenzy: if they use aquarium / Angelfish dice, sharks feast instantly and wipe their score to 0.",
+      "Shark Bite: mark the next player — when they bank, a shark eats that round's points. Feeding Frenzy: if they use aquarium dice, sharks feast instantly and wipe their score to 0.",
     tagline: "Hunt. Mark. Bite.",
   },
 ];
