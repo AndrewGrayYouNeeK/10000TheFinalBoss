@@ -725,8 +725,7 @@ export default function Game() {
   const diceInputBlocked = shieldUp || (onlineActive && onlineUi.diceInteractionDisabled);
   // Never loop the bite clip during power charge — one-shot only via SharkBiteScreenFX.
   // Charged Shark Bite uses in-die BlueGelSharkBiteCharge + panel, not a repeating fullscreen bite.
-  const trayBloodWater =
-    bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
+  const trayBloodWater = bloodWaterLocked;
 
   return (
     <div className="min-h-screen text-white flex flex-col pb-6 relative">

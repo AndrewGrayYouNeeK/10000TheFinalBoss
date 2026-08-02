@@ -1011,7 +1011,7 @@ export default function StoryGame() {
   const trayIceFrozen = showFrozenEnemyDice;
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
-  const trayBloodWater = bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
+  const trayBloodWater = bloodWaterLocked;
   const trayDice = hideStoryGhostDice ? redactDiceForOpponent(game.dice) : game.dice;
   return (
     <div className="min-h-screen text-white pb-6 flex flex-col relative">
