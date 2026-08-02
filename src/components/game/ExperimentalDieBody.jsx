@@ -110,7 +110,7 @@ export function getExperimentalShadow(style, size, state = {}) {
   if (held) return `0 0 ${Math.round(size * 0.12)}px rgba(251,191,36,0.25)`;
   if (selected) return `0 0 0 ${Math.round(size * 0.05)}px rgba(52,211,153,0.6)`;
   if (style.outerShadow) return style.outerShadow.replace(/\{size\}/g, String(size));
-  if (style.kind === "clear" && style.edgeColor) {
+  if (style.kind === "clear" && style.edgeColor && (style.edgeWidth ?? 1) > 0) {
     return `0 0 0 1px ${style.edgeColor}, 0 0 ${Math.round(size * 0.18)}px rgba(120,200,255,0.12)`;
   }
   if (style.accentGlow) {

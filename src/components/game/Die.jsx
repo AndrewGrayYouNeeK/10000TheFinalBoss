@@ -44,6 +44,7 @@ import {
 import { assetUrl } from "@/lib/assetUrl";
 import { BLUE_GEL_SPRITE_TUNING } from "@/lib/blueGelSpriteTuning";
 import { getBlueGelFaceImgStyle } from "@/lib/blueGelFaceStyle";
+import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -206,7 +207,7 @@ function Die({
   const isBlueGelTankEarly = (devSkin?.id ?? skinId) === "blue_gel";
   React.useEffect(() => {
     const url = isBlueGelTankEarly
-      ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
+      ? BLUE_GEL_SPRITE_URL
       : displaySpriteLayer?.spriteUrl;
     if (!url) {
       setSpriteFailed(false);
@@ -222,17 +223,28 @@ function Die({
       if (ok) setSpriteFailed(false);
       else setSpriteFailed(true);
     });
-  }, [displaySpriteLayer?.spriteUrl, isBlueGelTankEarly, skin.spriteUrl, skin.id]);
+  }, [displaySpriteLayer?.spriteUrl, isBlueGelTankEarly]);
   const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
   const showBloodPowerFx =
     !reducePowerPresentation && usesBloodPowerFx && (powerMode || bloodWaterLocked);
   const isXray = skin.id === "pf_xray";
+  const isGhostSkin = effectiveSkinId === GHOST_SKIN_ID;
+  // Ghost — hold the previous face while tumbling so pip layouts don't flash mid-roll.
+  const stableGhostFaceRef = React.useRef(value);
+  React.useEffect(() => {
+    if (!rolling || held || used) {
+      stableGhostFaceRef.current = value;
+    }
+  }, [rolling, held, used, value]);
+  const faceValue =
+    isGhostSkin && rolling && !held && !used ? stableGhostFaceRef.current : value;
+
   const { displayLayout: xrayLayout } = useXrayMorphLayout(
-    value,
+    faceValue,
     rolling,
     isXray && allowXrayMorph
   );
-  const layout = isXray ? xrayLayout : layoutGrid(value);
+  const layout = isXray ? xrayLayout : layoutGrid(faceValue);
 
   const wasRolling = React.useRef(false);
   const [settling, setSettling] = React.useState(false);
@@ -327,6 +339,9 @@ function Die({
   const isPortfolioFx = skin.experimental && skin.style?.effectId && !reduceEffects;
 
   const renderPipGrid = () => {
+    if (isBlueGelTank) return null;
+    // Private / redacted faces — spectral body only, no pip readout underneath.
+    if (spectralHidden || valueHidden) return null;
     const flat = layout.flat();
     const pipEffect = skin.experimental ? skin.style?.pipEffect : null;
 
@@ -417,8 +432,8 @@ function Die({
     const spriteSkin = {
       id: "blue_gel",
       spriteUrl: BLUE_GEL_SPRITE_URL,
-      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      spriteFaceOffsets: BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
+      spriteCrop: skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
+      spriteFaceOffsets: skin.spriteFaceOffsets ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
     };
     const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
     const { sheetUrl, imgStyle } = getBlueGelFaceImgStyle(spriteSkin, value, size, faceOffset);
@@ -759,7 +774,9 @@ function Die({
           );
         })() :
 
-        (skin.experimental || showPipFallback) && renderPipGrid()}
+        (skin.experimental || showPipFallback) &&
+          !(isGhostSkin && rolling && !held && !used) &&
+          renderPipGrid()}
 
         {/* Matrix — animated code rain in power mode only (hidden when power video plays) */}
         {skin.id === "matrix" && powerMode && !reducePowerPresentation && !activeVideoUrl && (

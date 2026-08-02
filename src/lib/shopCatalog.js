@@ -425,9 +425,6 @@ export const PRODUCTION_DICE_SKINS = [
     description: "Marlin Joe's fish-tank dice — Shark Bite eats the opponent's next bank.",
     realistic: true,
     powerDice: true,
-    spriteUrl: "/assets/999d8760b_generated_image.png",
-    spriteGrid: { cols: 3, rows: 2 },
-    ...BLUE_GEL_SPRITE_TUNING,
   },
   {
     id: "plasma",
@@ -940,10 +937,15 @@ export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe"]);
 
 export const BLUE_GEL_SPRITE_URL = "/assets/999d8760b_generated_image.png";
 
-function withBlueGelSpriteUrl(skin, base) {
+/** Blue Gel face is rendered in Die.jsx — never expose catalog sprite/video URLs. */
+function withoutBlueGelRuntimeSprite(skin) {
   if (skin?.id !== "blue_gel") return skin;
-  const url = base?.spriteUrl || BLUE_GEL_SPRITE_URL;
-  return skin.spriteUrl === url ? skin : { ...skin, spriteUrl: url };
+  const next = { ...skin };
+  delete next.spriteUrl;
+  delete next.powerSpriteUrl;
+  delete next.videoUrl;
+  delete next.powerVideoUrl;
+  return next;
 }
 
 function withoutAquariumSpriteSheets(skin) {
@@ -966,6 +968,7 @@ export function isAquariumOverlaySkinId(skinId) {
 export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
+  if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return null;
   if (powerMode && skin.powerSpriteUrl) {
     return {
@@ -1002,7 +1005,7 @@ export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = t
 function applyLockedSpritePaths(skin, draft, locked) {
   if (!locked || !draft) return skin;
   // Old lock snapshots may still carry sprite paths — aquarium skins never use them.
-  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
+  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id) || skin?.id === "blue_gel") return skin;
   const next = { ...skin };
   // Regular + power sprite sheets always follow catalog — lock stores crop/face tuning only.
   // (Stale locks once pointed cyber_neon / ragnarok power at the wrong gameplay PNG.)
@@ -1029,11 +1032,20 @@ export function getSkin(id) {
     };
   }
   const locked = isSpriteTuningLocked(base.id);
-  const skin = withBlueGelSpriteUrl(
+  const skin = withoutBlueGelRuntimeSprite(
     withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked)),
-    base,
   );
-  if (!draft) return skin;
+  if (!draft) {
+    if (skin.id === "blue_gel") {
+      return {
+        ...skin,
+        spriteSheetSize: BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
+        spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
+        spriteFaceOffsets: BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
+      };
+    }
+    return skin;
+  }
   const mergeRegular = (offsetsBase) => {
     if (!draft?.regularFaces || !hasUserFaceTuning(draft.regularFaces)) return offsetsBase;
     return mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked });
@@ -1396,21 +1408,18 @@ export function getSkin(id) {
       draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
       BLUE_GEL_SPRITE_TUNING.spriteCrop
     );
-    const next = withBlueGelSpriteUrl(
-      {
-        ...skin,
-        spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-        spriteCrop: blueGelCrop,
-        spriteFaceOffsets: {
-          ...skin.spriteFaceOffsets,
-          regular: mergeRegular(skin.spriteFaceOffsets?.regular),
-          power: mergePower(skin.spriteFaceOffsets?.power),
-        },
+    const next = withoutBlueGelRuntimeSprite({
+      ...skin,
+      spriteSheetSize: BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
+      spriteCrop: blueGelCrop,
+      spriteFaceOffsets: {
+        ...skin.spriteFaceOffsets,
+        regular: mergeRegular(
+          skin.spriteFaceOffsets?.regular ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets?.regular
+        ),
+        power: mergePower(skin.spriteFaceOffsets?.power),
       },
-      base,
-    );
-    // Never play an in-die video layer — it hides the baked pips on the face sheet.
-    delete next.videoUrl;
+    });
     return next;
   }
 
@@ -1427,7 +1436,7 @@ export function getSkin(id) {
     };
   }
 
-  return withBlueGelSpriteUrl(withoutAquariumSpriteSheets(skin), base);
+  return withoutBlueGelRuntimeSprite(withoutAquariumSpriteSheets(skin));
 }
 export function getBadge(id) {
   return BADGES.find(b => b.id === id) || null;
