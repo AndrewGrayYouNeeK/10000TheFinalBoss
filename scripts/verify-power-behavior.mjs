@@ -32,7 +32,9 @@ try {
     "first Shark Bite beat must be the sideways dice-eating chomp"
   );
   assert(
-    !shippedQueue[1].syncChomp && shippedQueue[1].presentationSlot === "intro",
+    !shippedQueue[1].syncChomp &&
+      shippedQueue[1].presentationSlot === "intro" &&
+      shippedQueue[1].source === "catalog",
     "second Shark Bite beat must be the forward screen swallow"
   );
 

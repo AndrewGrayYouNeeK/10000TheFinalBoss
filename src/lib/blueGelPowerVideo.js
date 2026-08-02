@@ -151,7 +151,9 @@ export function buildSharkBiteQueueForAvailability(hasIntro, hasChompUpload) {
     : {
         id: "forward-catalog",
         videoKey: KEY,
-        source: chompBeat.source,
+        // The timed head-on section below is calibrated to the shipped clip,
+        // not to an arbitrary user-uploaded sideways bite.
+        source: catalog ? "catalog" : chompBeat.source,
         syncChomp: false,
         presentationSlot: "intro",
       };
