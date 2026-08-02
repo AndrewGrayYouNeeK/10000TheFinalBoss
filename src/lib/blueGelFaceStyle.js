@@ -20,7 +20,8 @@ export function getBlueGelFaceImgStyle(skin, value, size, faceOffset = null) {
     skin?.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
     BLUE_GEL_SPRITE_TUNING.spriteCrop
   );
-  const zoom = crop.zoom ?? 1;
+  // Portrait cells include corner pips — zooming in hides them.
+  const zoom = Math.min(1, crop.zoom ?? 1);
   const nativeCellW = SHEET_W / COLS;
   const nativeCellH = SHEET_H / ROWS;
   const scale = (size * zoom) / nativeCellH;

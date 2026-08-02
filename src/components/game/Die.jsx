@@ -202,19 +202,26 @@ function Die({
     : displaySpriteLayer?.isPowerLayer
       ? "powerSprite"
       : "regular";
-  const [spriteOk, setSpriteOk] = React.useState(true);
+  const [spriteFailed, setSpriteFailed] = React.useState(false);
   const isBlueGelTankEarly = (devSkin?.id ?? skinId) === "blue_gel";
   React.useEffect(() => {
     const url = isBlueGelTankEarly
       ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
       : displaySpriteLayer?.spriteUrl;
-    if (!url) return undefined;
-    if (SPRITE_LOAD_CACHE.has(assetUrl(url))) {
-      setSpriteOk(true);
+    if (!url) {
+      setSpriteFailed(false);
       return undefined;
     }
-    setSpriteOk(true);
-    return preloadSpriteUrl(url, (ok) => setSpriteOk(ok));
+    const resolved = assetUrl(url);
+    if (SPRITE_LOAD_CACHE.has(resolved)) {
+      setSpriteFailed(false);
+      return undefined;
+    }
+    setSpriteFailed(false);
+    return preloadSpriteUrl(url, (ok) => {
+      if (ok) setSpriteFailed(false);
+      else setSpriteFailed(true);
+    });
   }, [displaySpriteLayer?.spriteUrl, isBlueGelTankEarly, skin.spriteUrl, skin.id]);
   const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
   const showBloodPowerFx =
@@ -280,14 +287,16 @@ function Die({
     displaySpriteLayer &&
     !videoPlaying &&
     !isAquariumOverlaySkin &&
-    spriteOk;
-  const showBlueGelFace = isBlueGelTank && !videoPlaying;
+    !spriteFailed;
+  // Face sheet must stay visible — in-die video would hide baked pips (shark uses fullscreen FX).
+  const showBlueGelFace = isBlueGelTank;
+  // Pip grid only when there is no sprite sheet, or the sheet failed to load — never flash during load.
   const showPipFallback =
     !isBlueGelTank &&
     !isAquariumOverlaySkin &&
     !videoPlaying &&
     !videoSkinActive &&
-    (!displaySpriteLayer || !spriteOk);
+    (!displaySpriteLayer || spriteFailed);
 
   // Pip size scales nicely with die size
   const pipSize = Math.round(size * 0.145);
@@ -405,19 +414,18 @@ function Die({
 
   const renderBlueGelFaceSprite = () => {
     if (!showBlueGelFace) return null;
-    const faceSpriteUrl = skin.spriteUrl || BLUE_GEL_SPRITE_URL;
     const spriteSkin = {
       id: "blue_gel",
-      spriteUrl: faceSpriteUrl,
-      spriteCrop: skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      spriteFaceOffsets: skin.spriteFaceOffsets ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
+      spriteUrl: BLUE_GEL_SPRITE_URL,
+      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
+      spriteFaceOffsets: BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
     };
     const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
     const { sheetUrl, imgStyle } = getBlueGelFaceImgStyle(spriteSkin, value, size, faceOffset);
     return (
       <div
-        className="absolute inset-0 pointer-events-none z-[10] overflow-hidden"
-        style={{ borderRadius: radius }}
+        className="absolute inset-0 pointer-events-none z-[20] overflow-hidden"
+        style={dieShapeStyle}
       >
         <img
           src={sheetUrl}
@@ -510,7 +518,7 @@ function Die({
         )}
 
         {/* Video background skin — cropped 3×2 grid, one face per die */}
-        {activeVideoUrl && !reduceEffects && (() => {
+        {activeVideoUrl && !reduceEffects && effectiveSkinId !== "blue_gel" && (() => {
           let videoStyle;
           if (skin.id === "matrix") {
             // Preserve the video's real aspect and COVER each cell so the face
@@ -649,6 +657,7 @@ function Die({
                     size={size}
                     radius={radius}
                     count={value}
+                    dieSeed={effectDieSeed}
                     bigFishVariantIndex={bigFishVariantIndex}
                     bigFishExtraScale={bigFishExtraScale}
                     bigFishStaticPose={bigFishStaticPose}
@@ -662,6 +671,7 @@ function Die({
                     size={size}
                     radius={radius}
                     count={value}
+                    dieSeed={effectDieSeed}
                     bigFishVariantIndex={bigFishVariantIndex}
                     bigFishExtraScale={bigFishExtraScale}
                     bigFishStaticPose={bigFishStaticPose}
@@ -675,6 +685,7 @@ function Die({
                     size={size}
                     radius={radius}
                     count={value}
+                    dieSeed={effectDieSeed}
                     bigFishVariantIndex={bigFishVariantIndex}
                     bigFishExtraScale={bigFishExtraScale}
                     bigFishStaticPose={bigFishStaticPose}

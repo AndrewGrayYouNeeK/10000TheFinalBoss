@@ -992,6 +992,8 @@ export function skinHasPowerSprite(skin) {
 export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
+  // Blue Gel — face is a sprite sheet above the fish tank; shark bite uses fullscreen video FX.
+  if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return skin.powerVideoUrl;
   if (!powerMode && skin.videoUrl) return skin.videoUrl;
   return null;
@@ -1394,7 +1396,7 @@ export function getSkin(id) {
       draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
       BLUE_GEL_SPRITE_TUNING.spriteCrop
     );
-    return withBlueGelSpriteUrl(
+    const next = withBlueGelSpriteUrl(
       {
         ...skin,
         spriteSheetSize: base.spriteSheetSize ?? BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
@@ -1407,6 +1409,9 @@ export function getSkin(id) {
       },
       base,
     );
+    // Never play an in-die video layer — it hides the baked pips on the face sheet.
+    delete next.videoUrl;
+    return next;
   }
 
   if (skin.spriteCrop) {
