@@ -3,11 +3,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { isBustWord } from "@/lib/gameLogic";
 
 // Full-screen bust slam — YEEEET! / SKRRRT! etc.
-// Bust: keep the punch, but clear the blackout early so dice / next turn stay readable.
-export default function BigPopup({ word, variant = "danger", open, onClose, duration, burstKey }) {
+// Overshoots stay visible longer so the exact-target explanation can be read.
+export default function BigPopup({
+  word,
+  detail,
+  variant = "danger",
+  open,
+  onClose,
+  duration,
+  burstKey,
+}) {
   const isBust = variant === "bust" || isBustWord(word);
-  // Bust used to dismiss at 1500ms while the dim stayed solid — screen went dark too long.
-  const dismissMs = duration ?? (isBust ? 820 : 1400);
+  const isSlowBust = isBust && Boolean(detail);
+  const dismissMs = duration ?? (isSlowBust ? 3200 : isBust ? 820 : 1400);
+  const animationSeconds = dismissMs / 1000;
 
   useEffect(() => {
     if (!open) return;
@@ -47,18 +56,34 @@ export default function BigPopup({ word, variant = "danger", open, onClose, dura
           />
 
           <motion.div
-            className="relative w-full max-w-[100vw] px-1 sm:px-4 flex items-center justify-center"
+            className="relative w-full max-w-[100vw] px-3 sm:px-4 flex flex-col items-center justify-center"
             initial={{ scale: 0.15, opacity: 0, rotate: -12 }}
             animate={{
-              scale: isBust ? [0.15, 1.45, 1.05, 1.05] : [0.15, 1.45, 1.08],
-              opacity: isBust ? [0, 1, 1, 0] : [0, 1, 1],
-              rotate: isBust ? [-12, 4, 0, 0] : [-12, 6, -2, 0],
+              scale: isBust
+                ? isSlowBust
+                  ? [0.15, 1.15, 1, 1, 1]
+                  : [0.15, 1.45, 1.05, 1.05]
+                : [0.15, 1.45, 1.08],
+              opacity: isBust
+                ? isSlowBust
+                  ? [0, 1, 1, 1, 0]
+                  : [0, 1, 1, 0]
+                : [0, 1, 1],
+              rotate: isBust
+                ? isSlowBust
+                  ? [-12, 3, 0, 0, 0]
+                  : [-12, 4, 0, 0]
+                : [-12, 6, -2, 0],
             }}
             exit={{ scale: 1.5, opacity: 0, rotate: 10 }}
             transition={{
-              duration: isBust ? 0.78 : 0.55,
+              duration: isBust ? (isSlowBust ? animationSeconds : 0.78) : 0.55,
               ease: "easeOut",
-              times: isBust ? [0, 0.26, 0.68, 1] : undefined,
+              times: isBust
+                ? isSlowBust
+                  ? [0, 0.1, 0.3, 0.86, 1]
+                  : [0, 0.26, 0.68, 1]
+                : undefined,
             }}
           >
             <div
@@ -74,6 +99,12 @@ export default function BigPopup({ word, variant = "danger", open, onClose, dura
             >
               {word}
             </div>
+
+            {isSlowBust && (
+              <div className="mt-5 max-w-[min(92vw,42rem)] rounded-xl border border-rose-300/50 bg-black/65 px-4 py-3 text-center text-base sm:text-xl font-bold normal-case tracking-normal leading-snug text-white shadow-[0_0_24px_rgba(255,40,90,0.35)]">
+                {detail}
+              </div>
+            )}
 
             {isBust && (
               <>

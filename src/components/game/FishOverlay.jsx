@@ -18,7 +18,52 @@ export const FISH_VARIANTS = [
   { id: "purple", name: "Purple Reef", tail: "#7c3aed", body: "#a855f7", highlight: "#d8b4fe", fin: "#6b21a8", mouth: "#581c87", stripe: null },
   // Green
   { id: "green", name: "Green Reef", tail: "#15803d", body: "#22c55e", highlight: "#86efac", fin: "#14532d", mouth: "#166534", stripe: null },
+  // Angelfish — silver body with bold black bars and yellow fins.
+  {
+    id: "angelfish",
+    name: "Angelfish",
+    tail: "#facc15",
+    body: "#e5e7eb",
+    highlight: "#f9fafb",
+    fin: "#facc15",
+    mouth: "#1f2937",
+    stripe: "#0f172a",
+    angelfish: true,
+  },
+  // Angelfish (blue) — two-tone blue body with deep navy bars.
+  {
+    id: "angelfish_blue",
+    name: "Blue Angelfish",
+    tail: "#1e40af",
+    body: "#3b82f6",
+    highlight: "#93c5fd",
+    fin: "#1d4ed8",
+    mouth: "#1e3a8a",
+    stripe: "#1e3a8a",
+    angelfish: true,
+  },
+  // Moorish Idol — an additional reef species for mixed aquarium trays.
+  {
+    id: "moorish_idol",
+    name: "Moorish Idol",
+    tail: "#facc15",
+    body: "#f8fafc",
+    highlight: "#ffffff",
+    fin: "#eab308",
+    mouth: "#334155",
+    stripe: null,
+    stripes: [
+      "M 16 10 Q 20 20 16 30 L 22 30 Q 26 20 22 10 Z",
+      "M 28 10 Q 32 20 28 30 L 34 30 Q 38 20 34 10 Z",
+      "M 40 11 Q 44 20 40 29 L 46 28 Q 50 20 46 12 Z",
+    ],
+  },
 ];
+
+export const ANGELFISH_VARIANT_INDICES = [6, 7];
+export const MOORISH_IDOL_VARIANT_INDEX = FISH_VARIANTS.findIndex(
+  (variant) => variant.id === "moorish_idol"
+);
 
 /** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
 function safeAnimDuration(seconds, min = 0.001) {
@@ -146,6 +191,7 @@ export function Jellyfish({ size, top, duration, delay, dir = 1, scale = 1, vari
 export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, staticPose = false, frozen = false }) {
   const fishSize = size * 0.28 * scale;
   const v = variant || FISH_VARIANTS[0];
+  const fishHeight = fishSize * (v.angelfish ? 0.82 : 0.6);
   const isStatic = staticPose || frozen;
   const swimX =
     dir === 1
@@ -158,7 +204,7 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
         top: `${top}%`,
         left: isStatic ? "18%" : 0,
         width: fishSize,
-        height: fishSize * 0.6,
+        height: fishHeight,
       }}
       animate={
         isStatic
@@ -182,7 +228,7 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
       }
     >
       <svg
-        viewBox="0 0 64 40"
+        viewBox={v.angelfish ? "0 -5 64 50" : "0 0 64 40"}
         width="100%"
         height="100%"
         style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}
@@ -190,28 +236,109 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
         <motion.path
           d="M 8 20 L 0 8 L 4 20 L 0 32 Z"
           fill={v.tail}
+          stroke="rgba(2,6,23,0.45)"
+          strokeWidth="0.8"
+          strokeLinejoin="round"
           animate={frozen ? { rotate: 0 } : { rotate: [-8, 8, -8] }}
           transition={frozen ? FROZEN_TRANSITION : { duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
           style={{ originX: "20%", originY: "50%" }}
         />
-        <ellipse cx="32" cy="20" rx="22" ry="11" fill={v.body} />
-        <ellipse cx="32" cy="17" rx="20" ry="6" fill={v.highlight} opacity="0.7" />
-        {v.stripe && (
+        {v.angelfish ? (
           <>
-            <path d="M 20 12 Q 22 20 20 28 L 24 28 Q 26 20 24 12 Z" fill={v.stripe} opacity="0.6" />
-            <path d="M 38 11 Q 40 20 38 29 L 42 29 Q 44 20 42 11 Z" fill={v.stripe} opacity="0.6" />
+            {/* Angular kite-shaped body with tall dorsal and anal fins. */}
+            <path
+              d="M 13 20 L 25 8 L 42 10 L 56 20 L 42 30 L 25 32 Z"
+              fill={v.body}
+              stroke="rgba(2,6,23,0.45)"
+              strokeWidth="0.9"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M 20 18 L 28 10 L 41 12 L 50 19 L 40 21 L 27 21 Z"
+              fill={v.highlight}
+              opacity="0.68"
+            />
+            <path
+              d="M 24 10 L 29 -2 L 35 9 L 32 13 Z"
+              fill={v.fin}
+              stroke="rgba(2,6,23,0.36)"
+              strokeWidth="0.7"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M 30 29 L 37 42 L 43 29 L 38 27 Z"
+              fill={v.fin}
+              stroke="rgba(2,6,23,0.36)"
+              strokeWidth="0.7"
+              strokeLinejoin="round"
+            />
+            {/* Straight bars make the two angelfish silhouettes distinct. */}
+            <path d="M 25 9 L 29 9 L 29 31 L 25 31 Z" fill={v.stripe} opacity="0.94" />
+            <path d="M 34 9 L 38 10 L 38 30 L 34 31 Z" fill={v.stripe} opacity="0.94" />
+            <path d="M 43 11 L 47 13 L 47 27 L 43 29 Z" fill={v.stripe} opacity="0.94" />
+            <path
+              d="M 45 12 Q 42 20 45 28"
+              stroke={v.mouth}
+              strokeWidth="0.9"
+              opacity="0.62"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <circle cx="49" cy="18" r="2.4" fill="white" />
+            <circle cx="49.5" cy="18" r="1.35" fill="#0f172a" />
+            <path d="M 54 17 Q 51 20 54 23" stroke={v.mouth} strokeWidth="1" fill="none" />
+          </>
+        ) : (
+          <>
+            <path
+              d="M 5 13 L 3 20 L 5 27"
+              stroke={v.highlight}
+              strokeWidth="1"
+              opacity="0.55"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <ellipse
+              cx="32"
+              cy="20"
+              rx="22"
+              ry="11"
+              fill={v.body}
+              stroke="rgba(2,6,23,0.38)"
+              strokeWidth="0.8"
+            />
+            <ellipse cx="32" cy="16.5" rx="19" ry="5.5" fill={v.highlight} opacity="0.72" />
+            <path
+              d="M 31 24 Q 35 20 39 24 Q 36 29 31 24 Z"
+              fill={v.fin}
+              opacity="0.86"
+              stroke="rgba(2,6,23,0.28)"
+              strokeWidth="0.6"
+            />
+            {v.stripe && (
+              <>
+                <path d="M 20 12 Q 22 20 20 28 L 24 28 Q 26 20 24 12 Z" fill={v.stripe} opacity="0.6" />
+                <path d="M 38 11 Q 40 20 38 29 L 42 29 Q 44 20 42 11 Z" fill={v.stripe} opacity="0.6" />
+              </>
+            )}
+            {v.stripes?.map((d) => (
+              <path key={d} d={d} fill={v.stripe ?? "#111827"} opacity="0.92" />
+            ))}
+            <path d="M 26 10 Q 32 2 38 10 Z" fill={v.fin} stroke="rgba(2,6,23,0.3)" strokeWidth="0.6" />
+            <path d="M 28 30 Q 32 36 36 30 Z" fill={v.fin} stroke="rgba(2,6,23,0.3)" strokeWidth="0.6" />
+            <path
+              d="M 42 12 Q 39 17 42 23"
+              stroke={v.mouth}
+              strokeWidth="0.9"
+              opacity="0.58"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <circle cx="46" cy="18" r="2.5" fill="white" />
+            <circle cx="46.5" cy="18" r="1.4" fill="#0f172a" />
+            <path d="M 40 17 Q 38 20 40 23" stroke={v.mouth} strokeWidth="1" fill="none" />
           </>
         )}
-        <path d="M 26 10 Q 32 2 38 10 Z" fill={v.fin} />
-        <path d="M 28 30 Q 32 36 36 30 Z" fill={v.fin} />
-        <circle cx="46" cy="18" r="2.5" fill="white" />
-        <circle cx="46.5" cy="18" r="1.4" fill="#0f172a" />
-        <path
-          d="M 40 17 Q 38 20 40 23"
-          stroke={v.mouth}
-          strokeWidth="1"
-          fill="none"
-        />
       </svg>
     </motion.div>
   );
@@ -229,6 +356,7 @@ export default function FishOverlay({
   bigFishVariantIndex = 0,
   bigFishExtraScale = 1,
   bigFishStaticPose = false,
+  fishVariantIndices = null,
   includeJellyfish = false,
   /** Score Freeze / ice power — pause all aquarium motion. */
   frozen = false,
@@ -241,13 +369,20 @@ export default function FishOverlay({
     const layoutSeed = hashSeed(dieSeed, count, bigFishVariantIndex);
     const bigIdx =
       n === 1 ? 0 : n === 2 ? -1 : seededIndex(hashSeed(layoutSeed, "big"), n);
-    const effectiveBigIndex = bigFishVariantIndex % FISH_VARIANTS.length;
+    const requestedIndices = Array.isArray(fishVariantIndices)
+      ? fishVariantIndices.filter((index) => FISH_VARIANTS[index])
+      : [];
+    // A bad/empty filter should never make the fish disappear or make every
+    // creature fall back to one repeated species.
+    const allowedIndices = requestedIndices.length
+      ? [...new Set(requestedIndices)]
+      : FISH_VARIANTS.map((_, index) => index);
+    const effectiveBigIndex =
+      allowedIndices[((bigFishVariantIndex % allowedIndices.length) + allowedIndices.length) % allowedIndices.length];
     const bigVariant = FISH_VARIANTS[effectiveBigIndex];
-    const smallPool = FISH_VARIANTS.filter((_, i) => i !== effectiveBigIndex).sort(
-      (a, b) =>
-        hashSeed(layoutSeed, "fish", FISH_VARIANTS.indexOf(a)) -
-        hashSeed(layoutSeed, "fish", FISH_VARIANTS.indexOf(b))
-    );
+    const smallPool = allowedIndices
+      .filter((index) => index !== effectiveBigIndex)
+      .sort((a, b) => hashSeed(layoutSeed, "fish", a) - hashSeed(layoutSeed, "fish", b));
     let smallCursor = 0;
 
     // Exactly one jelly slot when allowed.
@@ -280,17 +415,28 @@ export default function FishOverlay({
           delay: -(i * 1.3 + seededUnit(hashSeed(layoutSeed, "delay", i)) * 1.5),
           dir: i % 2 === 0 ? 1 : -1,
           scale: isBig ? baseScale * 1.6 * bigFishExtraScale : baseScale,
-          variant: isBig ? bigVariant : smallPool[smallCursor++ % smallPool.length],
+          variant: isBig
+            ? bigVariant
+            : FISH_VARIANTS[smallPool.length ? smallPool[smallCursor++ % smallPool.length] : effectiveBigIndex],
           staticPose: isBig && bigFishStaticPose,
         });
       }
     }
     return arr;
-  }, [count, dieSeed, bigFishVariantIndex, bigFishExtraScale, bigFishStaticPose, includeJellyfish]);
+  }, [
+    count,
+    dieSeed,
+    bigFishVariantIndex,
+    bigFishExtraScale,
+    bigFishStaticPose,
+    fishVariantIndices,
+    includeJellyfish,
+  ]);
 
   return (
     <div
       className="absolute inset-0 pointer-events-none overflow-hidden"
+      data-fish-overlay="aquarium"
       style={{ borderRadius: radius }}
     >
       {/* Subtle water ripples */}

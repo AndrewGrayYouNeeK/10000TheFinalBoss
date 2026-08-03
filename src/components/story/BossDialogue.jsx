@@ -53,7 +53,8 @@ export default function BossDialogue({ boss, mode, onContinue, onExit, summary }
     finishIntro();
   }, [mode, introReady, storyVideoSrc, finishIntro]);
 
-  if (!boss) return null;
+  // Losses restart directly in StoryGame; never render the old boss taunt card.
+  if (!boss || mode === "lose") return null;
 
   const handleIntroVideoDone = () => {
     setIntroVideoDone(true);

@@ -16,6 +16,16 @@ import StoryGame from '@/pages/StoryGame';
 recoverCorruptDiceState();
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
 hydrateSpriteLabPersistence();
+// Ask the browser not to evict local saves and uploaded video backups under
+// storage pressure. Browsers that do not support this API simply skip it.
+if (typeof navigator !== "undefined") {
+  try {
+    const persistenceRequest = navigator.storage?.persist?.();
+    if (persistenceRequest?.catch) void persistenceRequest.catch(() => {});
+  } catch {
+    /* ignore unavailable storage APIs */
+  }
+}
 // Re-seal video uploads from backup/vault/OPFS (never wipes user uploads).
 import("@/lib/spriteLabLockedVideos")
   .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())

@@ -429,6 +429,7 @@ export function ChromaKeyVideo({
     let rafId = null;
     let vfcId = null;
     let earlyEndTriggered = false;
+    let endedFired = false;
     keyColorRef.current = null;
     const lastBlit = { drawX: 0, drawY: 0, drawW: 0, drawH: 0, ready: false };
 
@@ -662,6 +663,8 @@ export function ChromaKeyVideo({
 
     const handleTime = () => onTimeUpdate?.(video);
     const handleEnded = () => {
+      if (endedFired) return;
+      endedFired = true;
       if (skipExitPanRef.current) {
         canvas.style.opacity = "0";
         octx.clearRect(0, 0, canvas.width, canvas.height);
@@ -985,6 +988,8 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const [chomping, setChomping] = React.useState(false);
   const chompEmitted = React.useRef(false);
   const completeEmitted = React.useRef(false);
+  const sequenceLockRef = React.useRef(false);
+  const beatEndedAtRef = React.useRef(-1);
   const queueRef = React.useRef([]);
   const beatIndexRef = React.useRef(0);
   const onChompRef = React.useRef(onChomp);
@@ -1032,14 +1037,17 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   }, []);
 
   const handleBeatEnded = React.useCallback(() => {
-    const beat = queueRef.current[beatIndexRef.current];
+    const idx = beatIndexRef.current;
+    if (beatEndedAtRef.current === idx) return;
+    beatEndedAtRef.current = idx;
+    const beat = queueRef.current[idx];
     if (beat?.syncChomp) fireChomp();
-    const next = beatIndexRef.current + 1;
+    const next = idx + 1;
     const hasMore = next < queueRef.current.length;
-    // Pause after intro swim-in before the full-screen chomp.
+    // Short pause after intro swim-in before the full-screen chomp (not a long re-loop window).
     const pauseMs =
       hasMore && !beat?.syncChomp
-        ? Math.max(0, Number(biteSettings.interBeatMs) || 0)
+        ? Math.min(800, Math.max(0, Number(biteSettings.interBeatMs) || 0))
         : 0;
     if (interBeatTimerRef.current) clearTimeout(interBeatTimerRef.current);
     if (pauseMs > 0) {
@@ -1053,7 +1061,10 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   }, [advanceBeat, fireChomp, biteSettings.interBeatMs]);
 
   const handleBeatError = React.useCallback(() => {
-    const beat = queueRef.current[beatIndexRef.current];
+    const idx = beatIndexRef.current;
+    if (beatEndedAtRef.current === idx) return;
+    beatEndedAtRef.current = idx;
+    const beat = queueRef.current[idx];
     if (beat?.syncChomp) fireChomp();
     if (interBeatTimerRef.current) clearTimeout(interBeatTimerRef.current);
     advanceBeat();
@@ -1067,6 +1078,8 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       setChomping(false);
       chompEmitted.current = false;
       completeEmitted.current = false;
+      sequenceLockRef.current = false;
+      beatEndedAtRef.current = -1;
       queueRef.current = [];
       if (interBeatTimerRef.current) {
         clearTimeout(interBeatTimerRef.current);
@@ -1075,8 +1088,13 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       return undefined;
     }
 
+    // One sequence per activation — never rebuild/replay while still active.
+    if (sequenceLockRef.current) return undefined;
+    sequenceLockRef.current = true;
+
     chompEmitted.current = false;
     completeEmitted.current = false;
+    beatEndedAtRef.current = -1;
     setSwim(false);
     setChomping(false);
     setBeatIndex(0);
@@ -1095,13 +1113,14 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       if (cancelled) return;
       buildSharkBitePhaseQueue().then((queue) => {
         if (cancelled) return;
-        queueRef.current = queue;
-        const first = queue[0];
+        // Hard cap: intro + chomp only (never stack repeats).
+        queueRef.current = (queue || []).slice(0, 2);
+        const first = queueRef.current[0];
         if (!first || first.id === "svg") {
           setPhase("svg");
           return;
         }
-        for (const beat of queue) {
+        for (const beat of queueRef.current) {
           if (beat.videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
             preloadSharkBiteIntroVideo();
           } else if (beat.source === "local") {
