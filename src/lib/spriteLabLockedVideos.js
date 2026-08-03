@@ -30,7 +30,7 @@ const SKIN_STORY_BOSS = {
   crystal_cut: "gq",
   ice: "ice_witch",
   dragon_scale: "dragon_knight",
-  blue_gel: null, // power video only — no story boss slots
+  blue_gel: "fisherman",
 };
 
 /** @deprecated Wrong slot — migrated to Neo story intro/win keys. */

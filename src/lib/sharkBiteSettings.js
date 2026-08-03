@@ -5,6 +5,7 @@
 const STORAGE_KEY = "dice10k_shark_bite_settings_v2";
 const PREV_STORAGE_KEY = "dice10k_shark_bite_settings_v1";
 const LEGACY_PLAYBACK_KEY = "dice10k_blue_gel_playback_v1";
+const SHARK_SETTINGS_MIGRATION_VERSION = 4;
 
 /** Saved crops to reset — old weak pan, then aggressive crop that cut the shark out. */
 const LEGACY_BAD_SOURCE_CROPS = [
@@ -63,7 +64,7 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   /** Exit slide direction: -1 = left (off-screen), +1 = right. */
   exitPanDirection: -1,
   /** Pause between intro swim-in ending and chomp starting (ms). */
-  interBeatMs: 3000,
+  interBeatMs: 400,
 
   /** Ms before fullscreen bite after FX activates (after in-die feast). */
   preSwimMs: 280,
@@ -133,19 +134,15 @@ function applyTimingMigration(parsed) {
 /** One-time reset for saved crops that matched broken or aggressive defaults. */
 function applySourceCropMigration(parsed) {
   if (!parsed || typeof parsed !== "object") return parsed;
-  const px = Number(parsed.sourcePanX);
-  const py = Number(parsed.sourcePanY);
-  const zoom = Number(parsed.sourceZoom);
-  const wrongSign = (Number.isFinite(px) && px > 0) || (Number.isFinite(py) && py > 0);
   const matchesLegacy = LEGACY_BAD_SOURCE_CROPS.some(
     (crop) =>
       near(parsed.sourceZoom, crop.sourceZoom) &&
       near(parsed.sourcePanX, crop.sourcePanX) &&
       near(parsed.sourcePanY, crop.sourcePanY)
   );
-  const aggressiveCrop =
-    Number.isFinite(zoom) && zoom > 1.05 && (px <= -0.5 || py <= -0.5);
-  if (!wrongSign && !matchesLegacy && !aggressiveCrop) return parsed;
+  // Positive pans and deeper crops are legal lab values. Only migrate the
+  // exact broken presets that shipped previously.
+  if (!matchesLegacy) return parsed;
   return {
     ...parsed,
     sourceZoom: DEFAULT_SHARK_BITE_SETTINGS.sourceZoom,
@@ -188,11 +185,19 @@ function applyLayoutPassV3(parsed) {
 
 function parseStoredSettings(raw) {
   const parsed = JSON.parse(raw);
+  if (Number(parsed?._sharkSettingsMigrationVersion) >= SHARK_SETTINGS_MIGRATION_VERSION) {
+    return {
+      ...DEFAULT_SHARK_BITE_SETTINGS,
+      ...parsed,
+    };
+  }
+  const migrated = applyLayoutPassV3(
+    applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed)))
+  );
   return {
     ...DEFAULT_SHARK_BITE_SETTINGS,
-    ...applyLayoutPassV3(
-      applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed)))
-    ),
+    ...migrated,
+    _sharkSettingsMigrationVersion: SHARK_SETTINGS_MIGRATION_VERSION,
   };
 }
 
@@ -202,8 +207,7 @@ export function loadSharkBiteSettings() {
     if (raw) {
       const next = parseStoredSettings(raw);
       try {
-        const parsed = JSON.parse(raw);
-        if (!parsed._sharkLayoutPassV3) {
+        if (JSON.stringify(next) !== raw) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         }
       } catch {
@@ -225,7 +229,15 @@ export function loadSharkBiteSettings() {
     }
 
     const migrated = migrateLegacyPlayback(localStorage.getItem(LEGACY_PLAYBACK_KEY));
-    if (migrated) return { ...DEFAULT_SHARK_BITE_SETTINGS, ...migrated };
+    if (migrated) {
+      const next = {
+        ...DEFAULT_SHARK_BITE_SETTINGS,
+        ...migrated,
+        _sharkSettingsMigrationVersion: SHARK_SETTINGS_MIGRATION_VERSION,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    }
     return { ...DEFAULT_SHARK_BITE_SETTINGS };
   } catch {
     return { ...DEFAULT_SHARK_BITE_SETTINGS };

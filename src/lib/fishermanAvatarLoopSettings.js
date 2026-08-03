@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "dice10k_fisherman_avatar_loop_v4";
-const SETTINGS_REVISION = 2;
+const SETTINGS_REVISION = 3;
 const LEGACY_STORAGE_KEYS = [
   "dice10k_fisherman_avatar_loop_v5",
   "dice10k_fisherman_avatar_loop_v3",
@@ -22,6 +22,9 @@ export const DEFAULT_FISHERMAN_AVATAR_LOOP_SETTINGS = {
   objectPositionYPercent: 50,
   /** Optional extra zoom via transform — default 1; cover fills the box without it. */
   scale: 1,
+  /** Playback trim window for the uploaded loop, stored as percentages of its duration. */
+  trimStartPercent: 0,
+  trimEndPercent: 100,
   _revision: SETTINGS_REVISION,
 };
 
@@ -41,13 +44,25 @@ function clampObjectPositionY(value) {
   );
 }
 
+function clampTrimStart(value) {
+  return Math.max(0, Math.min(95, Number(value) || 0));
+}
+
+function clampTrimEnd(value) {
+  return Math.max(5, Math.min(100, Number(value) || 100));
+}
+
 function normalizeSettings(parsed) {
   const base = { ...DEFAULT_FISHERMAN_AVATAR_LOOP_SETTINGS, ...parsed };
+  const trimEndPercent = clampTrimEnd(base.trimEndPercent);
+  const trimStartPercent = Math.min(clampTrimStart(base.trimStartPercent), trimEndPercent - 1);
   return {
     ...base,
     objectPositionXPercent: clampObjectPositionX(base.objectPositionXPercent),
     objectPositionYPercent: clampObjectPositionY(base.objectPositionYPercent),
     scale: Math.max(1, Math.min(1.5, Number(base.scale) || 1)),
+    trimStartPercent,
+    trimEndPercent: Math.max(trimStartPercent + 1, trimEndPercent),
     _revision: SETTINGS_REVISION,
   };
 }
@@ -167,4 +182,26 @@ export function getFishermanAvatarLoopVideoStyle(settings = loadFishermanAvatarL
       ? { transform: `scale(${scale})`, transformOrigin: "center center" }
       : {}),
   };
+}
+
+/** Convert the saved percentage window into safe playback seconds for a video. */
+export function getFishermanAvatarLoopTrimBounds(
+  duration,
+  settings = loadFishermanAvatarLoopSettings()
+) {
+  const total = Number(duration);
+  if (!Number.isFinite(total) || total <= 0) {
+    return { startSeconds: 0, endSeconds: total > 0 ? total : 0 };
+  }
+  const startPercent = clampTrimStart(settings.trimStartPercent);
+  const endPercent = Math.max(
+    startPercent + 1,
+    clampTrimEnd(settings.trimEndPercent)
+  );
+  const startSeconds = Math.min(total, (total * startPercent) / 100);
+  const endSeconds = Math.min(
+    total,
+    Math.max(startSeconds + 0.05, (total * endPercent) / 100)
+  );
+  return { startSeconds, endSeconds };
 }

@@ -1,5 +1,7 @@
 /**
- * Regression guard — Blue Gel / Snow Globe must never ship with sprite sheets.
+ * Regression guard — aquarium skins must render through the Die overlays.
+ * Angelfish may retain its catalog sprite URL as metadata, but runtime code
+ * must strip it so the old baked face sheet cannot cover the live fish.
  * Run after catalog edits: node scripts/check-aquarium-skins.mjs
  */
 import { readFileSync } from "node:fs";
@@ -22,16 +24,19 @@ for (const skinId of ["blue_gel", "snow_globe"]) {
     errors.push(`${skinId}: catalog entry not found`);
     continue;
   }
-  if (/spriteUrl\s*:/.test(block)) {
+  if (skinId === "snow_globe" && /spriteUrl\s*:/.test(block)) {
     errors.push(`${skinId}: must not define spriteUrl in PRODUCTION_DICE_SKINS`);
   }
-  if (/999d8760b_generated_image/.test(block)) {
-    errors.push(`${skinId}: regressed to generic generated sprite sheet`);
+  if (skinId === "blue_gel" && !/spriteUrl\s*:/.test(block)) {
+    errors.push(`${skinId}: Angelfish catalog metadata is missing spriteUrl`);
   }
 }
 
 if (!source.includes("AQUARIUM_OVERLAY_SKIN_IDS")) {
   errors.push("AQUARIUM_OVERLAY_SKIN_IDS guard missing from shopCatalog.js");
+}
+if (!source.includes('"blue_gel"')) {
+  errors.push("blue_gel is missing from AQUARIUM_OVERLAY_SKIN_IDS");
 }
 
 if (errors.length) {
@@ -40,4 +45,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Aquarium skins OK (no sprite sheets on blue_gel / snow_globe).");
+console.log("Aquarium skins OK (runtime overlays own blue_gel / snow_globe faces).");

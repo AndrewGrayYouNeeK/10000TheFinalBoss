@@ -20,7 +20,6 @@ import {
   DEFAULT_SPRITE_CROP,
   emptyFaceMap,
   FACES,
-  isSpriteTuningLocked,
   readSpriteLabPersistedState,
   persistTuningLockFlag,
   persistSpriteLabTuning,
@@ -478,6 +477,7 @@ const POWER_VIDEO_SKIN_CONFIG = {
 };
 
 const GQ_BOSS_ID = "gq";
+const FISHERMAN_BOSS_ID = "fisherman";
 const NEO_BOSS_ID = "neo";
 const ICE_WITCH_BOSS_ID = "ice_witch";
 const DRAGON_KNIGHT_BOSS_ID = "dragon_knight";
@@ -493,10 +493,10 @@ function CropSliders({ label, crop, onChange, accent = "amber", disabled = false
     <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3 space-y-3">
       <p className="text-xs font-bold uppercase tracking-wider text-amber-200">{label}</p>
       {[
-        { key: "zoom", min: 0.7, max: 3.0, step: 0.005, label: "Zoom" },
+        { key: "zoom", min: 0.45, max: 1.85, step: 0.005, label: "Zoom" },
         { key: "offsetY", min: -0.1, max: 0.15, step: 0.005, label: "Offset Y" },
         { key: "offsetX", min: -0.2, max: 0.2, step: 0.005, label: "Offset X" },
-        { key: "stretch", min: -0.3, max: 0.6, step: 0.005, label: "Stretch (taller +)" },
+        { key: "stretch", min: -0.15, max: 0.35, step: 0.005, label: "Stretch (taller +)" },
       ].map(({ key, min, max, step, label: sliderLabel }) => (
         <label key={key} className="block text-[10px] text-slate-400">
           {sliderLabel}: <span className="text-white tabular-nums">{crop[key]?.toFixed(3)}</span>
@@ -609,8 +609,12 @@ export default function SpriteLab({ skinId }) {
   const [snowGlobeShell, setSnowGlobeShell] = useState(() =>
     skinId === "snow_globe" ? loadSnowGlobeSettings() : null
   );
+  // Prevent the autosave effect from writing the previous skin's state into a
+  // newly selected skin before that skin's persisted snapshot has loaded.
+  const [hydratedSkinId, setHydratedSkinId] = useState(null);
 
   useEffect(() => {
+    setHydratedSkinId(null);
     const persisted = readSpriteLabPersistedState(skinId);
     setRegularCrop(persisted.regularCrop);
     setPowerCrop(persisted.powerCrop);
@@ -620,6 +624,7 @@ export default function SpriteLab({ skinId }) {
     setPowerVideoCrop(persisted.powerVideoCrop);
     if (skinId === "snow_globe") setSnowGlobeShell(loadSnowGlobeSettings());
     setFreezeOverlayPreview(false);
+    setHydratedSkinId(skinId);
   }, [skinId]);
   const [selectedFace, setSelectedFace] = useState(1);
   const [size, setSize] = useState(100);
@@ -671,7 +676,6 @@ export default function SpriteLab({ skinId }) {
           powerVideoZoom,
           powerVideoCrop,
         },
-        { locked: isSpriteTuningLocked(skinId) }
       ),
     [
       skinId,
@@ -783,7 +787,7 @@ export default function SpriteLab({ skinId }) {
   });
 
   const handleSaveTuning = () => {
-    if (tuningLocked) return;
+    if (tuningLocked || hydratedSkinId !== skinId) return;
     persistSpriteLabTuning(skinId, buildTuningPayload(), { locked: false });
     toast.success(`${catalogSkin.name} saved on this device`);
   };
@@ -863,9 +867,20 @@ export default function SpriteLab({ skinId }) {
   }, [skinId, catalogSkin.name]);
 
   useEffect(() => {
-    if (tuningLocked) return;
+    if (tuningLocked || hydratedSkinId !== skinId) return;
     persistSpriteLabTuning(skinId, buildTuningPayload(), { locked: false });
-  }, [skinId, regularCrop, powerCrop, regularFaces, powerFaces, powerVideoZoom, powerVideoCrop, tuningLocked, snowGlobeShell]);
+  }, [
+    skinId,
+    regularCrop,
+    powerCrop,
+    regularFaces,
+    powerFaces,
+    powerVideoZoom,
+    powerVideoCrop,
+    tuningLocked,
+    snowGlobeShell,
+    hydratedSkinId,
+  ]);
 
   useEffect(() => {
     if (!powerVideoConfig) return undefined;
@@ -1157,6 +1172,35 @@ export default function SpriteLab({ skinId }) {
               videoKey={VIDEO_KEYS.BLUE_GEL_POWER}
               label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_POWER]}
               description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_POWER]}
+            />
+          </div>
+        )}
+        {skinId === "blue_gel" && (
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
+              Story mode — Marlin Joe videos
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Upload Marlin Joe&apos;s <b>Before match</b> intro, <b>After victory</b> cutscene, and
+              <b> Avatar loop</b> used during the fight.
+            </p>
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossIntroKey(FISHERMAN_BOSS_ID)}
+              label={getStoryBossVideoLabel(FISHERMAN_BOSS_ID, "intro")}
+              description={getStoryBossVideoDescription(FISHERMAN_BOSS_ID, "intro")}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossWinKey(FISHERMAN_BOSS_ID)}
+              label={getStoryBossVideoLabel(FISHERMAN_BOSS_ID, "win")}
+              description={getStoryBossVideoDescription(FISHERMAN_BOSS_ID, "win")}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossAvatarKey(FISHERMAN_BOSS_ID)}
+              label={getStoryBossVideoLabel(FISHERMAN_BOSS_ID, "avatar")}
+              description={getStoryBossVideoDescription(FISHERMAN_BOSS_ID, "avatar")}
             />
           </div>
         )}

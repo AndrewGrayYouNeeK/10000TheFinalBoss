@@ -27,6 +27,7 @@ export default function VideoPreviewDialog({
   videoClassName = "w-full h-full max-h-[min(70vh,520px)] bg-black",
   videoContainerClassName = "max-h-[min(70vh,520px)]",
   onVideoMetadata,
+  onVideoTimeUpdate,
 }) {
   const videoRef = useRef(null);
 
@@ -84,6 +85,9 @@ export default function VideoPreviewDialog({
               style={videoStyle}
               onLoadedMetadata={
                 onVideoMetadata ? (e) => onVideoMetadata(e.currentTarget) : undefined
+              }
+              onTimeUpdate={
+                onVideoTimeUpdate ? (e) => onVideoTimeUpdate(e.currentTarget) : undefined
               }
             />
           </div>
