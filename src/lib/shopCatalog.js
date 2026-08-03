@@ -420,7 +420,7 @@ export const PRODUCTION_DICE_SKINS = [
     price: 400,
     gradient: "from-sky-300 via-blue-400 to-blue-600",
     border: "border-blue-500",
-    pipColor: "bg-white",
+    pipColor: "bg-transparent",
     glow: "shadow-blue-400/60",
     description: "A big angelfish circling the pips.",
     realistic: true,

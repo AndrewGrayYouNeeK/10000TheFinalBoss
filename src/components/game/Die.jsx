@@ -721,10 +721,6 @@ function Die({
                   />
                 );
               })() : null}
-              {/* Pip face above the shell — never the old baked sprite sheet. */}
-              <div className="absolute inset-0 z-[10] pointer-events-none">
-                {renderPipGrid()}
-              </div>
             </>
         )}
 
