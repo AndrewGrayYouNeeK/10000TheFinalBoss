@@ -7,6 +7,7 @@ import {
 } from "@/lib/storyBossVideos";
 import {
   getFishermanAvatarLoopVideoStyle,
+  getFishermanAvatarLoopTrimBounds,
   useFishermanAvatarLoopSettings,
 } from "@/lib/fishermanAvatarLoopSettings";
 
@@ -29,6 +30,18 @@ export default function StoryBossGameplayLoop({
       ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
       : getStoryBossAvatarLoopVideoStyle(bossId));
   const videoStyle = fitOverride ? { ...baseStyle, objectFit: fit } : baseStyle;
+
+  const keepVideoInsideTrim = (video) => {
+    if (bossId !== "fisherman") return;
+    const { startSeconds, endSeconds } = getFishermanAvatarLoopTrimBounds(
+      video.duration,
+      fishermanTuning
+    );
+    if (video.currentTime < startSeconds || video.currentTime >= endSeconds - 0.05) {
+      video.currentTime = startSeconds;
+      if (video.paused) video.play().catch(() => {});
+    }
+  };
 
   React.useEffect(() => {
     setHidden(false);
@@ -54,6 +67,8 @@ export default function StoryBossGameplayLoop({
         muted
         playsInline
         preload="metadata"
+        onLoadedMetadata={(event) => keepVideoInsideTrim(event.currentTarget)}
+        onTimeUpdate={(event) => keepVideoInsideTrim(event.currentTarget)}
         onError={() => {
           onError();
           setHidden(true);

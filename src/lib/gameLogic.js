@@ -1,5 +1,11 @@
 // Core game state manipulation for Dice 10,000
-import { scoreSelection, hasAnyScore, isSixOfAKind, heldSelectionPoints } from "./scoring";
+import {
+  scoreSelection,
+  hasAnyScore,
+  isSixOfAKind,
+  heldSelectionPoints,
+  maxValidScore,
+} from "./scoring";
 import { getPowerChargeHotDiceThreshold } from "./skinPowers";
 import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
 import { applyMatrixGlitchToDice } from "./matrixGlitch";
@@ -36,14 +42,85 @@ function turnPowerReset() {
 }
 
 /** End a player's turn on bank — debuffs on them clear; power charge is kept. */
-function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false } = {}) {
+function finishBankedTurn(players, playerIndex) {
   const p = players[playerIndex];
   if (!p) return players;
   const next = [...players];
-  // Charge survives banking. Only firing consumes it (consumeSkinPower).
-  const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
-  next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
+  // Charge survives banking / turn pass. Only firing consumes it (consumeSkinPower).
+  next[playerIndex] = { ...p, debuffs: [], powerCharge: !!p.powerCharge };
   return next;
+}
+
+/** Double or Nothing armed this turn, or cursed via level-10 sabo. */
+function isDoubleOrNothingLive(state) {
+  if (state?.doubleOrNothing) return true;
+  const player = state?.players?.[state.currentIndex];
+  return (player?.debuffs || []).some(
+    (d) => (typeof d === "string" ? d : d.id) === "double_or_nothing_curse"
+  );
+}
+
+/** Effective turn score multiplier (DoN / curse forces at least ×2). */
+function turnScoreMult(state) {
+  let m = state?.turnScoreMultiplier || 1;
+  if (isDoubleOrNothingLive(state)) m = Math.max(m, 2);
+  return m;
+}
+
+/**
+ * True when the best legal scoring subset of the active board would push
+ * banked + turn over TARGET — automatic bust (no cherry-picking under the line).
+ */
+function maxSelectionWouldOvershoot(state, activeValues, turnScore = state.turnScore) {
+  const player = state.players[state.currentIndex];
+  if (!player) return false;
+  const maxPts = maxValidScore(activeValues);
+  if (maxPts <= 0) return false;
+  const mult = turnScoreMult(state);
+  return player.score + turnScore + Math.floor(maxPts * mult) > TARGET_SCORE;
+}
+
+/** Build farkle / overshoot bust state. Double or Nothing wipes banked score to 0. */
+function applyBust(state, {
+  dice = state.dice,
+  lostTurnScore = state.turnScore,
+  overshoot = false,
+} = {}) {
+  const idx = state.currentIndex;
+  const player = state.players[idx];
+  const name = player?.name || "Player";
+  const word = bustWord(state.bustCount || 0);
+  const don = isDoubleOrNothingLive(state);
+  let players = state.players;
+  let message;
+  if (don) {
+    players = state.players.map((p, i) =>
+      i === idx ? { ...p, score: 0, onBoard: false } : p
+    );
+    message = overshoot
+      ? `💥 Overshoot + Double or Nothing — ${name} drops to 0!`
+      : `💥 ${word} Double or Nothing — ${name} drops to 0!`;
+  } else if (overshoot) {
+    message = `💥 Overshoot! ${name} needed exactly ${TARGET_SCORE - (player?.score || 0)} — busted.`;
+  } else {
+    message = `💥 ${word} ${name} loses turn score.`;
+  }
+  return {
+    ...state,
+    players,
+    dice,
+    farkle: true,
+    farkleTurnScore: lostTurnScore,
+    turnScore: 0,
+    bustCount: (state.bustCount || 0) + 1,
+    lastBustWord: word,
+    doubleOrNothing: false,
+    turnScoreMultiplier: 1,
+    perfectTenKPending: false,
+    pendingPrisonRelease: null,
+    message,
+    messageVariant: "danger",
+  };
 }
 /** Remove sabotage debuffs cast by a player (e.g. they bust after firing). */
 export function clearDebuffsFromCaster(players, casterIdx) {
@@ -384,29 +461,16 @@ export function evaluateRoll(state) {
     }
     const glitchRescue = tryMatrixGlitchRescue(state, state.dice);
     if (glitchRescue) return glitchRescue;
-    const currentName = state.players[state.currentIndex].name;
-    const word = bustWord(state.bustCount || 0);
-    const lostScore = state.doubleOrNothing ? state.turnScore * 2 : state.turnScore;
-    return {
-      ...state,
-      farkle: true,
-      farkleTurnScore: state.turnScore,
-      turnScore: 0,
-      bustCount: (state.bustCount || 0) + 1,
-      lastBustWord: word,
-      doubleOrNothing: false,
-      turnScoreMultiplier: 1,
-      perfectTenKPending: false,
-      pendingPrisonRelease: null,
-      message: state.doubleOrNothing
-        ? `💥 ${word} Double or Nothing — ${currentName} loses ${lostScore}.`
-        : `💥 ${word} ${currentName} loses turn score.`,
-      messageVariant: "danger",
-    };
+    return applyBust(state);
   }
 
   const sixWin = checkActiveSixOfAKindWin(state);
   if (sixWin) return sixWin;
+
+  // Endgame: best legal take from this roll would overshoot 10,000 → auto-bust.
+  if (maxSelectionWouldOvershoot(state, active)) {
+    return applyBust(state, { overshoot: true });
+  }
 
   // Keep prison-release banner from rollDice when the roll still scores.
   if (state.pendingPrisonRelease) {
@@ -455,26 +519,18 @@ export function confirmAndReroll(state, options = {}) {
 
   // Mark held dice as used, add to turn score
   let newDice = state.dice.map(d => (d.held ? { ...d, used: true, held: false } : d));
-  const mult = state.turnScoreMultiplier || 1;
+  const mult = turnScoreMult(state);
   const newTurnScore = state.turnScore + Math.floor(scored.score * mult);
 
   // Overshoot bust — you must land EXACTLY on 10,000. If the locked-in turn score
   // already pushes the player over, end the turn immediately (no further rolls).
   const currentPlayer = state.players[state.currentIndex];
   if (currentPlayer.score + newTurnScore > TARGET_SCORE) {
-    const word = bustWord(state.bustCount || 0);
     return {
-      state: {
-        ...state,
-        dice: newDice,
-        turnScore: 0,
-        hasRolled: true,
-        farkle: true,
-        bustCount: (state.bustCount || 0) + 1,
-        lastBustWord: word,
-        message: `💥 Overshoot! ${currentPlayer.name} needed exactly ${TARGET_SCORE - currentPlayer.score} — busted ${newTurnScore}.`,
-        messageVariant: "danger",
-      },
+      state: applyBust(
+        { ...state, turnScore: newTurnScore, hasRolled: true },
+        { dice: newDice, lostTurnScore: newTurnScore, overshoot: true }
+      ),
     };
   }
 
@@ -506,21 +562,27 @@ export function confirmAndReroll(state, options = {}) {
     if (glitchRescue) {
       return { state: glitchRescue };
     }
-    const word = bustWord(state.bustCount || 0);
     return {
-      state: {
-        ...state,
-        dice: newDice,
-        farkleTurnScore: newTurnScore,
-        turnScore: 0,
-        hasRolled: true,
-        farkle: true,
-        bustCount: (state.bustCount || 0) + 1,
-        lastBustWord: word,
-        pendingPrisonRelease: null,
-        message: `💥 ${word} ${state.players[state.currentIndex].name} loses ${newTurnScore}.`,
-        messageVariant: "danger",
-      },
+      state: applyBust(
+        { ...state, turnScore: newTurnScore, hasRolled: true },
+        { dice: newDice, lostTurnScore: newTurnScore }
+      ),
+    };
+  }
+
+  // Best take from the new roll would overshoot → auto-bust
+  if (
+    maxSelectionWouldOvershoot(
+      { ...state, turnScore: newTurnScore },
+      activeVals,
+      newTurnScore
+    )
+  ) {
+    return {
+      state: applyBust(
+        { ...state, turnScore: newTurnScore, hasRolled: true },
+        { dice: newDice, lostTurnScore: newTurnScore, overshoot: true }
+      ),
     };
   }
 
@@ -627,10 +689,10 @@ export function bankAndPass(state) {
     };
   }
 
-  // Include any currently-held valid selection into the bank
+  // Include any currently-held valid selection into the bank (respect DoN / streak mult)
   let finalTurn = state.turnScore;
   if (info.valid && info.score > 0) {
-    finalTurn += info.score;
+    finalTurn += Math.floor(info.score * turnScoreMult(state));
   }
 
   const finishedIdx = state.currentIndex;
@@ -661,7 +723,12 @@ export function bankAndPass(state) {
     variant = "warning";
   } else if (player.score + finalTurn > TARGET_SCORE) {
     // Overshoot — must land exactly on 10,000
-    message = `💥 Overshoot! ${player.name} needed exactly ${TARGET_SCORE - player.score} — banked 0.`;
+    if (isDoubleOrNothingLive(state)) {
+      newPlayers[finishedIdx] = { ...player, score: 0, onBoard: false };
+      message = `💥 Overshoot + Double or Nothing — ${player.name} drops to 0!`;
+    } else {
+      message = `💥 Overshoot! ${player.name} needed exactly ${TARGET_SCORE - player.score} — banked 0.`;
+    }
     variant = "danger";
   } else {
     amountAdded = finalTurn;
@@ -724,11 +791,8 @@ export function bankAndPass(state) {
 
   // Sabotage debuffs on the banker clear; power charge carries to their next turn
   // until they fire their secret power (bust alone does not consume charge).
-  const chargeSaved =
-    !!newPlayers[finishedIdx]?.powerCharge && !state.skinPowerUsedThisTurn;
-  const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx, {
-    skinPowerUsedThisTurn: state.skinPowerUsedThisTurn,
-  });
+  const chargeSaved = !!newPlayers[finishedIdx]?.powerCharge;
+  const playersAfterBank = finishBankedTurn(newPlayers, finishedIdx);
 
   const storyIce = state.storyIceFreeze;
   if (storyIce && finishedIdx === storyIce.casterIdx) {

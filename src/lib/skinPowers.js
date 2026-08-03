@@ -19,6 +19,7 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  */
 const SKIN_POWER_MAP = {
   // ── Self buffs ──
+  paper: "double_or_nothing", // Prison Dice — Double or Nothing
   lava: "hot_streak",
   ragnarok: "hot_streak",
   matrix: "matrix_glitch",
