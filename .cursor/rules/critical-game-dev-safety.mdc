@@ -1,0 +1,29 @@
+---
+description: Critical safety rules for live game development, asset handling, and state preservation
+alwaysApply: true
+---
+
+# CRITICAL GAME DEVELOPMENT RULES – ALWAYS FOLLOW
+
+You are working on a live dice game. These rules override normal behavior.
+
+## Asset & Sprite Rules (Highest Priority)
+- NEVER overwrite, regenerate, delete, or “improve” existing sprite sheets, skin images, textures, or asset files unless the user explicitly asks and confirms the exact file paths.
+- When changing skins/sprites: only edit the code that *references* the assets (paths, frame data, animation configs). Leave the actual image/json files untouched.
+- If you need a new sprite variant, create a *new* file instead of modifying existing ones.
+- After any asset-related change, clearly list every file you touched and what you did.
+
+## Live Debugging & Refresh Rules
+- Prefer the smallest possible change that solves the problem.
+- Avoid changes that force a full page reload when the user is play-testing (especially while the game is running).
+- When possible, make pure logic / config / data changes that can hot-reload without destroying game state.
+- Never restart the dev server or kill processes unless the user asks.
+- If a change will cause a full refresh, warn the user first and offer a safer alternative.
+
+## General Safety
+- Always read the relevant existing code and assets before editing.
+- Prefer editing existing files over creating new ones when possible.
+- After making changes, summarize exactly what changed and how the user can test it without losing their current game state.
+- If the user says “the game refreshed and reset” or “my skins disappeared”, treat it as a high-priority bug and investigate the root cause (HMR, asset overwrite, state not persisted, etc.).
+
+These rules are non-negotiable. Violating them wastes the user’s time and progress.
