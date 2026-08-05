@@ -293,7 +293,9 @@ export const PRODUCTION_DICE_SKINS = [
     border: "border-rose-800",
     pipColor: "bg-white",
     glow: "shadow-rose-500/70",
-    description: "Faceted ruby crystal — story boss reward.",
+    description: "GQ Diamond Cut upgrade — ruby-faceted crystal. Story boss reward.",
+    /** Next-tier look for GQ's Diamond Cut (`crystal_cut`); same secret power. */
+    upgradesFrom: "crystal_cut",
     realistic: true,
     spriteUrl: "/assets/diamond_ruby_dice.png",
     ...DIAMOND_RUBY_SPRITE_TUNING,
@@ -306,7 +308,7 @@ export const PRODUCTION_DICE_SKINS = [
     border: "border-cyan-200",
     pipColor: "bg-black",
     glow: "shadow-cyan-300/80",
-    description: "Brilliant faceted crystal. The legendary tier.",
+    description: "GQ's legendary faceted crystal. Upgrades to Diamond Ruby.",
     realistic: true,
     spriteUrl: "/assets/823a86262_zIRb81kXhGo3xU-pd4xpr_yf8rZsgh.png",
     ...CRYSTAL_CUT_SPRITE_TUNING,
@@ -416,15 +418,27 @@ export const PRODUCTION_DICE_SKINS = [
   },
   {
     id: "blue_gel",
-    name: "Blue Gel",
+    name: "Angelfish",
     price: 400,
     gradient: "from-sky-300 via-blue-400 to-blue-600",
     border: "border-blue-500",
     pipColor: "bg-white",
     glow: "shadow-blue-400/60",
-    description: "Marlin Joe's fish-tank dice — Shark Bite eats the opponent's next bank.",
+    description: "A big angelfish circling the pips.",
     realistic: true,
     powerDice: true,
+    spriteUrl: "/assets/999d8760b_generated_image.png",
+  },
+  {
+    id: "shark_gel",
+    name: "Shark Tank",
+    price: 650,
+    gradient: "from-slate-600 via-cyan-900 to-slate-950",
+    border: "border-rose-700",
+    pipColor: "bg-white",
+    glow: "shadow-rose-500/60",
+    description: "A dark aquarium stalked by great whites — and the occasional killer whale.",
+    realistic: true,
   },
   {
     id: "plasma",
@@ -505,6 +519,7 @@ const EXOTIC_SKIN_IDS = new Set([
   "matrix",
   "plasma",
   "blue_gel",
+  "shark_gel",
   "snow_globe",
 ]);
 
@@ -925,6 +940,24 @@ export function normalizeSkinId(id) {
   return id;
 }
 
+/**
+ * Catalog skin-upgrade lineage (visual / shop identity — not skin levels).
+ * Example: diamond_ruby.upgradesFrom === "crystal_cut" (GQ Diamond Cut → Diamond Ruby).
+ */
+export function getSkinUpgradesFrom(skinId) {
+  const id = normalizeSkinId(skinId);
+  const entry = PRODUCTION_DICE_SKINS.find((s) => s.id === id) || DICE_SKINS.find((s) => s.id === id);
+  return entry?.upgradesFrom ?? null;
+}
+
+/** Skin id that upgrades from this base, or null. */
+export function getSkinUpgradeOf(skinId) {
+  const id = normalizeSkinId(skinId);
+  const upgrade = PRODUCTION_DICE_SKINS.find((s) => s.upgradesFrom === id)
+    || DICE_SKINS.find((s) => s.upgradesFrom === id);
+  return upgrade?.id ?? null;
+}
+
 /** Prefer locked snapshot zoom; fall back to catalog only when the lock has no zoom. */
 function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
   if (!locked) return draftZoom ?? catalogZoom;
@@ -932,8 +965,8 @@ function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
   return draftZoom;
 }
 
-/** Snow globe — custom Die.jsx overlay (no sprite face). Blue Gel uses sprite + fish tank. */
-export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe"]);
+/** Aquarium skins — custom Die.jsx faces with a borrowed glass shell. */
+export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe", "blue_gel", "shark_gel"]);
 
 export const BLUE_GEL_SPRITE_URL = "/assets/999d8760b_generated_image.png";
 
