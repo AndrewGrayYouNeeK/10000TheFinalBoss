@@ -1,0 +1,13 @@
+---
+description: "Keep Shark Bite non-component exports out of BlueGelPowerFX so Fast Refresh does not remount Game"
+alwaysApply: false
+---
+
+# Shark Bite HMR remounts wipe scores
+
+Do not export non-component values (plain functions, timing consts, emit helpers) from BlueGelPowerFX.jsx or other modules imported by Game/StoryGame. Put them in src/lib/sharkBiteChomp.js (or similar). Mixed exports make Vite fall back to remounting importers and wipe in-memory match scores. saveLocalGame/saveStoryFight also refuse to overwrite mid-match progress with a fresh 0-0 board.
+
+## Verification
+- Verified: Vite terminal showed repeated hmr invalidate BlueGelPowerFX for emitSharkBiteChomp/SHARK_BITE_CHOMP_PROGRESS; after moving exports to sharkBiteChomp.js the module only exports hooks/components; eslint passed
+- Failure pattern avoided: Vite Fast Refresh remounts Game when a component module also exports plain consts/functions
+- Dead-end ruled out: Full page reload and agent localStorage.clear were ruled out; scores live in React state plus dice10k_local_game / story session saves

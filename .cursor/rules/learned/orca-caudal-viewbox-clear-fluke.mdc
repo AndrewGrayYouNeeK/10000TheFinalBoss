@@ -1,0 +1,13 @@
+---
+description: "Orca caudal viewBox must clear fluke tip"
+alwaysApply: false
+---
+
+# Orca Caudal Viewbox Clear Fluke
+
+In SharkVisuals OrcaBody / SharkCreature, orca viewBox left must start well left of the caudal tip (e.g. -14), never tight pads like 6 or 8 that crop the whale tail. Expand left pad so tip and fluke rotate extremes stay inside; lengthen aft crescent so caudal is clearly attached.
+
+## Verification
+- Verified: npm run lint && npm run build passed after expanding viewBox to -14 -18 122 64 and lengthening fluke tip
+- Failure pattern avoided: Orca fluke drawn but invisible because viewBox left crop clips aft SVG
+- Dead-end ruled out: Assuming SVG overflow:visible fixes cropping — viewBox still discards geometry outside its rect

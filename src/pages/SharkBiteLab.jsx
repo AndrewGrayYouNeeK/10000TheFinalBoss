@@ -47,7 +47,7 @@ export default function SharkBiteLab() {
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-black truncate">Shark Bite Lab</h1>
             <p className="text-[10px] text-slate-400 truncate">
-              Upload clips, tune chroma & timing — dice preview on Blue Gel Sprite Lab
+              DIY tune Intro X (left↔right) · Preview bite · Save — no more asking for nudges
             </p>
           </div>
         </div>
@@ -86,7 +86,8 @@ export default function SharkBiteLab() {
             <div>
               <h2 className="text-sm font-black text-rose-200">Live tray preview</h2>
               <p className="text-[11px] text-slate-400 mt-0.5 max-w-md">
-                Fullscreen chomp over Blue Gel dice — same as Story mode vs Marlin Joe.
+                Fullscreen bite over Blue Gel dice. Drag <b className="text-cyan-200">Intro X</b>{" "}
+                in the controls below until jaws cover all dice, then ▶ Preview bite.
               </p>
             </div>
             <button

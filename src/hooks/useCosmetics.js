@@ -62,9 +62,10 @@ export function useCosmetics() {
     updateMe.mutate({ xp: Math.max(0, (user.xp ?? 0) + delta) });
   };
 
-  const recordGameResult = ({ won, xpGain }) => {
+  const recordGameResult = ({ won, xpGain, skinId: playedSkinId } = {}) => {
     if (!user) return;
-    const skinId = user.equipped_skin || "classic_white";
+    // Prefer the skin actually used in the match (setup / session), not only profile equip.
+    const skinId = playedSkinId || user.equipped_skin || "classic_white";
     const skinXpGain = 1 + (won ? 1 : 0);
     const skinPatch = addSkinPlayXp(user, skinId, skinXpGain);
     updateMe.mutate({

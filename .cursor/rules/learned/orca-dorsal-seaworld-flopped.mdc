@@ -1,0 +1,13 @@
+---
+description: "Orca dorsal flopped SeaWorld captive"
+alwaysApply: false
+---
+
+# Orca Dorsal Seaworld Flopped
+
+In SharkVisuals OrcaBody, dorsal must be an OBVIOUS SeaWorld collapse at die scale: short stub, hard elbow, then a long blade draping aft/down along the back — not nearly upright, not a subtle forward hump. Tip reaches well aft of the base. Keep grey saddle; caudal stays side-profile crescent (whale tail visible).
+
+## Verification
+- Verified: npm run lint && npm run build after exaggerating flopped dorsal (aft drape, not upright stub)
+- Failure pattern avoided: Subtle near-upright / headward hump that reads as upright at die scale
+- Dead-end ruled out: Mild “wilted” paths that only rise a few units before a forward curl — lean must be unmistakable

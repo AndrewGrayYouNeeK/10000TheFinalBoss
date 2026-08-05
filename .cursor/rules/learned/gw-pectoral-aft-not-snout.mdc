@@ -1,0 +1,13 @@
+---
+description: "Great white pectorals sweep aft like IMG_2272"
+alwaysApply: false
+---
+
+# Gw Pectoral Aft Not Snout
+
+In SharkVisuals GreatWhiteBody and StandardSharkBody, sickle pectorals must originate just aft of the 5th gill and sweep AFT (lower x toward the tail) and DOWN. Never point the pectoral tip toward the snout. Match IMG_2272 for all fins, head, caudal, and jagged charcoal/white boundary. Do not modify reference PNGs.
+
+## Verification
+- Verified: npm run lint && npm run build passed after GreatWhiteBody/StandardSharkBody redraw
+- Failure pattern avoided: Pectorals pointing toward snout instead of aft/down
+- Dead-end ruled out: Keeping forward-swept pectoral paths from earlier chat tweaks

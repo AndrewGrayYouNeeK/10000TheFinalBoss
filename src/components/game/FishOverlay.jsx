@@ -1,5 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { AquariumBubbles } from "@/components/game/AquariumBubbles";
 
 /**
  * Fish color palettes — each entry defines the colors used by the shared Fish SVG.
@@ -18,7 +19,33 @@ export const FISH_VARIANTS = [
   { id: "purple", name: "Purple Reef", tail: "#7c3aed", body: "#a855f7", highlight: "#d8b4fe", fin: "#6b21a8", mouth: "#581c87", stripe: null },
   // Green
   { id: "green", name: "Green Reef", tail: "#15803d", body: "#22c55e", highlight: "#86efac", fin: "#14532d", mouth: "#166534", stripe: null },
+  // Angelfish — silver body with bold black vertical bars and yellow fins.
+  {
+    id: "angelfish",
+    name: "Angelfish",
+    tail: "#facc15",
+    body: "#e5e7eb",
+    highlight: "#f9fafb",
+    fin: "#facc15",
+    mouth: "#1f2937",
+    stripe: "#0f172a",
+    angelfish: true,
+  },
+  // Angelfish (blue) — two-tone blue body with deep navy bars.
+  {
+    id: "angelfish_blue",
+    name: "Blue Angelfish",
+    tail: "#1e40af",
+    body: "#3b82f6",
+    highlight: "#93c5fd",
+    fin: "#1d4ed8",
+    mouth: "#1e3a8a",
+    stripe: "#1e3a8a",
+    angelfish: true,
+  },
 ];
+
+export const ANGELFISH_VARIANT_INDICES = [6, 7];
 
 /** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
 function safeAnimDuration(seconds, min = 0.001) {
@@ -146,6 +173,7 @@ export function Jellyfish({ size, top, duration, delay, dir = 1, scale = 1, vari
 export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, staticPose = false, frozen = false }) {
   const fishSize = size * 0.28 * scale;
   const v = variant || FISH_VARIANTS[0];
+  const fishHeight = fishSize * (v.angelfish ? 0.82 : 0.6);
   const isStatic = staticPose || frozen;
   const swimX =
     dir === 1
@@ -158,7 +186,7 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
         top: `${top}%`,
         left: isStatic ? "18%" : 0,
         width: fishSize,
-        height: fishSize * 0.6,
+        height: fishHeight,
       }}
       animate={
         isStatic
@@ -182,7 +210,7 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
       }
     >
       <svg
-        viewBox="0 0 64 40"
+        viewBox={v.angelfish ? "0 -5 64 50" : "0 0 64 40"}
         width="100%"
         height="100%"
         style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}
@@ -190,28 +218,80 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
         <motion.path
           d="M 8 20 L 0 8 L 4 20 L 0 32 Z"
           fill={v.tail}
+          stroke="rgba(2,6,23,0.45)"
+          strokeWidth="0.8"
+          strokeLinejoin="round"
           animate={frozen ? { rotate: 0 } : { rotate: [-8, 8, -8] }}
           transition={frozen ? FROZEN_TRANSITION : { duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
           style={{ originX: "20%", originY: "50%" }}
         />
-        <ellipse cx="32" cy="20" rx="22" ry="11" fill={v.body} />
-        <ellipse cx="32" cy="17" rx="20" ry="6" fill={v.highlight} opacity="0.7" />
-        {v.stripe && (
+        {v.angelfish ? (
           <>
-            <path d="M 20 12 Q 22 20 20 28 L 24 28 Q 26 20 24 12 Z" fill={v.stripe} opacity="0.6" />
-            <path d="M 38 11 Q 40 20 38 29 L 42 29 Q 44 20 42 11 Z" fill={v.stripe} opacity="0.6" />
+            {/* Angular kite-shaped body with tall dorsal and anal fins. */}
+            <path
+              d="M 13 20 L 25 8 L 42 10 L 56 20 L 42 30 L 25 32 Z"
+              fill={v.body}
+              stroke="rgba(2,6,23,0.45)"
+              strokeWidth="0.9"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M 20 18 L 28 10 L 41 12 L 50 19 L 40 21 L 27 21 Z"
+              fill={v.highlight}
+              opacity="0.68"
+            />
+            <path
+              d="M 24 10 L 29 -2 L 35 9 L 32 13 Z"
+              fill={v.fin}
+              stroke="rgba(2,6,23,0.36)"
+              strokeWidth="0.7"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M 30 29 L 37 42 L 43 29 L 38 27 Z"
+              fill={v.fin}
+              stroke="rgba(2,6,23,0.36)"
+              strokeWidth="0.7"
+              strokeLinejoin="round"
+            />
+            {/* Straight bars make the two angelfish silhouettes distinct. */}
+            <path d="M 25 9 L 29 9 L 29 31 L 25 31 Z" fill={v.stripe} opacity="0.94" />
+            <path d="M 34 9 L 38 10 L 38 30 L 34 31 Z" fill={v.stripe} opacity="0.94" />
+            <path d="M 43 11 L 47 13 L 47 27 L 43 29 Z" fill={v.stripe} opacity="0.94" />
+            <path
+              d="M 45 12 Q 42 20 45 28"
+              stroke={v.mouth}
+              strokeWidth="0.9"
+              opacity="0.62"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <circle cx="49" cy="18" r="2.4" fill="white" />
+            <circle cx="49.5" cy="18" r="1.35" fill="#0f172a" />
+            <path d="M 54 17 Q 51 20 54 23" stroke={v.mouth} strokeWidth="1" fill="none" />
+          </>
+        ) : (
+          <>
+            <ellipse cx="32" cy="20" rx="22" ry="11" fill={v.body} />
+            <ellipse cx="32" cy="17" rx="20" ry="6" fill={v.highlight} opacity="0.7" />
+            {v.stripe && (
+              <>
+                <path d="M 20 12 Q 22 20 20 28 L 24 28 Q 26 20 24 12 Z" fill={v.stripe} opacity="0.6" />
+                <path d="M 38 11 Q 40 20 38 29 L 42 29 Q 44 20 42 11 Z" fill={v.stripe} opacity="0.6" />
+              </>
+            )}
+            <path d="M 26 10 Q 32 2 38 10 Z" fill={v.fin} />
+            <path d="M 28 30 Q 32 36 36 30 Z" fill={v.fin} />
+            <circle cx="46" cy="18" r="2.5" fill="white" />
+            <circle cx="46.5" cy="18" r="1.4" fill="#0f172a" />
+            <path
+              d="M 40 17 Q 38 20 40 23"
+              stroke={v.mouth}
+              strokeWidth="1"
+              fill="none"
+            />
           </>
         )}
-        <path d="M 26 10 Q 32 2 38 10 Z" fill={v.fin} />
-        <path d="M 28 30 Q 32 36 36 30 Z" fill={v.fin} />
-        <circle cx="46" cy="18" r="2.5" fill="white" />
-        <circle cx="46.5" cy="18" r="1.4" fill="#0f172a" />
-        <path
-          d="M 40 17 Q 38 20 40 23"
-          stroke={v.mouth}
-          strokeWidth="1"
-          fill="none"
-        />
       </svg>
     </motion.div>
   );
@@ -229,6 +309,7 @@ export default function FishOverlay({
   bigFishVariantIndex = 0,
   bigFishExtraScale = 1,
   bigFishStaticPose = false,
+  fishVariantIndices = null,
   includeJellyfish = false,
   /** Score Freeze / ice power — pause all aquarium motion. */
   frozen = false,
@@ -241,13 +322,20 @@ export default function FishOverlay({
     const layoutSeed = hashSeed(dieSeed, count, bigFishVariantIndex);
     const bigIdx =
       n === 1 ? 0 : n === 2 ? -1 : seededIndex(hashSeed(layoutSeed, "big"), n);
-    const effectiveBigIndex = bigFishVariantIndex % FISH_VARIANTS.length;
+    const requestedIndices = Array.isArray(fishVariantIndices)
+      ? fishVariantIndices.filter((index) => FISH_VARIANTS[index])
+      : [];
+    // A bad or empty filter should never make fish disappear or repeat one
+    // fallback species across the whole die.
+    const allowedIndices = requestedIndices.length
+      ? [...new Set(requestedIndices)]
+      : FISH_VARIANTS.map((_, index) => index);
+    const effectiveBigIndex =
+      allowedIndices[((bigFishVariantIndex % allowedIndices.length) + allowedIndices.length) % allowedIndices.length];
     const bigVariant = FISH_VARIANTS[effectiveBigIndex];
-    const smallPool = FISH_VARIANTS.filter((_, i) => i !== effectiveBigIndex).sort(
-      (a, b) =>
-        hashSeed(layoutSeed, "fish", FISH_VARIANTS.indexOf(a)) -
-        hashSeed(layoutSeed, "fish", FISH_VARIANTS.indexOf(b))
-    );
+    const smallPool = allowedIndices
+      .filter((index) => index !== effectiveBigIndex)
+      .sort((a, b) => hashSeed(layoutSeed, "fish", a) - hashSeed(layoutSeed, "fish", b));
     let smallCursor = 0;
 
     // Exactly one jelly slot when allowed.
@@ -280,17 +368,28 @@ export default function FishOverlay({
           delay: -(i * 1.3 + seededUnit(hashSeed(layoutSeed, "delay", i)) * 1.5),
           dir: i % 2 === 0 ? 1 : -1,
           scale: isBig ? baseScale * 1.6 * bigFishExtraScale : baseScale,
-          variant: isBig ? bigVariant : smallPool[smallCursor++ % smallPool.length],
+          variant: isBig
+            ? bigVariant
+            : FISH_VARIANTS[smallPool.length ? smallPool[smallCursor++ % smallPool.length] : effectiveBigIndex],
           staticPose: isBig && bigFishStaticPose,
         });
       }
     }
     return arr;
-  }, [count, dieSeed, bigFishVariantIndex, bigFishExtraScale, bigFishStaticPose, includeJellyfish]);
+  }, [
+    count,
+    dieSeed,
+    bigFishVariantIndex,
+    bigFishExtraScale,
+    bigFishStaticPose,
+    fishVariantIndices,
+    includeJellyfish,
+  ]);
 
   return (
     <div
       className="absolute inset-0 pointer-events-none overflow-hidden"
+      data-fish-overlay="aquarium"
       style={{ borderRadius: radius }}
     >
       {/* Subtle water ripples */}
@@ -302,34 +401,18 @@ export default function FishOverlay({
         }}
       />
 
-      {/* Bubbles drifting up — more on higher-value dice (hidden when frozen). */}
-      {!frozen && (() => {
-        const bubbleCount = count >= 5 ? 22 : count === 4 ? 14 : 8;
-        return Array.from({ length: bubbleCount }, (_, i) => {
-          const sz = size * (0.02 + (i % 4) * 0.013);
-          const leftPct = (i * 37) % 95 + 2;
-          return (
-            <motion.div
-              key={i}
-              className="absolute rounded-full bg-white/70"
-              style={{
-                width: sz,
-                height: sz,
-                left: `${leftPct}%`,
-                bottom: -size * 0.05,
-              }}
-              animate={{ y: [0, -size * 1.15], opacity: [0, 0.8, 0] }}
-              transition={{
-                duration: 2.2 + ((i * 0.31) % 1.8),
-                repeat: Infinity,
-                delay: (i * 0.22) % 3,
-                ease: "easeOut",
-              }}
-            />
-          );
-        });
-      })()}
-
+      {/* Bubbles drifting up — unique per dieSeed; denser on higher faces (hidden when frozen). */}
+      {!frozen ? (
+        <AquariumBubbles
+          size={size}
+          count={count}
+          dieSeed={dieSeed}
+          theme="clear"
+          density="normal"
+          salt="blue-gel-fish"
+          riseMult={1.15}
+        />
+      ) : null}
       {/* Fish + real jellyfish */}
       {creatures.map((c, i) =>
         c.kind === "jellyfish" ? (
