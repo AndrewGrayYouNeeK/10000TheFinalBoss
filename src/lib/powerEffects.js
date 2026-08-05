@@ -3,7 +3,7 @@ import { formatXraySummary, scanAllOpponents } from "@/lib/xrayScan";
 import { isFishDicePlayer } from "@/lib/fishDice";
 import { loadProfile } from "@/lib/localProfile";
 import { getLocalSkinPowerLevel } from "@/lib/progression";
-import { glitchDiceCountForLevel } from "@/lib/matrixGlitch";
+import { glitchDiceCountForLevel, glitchScoreCutForLevel } from "@/lib/matrixGlitch";
 import { resolvePlayerPower } from "@/lib/ghostDisguise";
 
 function opponentIndex(state) {
@@ -44,11 +44,13 @@ export function applySkinPower(state, powerId) {
       powerId === "shark_bite" ||
       powerId === "freeze" ||
       powerId === "freeze_score" ||
+      powerId === "frosty_ice" ||
       powerId === "lockout" ||
       powerId === "blackout" ||
       powerId === "static" ||
       powerId === "prison_dice" ||
-      powerId === "xray"
+      powerId === "xray" ||
+      powerId === "matrix_glitch"
     ) {
       return { state, message: "Need an opponent for that power.", variant: "warning" };
     }
@@ -152,6 +154,9 @@ export function applySkinPower(state, powerId) {
       };
 
     case "matrix_glitch": {
+      if (targetIdx < 0) {
+        return { state, message: "Need an opponent for that power.", variant: "warning" };
+      }
       const profile = loadProfile();
       const { mimicSkinId } = resolvePlayerPower(state, state.currentIndex, {
         ghostDisguiseId: profile.ghost_disguise,
@@ -160,14 +165,29 @@ export function applySkinPower(state, powerId) {
       const skinId = mimicSkinId || "matrix";
       const level = getLocalSkinPowerLevel(skinId, profile);
       const diceCount = glitchDiceCountForLevel(level);
+      const target = state.players[targetIdx];
+      const cut = glitchScoreCutForLevel(level, target?.score);
+      const players = addDebuff(
+        state.players.map((p, i) =>
+          i === targetIdx ? { ...p, score: Math.max(0, (p.score || 0) - cut) } : p
+        ),
+        targetIdx,
+        { id: "matrix_glitch", diceCount },
+        state.currentIndex
+      );
+      const scoreBit =
+        cut > 0
+          ? `−${cut.toLocaleString()} banked`
+          : "no banked points to cut";
       return {
         state: {
           ...state,
-          matrixGlitchArmed: { diceCount },
-          message: `⚡ Matrix Glitch armed — next bust rewrites up to ${diceCount} die${diceCount === 1 ? "" : "s"}! (Lv ${level})`,
+          players,
+          matrixGlitchArmed: null,
+          message: `⚡ Matrix Glitch on ${targetName} — ${scoreBit}; next roll scrambles up to ${diceCount} die${diceCount === 1 ? "" : "s"}! (Lv ${level})`,
           messageVariant: "success",
         },
-        message: "Matrix Glitch armed!",
+        message: cut > 0 ? `Glitch −${cut} · dice primed` : "Glitch primed for their roll",
         variant: "success",
       };
     }
@@ -244,6 +264,9 @@ export function applySkinPower(state, powerId) {
       };
     }
 
+    // frosty_ice is story-mode branding; in local/applySkinPower it locks banked score
+    // the same way as freeze_score (story fights use fireStoryIcePower instead).
+    case "frosty_ice":
     case "freeze_score": {
       const lockedScore = state.players[targetIdx]?.score ?? 0;
       const players = addDebuff(
@@ -252,6 +275,7 @@ export function applySkinPower(state, powerId) {
         { id: "freeze_score", lockedScore },
         state.currentIndex
       );
+      const frostyLabel = powerId === "frosty_ice";
       return {
         state: {
           ...state,
@@ -259,7 +283,7 @@ export function applySkinPower(state, powerId) {
           message: `🧊 ${targetName}'s banked score locked at ${lockedScore.toLocaleString()} for the rest of their turn!`,
           messageVariant: "success",
         },
-        message: "Score Freeze cast!",
+        message: frostyLabel ? "Frozen Ice cast!" : "Score Freeze cast!",
         variant: "success",
       };
     }

@@ -1,0 +1,13 @@
+---
+description: "Prevent Frozen Ice PowerSlot from casting Unknown power in local play"
+alwaysApply: false
+---
+
+# Keep frosty_ice out of local random assign
+
+Story-only power id frosty_ice (UI name Frozen Ice) must not be in the local random skin-power pool without a cast handler. Exclude it from LOCAL_POWER_POOL in skinPowers.js. Local applySkinPower should alias frosty_ice → freeze_score debuff. Ice skin maps to frosty_ice; story frost bosses still use fireStoryIcePower.
+
+## Verification
+- Verified: npm run lint && npm run build passed; frosty_ice case added in powerEffects; excluded from LOCAL_POWER_POOL
+- Failure pattern avoided: Frozen Ice PowerSlot enabled but cast shows Unknown power / does nothing
+- Dead-end ruled out: Assuming ice skin Score Freeze wiring or IcePowerOverlay VFX — click reached applySkinPower with frosty_ice from classic_white hash

@@ -1,5 +1,6 @@
 import React from "react";
-import { BASE_POWERS, SABO_POWERS, POWER_MODE_HOT_DICE } from "@/lib/powers";
+import { SABO_POWERS, POWER_MODE_HOT_DICE } from "@/lib/powers";
+import { PLAYER_FACING_BASE_POWERS } from "@/lib/skinPowers";
 
 const HOT_DICE_ORDINAL = ["", "1st", "2nd", "3rd", "4th", "5th", "6th"][POWER_MODE_HOT_DICE] ?? `${POWER_MODE_HOT_DICE}th`;
 
@@ -43,7 +44,7 @@ export default function PowersInfo({ variant = "rules" }) {
       <Group
         title="Self — Buffs"
         color={isShop ? "#00ffc8" : "#34d399"}
-        powers={BASE_POWERS}
+        powers={PLAYER_FACING_BASE_POWERS}
         isShop={isShop}
       />
       <Group

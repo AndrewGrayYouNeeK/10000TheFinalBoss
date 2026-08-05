@@ -77,12 +77,12 @@ export const POWERS = [
   {
     id: "matrix_glitch",
     name: "Matrix Glitch",
-    kind: "self",
+    kind: "sabo",
     cost: 40,
     icon: "⚡",
     color: "#00ff9f",
     description:
-      "Arm glitch for this turn — if the roll would bust, rewrite up to N dice into scoring faces (stronger at higher skin level).",
+      "Hack the opponent — cut their banked score now, then scramble dice on their next roll (stronger at higher skin level).",
     tagline: "Reality is negotiable.",
   },
   {
