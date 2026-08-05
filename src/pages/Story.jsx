@@ -11,6 +11,7 @@ import CyberBackground from "@/components/game/CyberBackground";
 import LocalLoopVideo from "@/components/video/LocalLoopVideo";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import { isLowPowerDevice } from "@/lib/platform";
+import { isLabUnlocked } from "@/lib/labGate";
 
 export default function Story() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function Story() {
   const storyPlayerSkin = getStoryPlayerSkin(bossesDefeated);
   const storyPlayerSkinLabel = getSkin(storyPlayerSkin)?.name || storyPlayerSkin.replace(/_/g, " ");
   const lowPower = isLowPowerDevice();
+  const labsUnlocked = isLabUnlocked();
 
   // Prefetch boss fight chunk while browsing the ladder (main nav destination).
   useEffect(() => {
@@ -64,15 +66,17 @@ export default function Story() {
             className="shadow-lg shadow-fuchsia-500/10"
           />
 
-          <div className="flex justify-end">
-            <Link
-              to="/video-assets"
-              className="inline-flex items-center gap-1.5 text-[10px] font-bold text-cyan-300/80 hover:text-cyan-200"
-            >
-              <Film className="w-3.5 h-3.5" />
-              Video settings
-            </Link>
-          </div>
+          {labsUnlocked ? (
+            <div className="flex justify-end">
+              <Link
+                to="/video-assets"
+                className="inline-flex items-center gap-1.5 text-[10px] font-bold text-cyan-300/80 hover:text-cyan-200"
+              >
+                <Film className="w-3.5 h-3.5" />
+                Video settings
+              </Link>
+            </div>
+          ) : null}
 
           {/* Intro */}
           <motion.div

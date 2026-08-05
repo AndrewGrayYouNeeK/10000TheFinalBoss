@@ -8,6 +8,7 @@ import { isNativeApp } from '@/lib/platform';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
 import { recoverCorruptDiceState } from '@/lib/skinRecovery';
 import PageNotFound from './lib/PageNotFound';
+import LabGate from '@/components/lab/LabGate';
 import Home from '@/pages/Home';
 import Story from '@/pages/Story';
 import StoryGame from '@/pages/StoryGame';
@@ -142,10 +143,10 @@ function App() {
             <Route path="/game" element={<Game />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/shop" element={<Shop />} />
-            <Route path="/preview-dice" element={<PreviewDice />} />
-            <Route path="/ragnarok-sprites" element={<Navigate to="/sprite-lab/matrix" replace />} />
-            <Route path="/sprite-lab" element={<SpriteLabPage />} />
-            <Route path="/sprite-lab/:skinId" element={<SpriteLabPage />} />
+            <Route path="/preview-dice" element={<LabGate><PreviewDice /></LabGate>} />
+            <Route path="/ragnarok-sprites" element={<LabGate><Navigate to="/sprite-lab/matrix" replace /></LabGate>} />
+            <Route path="/sprite-lab" element={<LabGate><SpriteLabPage /></LabGate>} />
+            <Route path="/sprite-lab/:skinId" element={<LabGate><SpriteLabPage /></LabGate>} />
             <Route path="/held-style" element={<HeldStylePreview />} />
             <Route path="/soundwave-mic" element={<SoundwaveMicSettings />} />
             <Route path="/about" element={<About />} />
@@ -155,14 +156,14 @@ function App() {
             <Route path="/online/:matchId" element={<OnlineUnavailable />} />
             <Route path="/story" element={<Story />} />
             <Route path="/story/:bossId" element={<StoryGame />} />
-            <Route path="/video-assets" element={<VideoAssets />} />
-            <Route path="/fish-showcase" element={<FishShowcase />} />
-            <Route path="/ice-lab" element={<IcePowerLab />} />
-            <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
-            <Route path="/felt-lab" element={<FeltLabPage />} />
-            <Route path="/felt-lab/:feltId" element={<FeltLabPage />} />
-            <Route path="/shark-bite-lab" element={<SharkBiteLab />} />
-            <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
+            <Route path="/video-assets" element={<LabGate><VideoAssets /></LabGate>} />
+            <Route path="/fish-showcase" element={<LabGate><FishShowcase /></LabGate>} />
+            <Route path="/ice-lab" element={<LabGate><IcePowerLab /></LabGate>} />
+            <Route path="/frosty-lab" element={<LabGate><Navigate to="/ice-lab" replace /></LabGate>} />
+            <Route path="/felt-lab" element={<LabGate><FeltLabPage /></LabGate>} />
+            <Route path="/felt-lab/:feltId" element={<LabGate><FeltLabPage /></LabGate>} />
+            <Route path="/shark-bite-lab" element={<LabGate><SharkBiteLab /></LabGate>} />
+            <Route path="/shark-lab" element={<LabGate><Navigate to="/shark-bite-lab" replace /></LabGate>} />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
           </RouteErrorBoundaryWithLocation>

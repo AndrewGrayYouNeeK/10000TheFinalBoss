@@ -1483,7 +1483,8 @@ export default function SpriteLab({ skinId }) {
           <div
             className={cn(
               "sticky z-20 self-start w-full",
-              "top-[4.75rem] sm:top-20"
+              "top-[calc(max(0.75rem,env(safe-area-inset-top,0px))+8.75rem)]",
+              "sm:top-[calc(max(0.75rem,env(safe-area-inset-top,0px))+6.25rem)]"
             )}
           >
             <FeltTrayFrame

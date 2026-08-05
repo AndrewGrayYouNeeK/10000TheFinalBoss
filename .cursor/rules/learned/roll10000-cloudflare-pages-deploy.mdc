@@ -1,0 +1,18 @@
+---
+description: roll10000.com zone is not in usedartifacts Pages account
+globs:
+alwaysApply: false
+---
+
+# Cloudflare hosting for roll10000.com
+
+- Pages project **`roll10000`** lives on account `Andrewgray@usedartifacts.com` → **https://roll10000.pages.dev**
+- Deploy: `npm run build && npx wrangler pages deploy dist --project-name=roll10000`
+- SPA fallback: `public/_redirects` with `/* /index.html 200`
+- Custom domains `www.roll10000.com` and `roll10000.com` are registered on that Pages project
+- Public NS are Cloudflare (`brett` / `riya`), but the **zone is not in the usedartifacts account** (0 zones there). DNS CNAMEs must be set in the Cloudflare dashboard where **Websites → roll10000.com** appears:
+  - `www` CNAME → `roll10000.pages.dev` (proxied)
+  - `@` CNAME → `roll10000.pages.dev` (proxied)
+- Until those exist, Pages reports `CNAME record not set` and custom-domain SSL stays pending
+- Do **not** use whole-site Cloudflare Access on roll10000.com (blocks players). Creator labs use in-app `VITE_LAB_GATE_PASSWORD` + `LabGate` instead. Remove Access apps covering the hostname in the youneekartifacts Zero Trust team.
+- LabGate protects: sprite-lab, felt-lab, ice/shark labs, video-assets, fish-showcase, preview-dice. Held-style and soundwave-mic stay public.

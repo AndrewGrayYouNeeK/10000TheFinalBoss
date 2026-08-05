@@ -1,0 +1,13 @@
+---
+description: Defer turn handoff until Shark Bite FX completes
+globs: src/lib/gameLogic.js,src/pages/Game.jsx,src/pages/StoryGame.jsx
+alwaysApply: false
+---
+
+# Shark Bite — no player switch mid-FX
+
+When a marked bank resolves Shark Bite, `bankAndPass` keeps `currentIndex` on the banker and sets `pendingTurnAfterSharkBite`. `clearSharkBiteFx` (SharkBiteScreenFX `onComplete`) advances the turn. Do not advance `currentIndex` while `sharkBiteFx` is true or pass-and-play handoff appears before the shark is on screen.
+
+## Verification
+- Bank with shark mark: handoff/next-player UI waits until bite FX finishes
+- Feeding Frenzy / practice bite (no pending turn) still only clears FX flags

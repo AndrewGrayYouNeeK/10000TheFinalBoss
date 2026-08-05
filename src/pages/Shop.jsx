@@ -20,6 +20,7 @@ import { getHeldDiceStyle } from "@/lib/heldDiceStyles";
 import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
 import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
 import { SPRITE_LAB_SKIN_IDS } from "@/lib/spriteLab";
+import { isLabUnlocked } from "@/lib/labGate";
 import { cn } from "@/lib/utils";
 
 const showPreviewLab = true;
@@ -35,6 +36,7 @@ export default function Shop() {
   } = useCosmetics();
   const heldStyle = getHeldDiceStyle(heldDiceStyleId);
   const [tab, setTab] = useState("skins");
+  const labsUnlocked = isLabUnlocked();
 
   const handleBuy = (type, item) => {
     const res = buyItem(type, item);
@@ -64,12 +66,16 @@ export default function Shop() {
           <Sparkles className="w-5 h-5 text-amber-400 shrink-0" /> Shop
         </h1>
         <div className="flex items-center gap-2 shrink-0">
-          <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-emerald-500/40 text-emerald-200 px-2">
-            <Link to="/felt-lab">Felt Lab</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-green-500/40 text-green-200 px-2">
-            <Link to="/sprite-lab">Sprite Lab</Link>
-          </Button>
+          {labsUnlocked ? (
+            <>
+              <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-emerald-500/40 text-emerald-200 px-2">
+                <Link to="/felt-lab">Felt Lab</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-green-500/40 text-green-200 px-2">
+                <Link to="/sprite-lab">Sprite Lab</Link>
+              </Button>
+            </>
+          ) : null}
           <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 rounded-full px-3 py-1.5">
             <Coins className="w-4 h-4 text-amber-400" />
             <span className="font-black tabular-nums text-amber-300">
@@ -143,7 +149,7 @@ export default function Shop() {
               </div>
             )}
 
-            {showPreviewLab && (
+            {showPreviewLab && labsUnlocked && (
             <div className="mb-4 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 to-indigo-950/30 p-4">
               <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                 <div>
@@ -209,7 +215,7 @@ export default function Shop() {
                   <div className="mb-3">
                     <div className="flex items-center justify-between gap-2">
                       <h2 className="text-sm font-black uppercase tracking-wider text-amber-200">{cat.label}</h2>
-                      {SPRITE_LAB_SKIN_IDS.some((id) => getSkinShopCategory(id) === cat.id) && (
+                      {labsUnlocked && SPRITE_LAB_SKIN_IDS.some((id) => getSkinShopCategory(id) === cat.id) && (
                         <div className="flex flex-wrap gap-1 justify-end">
                           {SPRITE_LAB_SKIN_IDS.filter((id) => getSkinShopCategory(id) === cat.id).map((id) => (
                             <Button
@@ -316,6 +322,7 @@ export default function Shop() {
           </TabsContent>
 
           <TabsContent value="felts" className="mt-4">
+            {labsUnlocked ? (
             <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/30 to-slate-900/50 p-4 mb-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -332,6 +339,7 @@ export default function Shop() {
                 </Button>
               </div>
             </div>
+            ) : null}
             <p className="text-[10px] text-slate-400 mb-3 text-center">
               Each card shows the real table surface — scroll to match names to looks.
             </p>

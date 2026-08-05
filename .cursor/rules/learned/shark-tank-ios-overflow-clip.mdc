@@ -1,0 +1,17 @@
+---
+description: Clip Shark Tank swimming sharks on iOS Safari
+alwaysApply: false
+---
+
+# Shark Tank mobile clip leak
+
+iOS Safari often fails to clip Framer Motion `transform` children inside `overflow: hidden` + `border-radius`. Shark Tank / Blue Gel feast overlays then paint huge sharks outside the die and look “stuck.”
+
+On aquarium clip roots (`SharkTankOverlay`, `BlueGelSharkAttack`, `BlueGelSharkBiteCharge`): set `zIndex: 0`, `transform: translateZ(0)`, and `-webkit-mask-image` / `mask-image` radial white→black. Keep `overflow: hidden`.
+
+Also keep shark cruise delays within one animation cycle (no huge negative delays) and keep orca/tank width fractions modest so they stay inside the face.
+
+## Verification
+- Play local on phone with Shark Tank / Angelfish dice; sharks stay inside the die silhouette while swimming
+- Failure pattern avoided: oversized sharks escaping dice / freezing mid-tray on iOS
+- Dead-end ruled out: treating it as Shark Bite fullscreen FX when user never cast the power

@@ -418,18 +418,50 @@ export function getSharkBiteSourceCropRect(vw, vh, settings = loadSharkBiteSetti
 }
 
 /** @typedef {'chomp' | 'intro'} SharkBiteRotationSlot */
+/** @typedef {'catalog' | 'local' | 'auto' | 'svg' | null | undefined} SharkBiteVideoSource */
 
-/** Resolve rotation in degrees for canvas/CSS (canvas ignores video metadata). */
+/**
+ * Resolve rotation in degrees for canvas/CSS (canvas ignores video metadata).
+ * Catalog chomp defaults to 90° (shipped clip is sideways in pixels).
+ * Local uploads default to 0° unless the user set rotation in Shark Bite Lab
+ * (`_userSetChompRotation`) — phone clips were wrongly getting catalog 90°.
+ */
 export function getSharkBiteVideoRotationDeg(
   settings = loadSharkBiteSettings(),
   videoWidth = 0,
   videoHeight = 0,
-  slot = "chomp"
+  slot = "chomp",
+  source = null
 ) {
   const manualKey = slot === "intro" ? "introVideoRotationDeg" : "videoRotationDeg";
   const manual = Number(settings?.[manualKey]);
+  const catalogDefault = DEFAULT_SHARK_BITE_SETTINGS.videoRotationDeg;
+
+  if (slot === "intro") {
+    return Number.isFinite(manual) ? manual : 0;
+  }
+
+  const isLocal = source === "local";
+  const userSetChomp = !!settings?._userSetChompRotation;
+
+  if (isLocal) {
+    if (userSetChomp && Number.isFinite(manual)) return manual;
+    // Portrait buffers on desktop may need 90°; iOS Safari often already upright.
+    if (
+      settings?.autoRotatePortrait !== false &&
+      videoWidth > 0 &&
+      videoHeight > videoWidth * 1.05
+    ) {
+      if (typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        return 0;
+      }
+      return 90;
+    }
+    return 0;
+  }
+
+  // Catalog / auto / unknown — keep shipped 90° default for blue_gel_power.mp4.
   if (Number.isFinite(manual) && manual !== 0) return manual;
-  if (slot === "intro") return 0;
   if (
     settings?.autoRotatePortrait !== false &&
     videoWidth > 0 &&
@@ -437,7 +469,7 @@ export function getSharkBiteVideoRotationDeg(
   ) {
     return 90;
   }
-  return Number.isFinite(manual) ? manual : DEFAULT_SHARK_BITE_SETTINGS.videoRotationDeg;
+  return Number.isFinite(manual) ? manual : catalogDefault;
 }
 
 /** True when rotation swaps stored width/height (90° or 270°). */
@@ -451,12 +483,13 @@ export function getSharkBitePreviewVideoStyle(
   settings = loadSharkBiteSettings(),
   slot = "chomp",
   videoWidth = 0,
-  videoHeight = 0
+  videoHeight = 0,
+  source = null
 ) {
   const zoom = Math.max(1, Number(settings?.sourceZoom) || 1);
   const panX = Math.max(-1, Math.min(1, Number(settings?.sourcePanX) || 0));
   const panY = Math.max(-1, Math.min(1, Number(settings?.sourcePanY) || 0));
-  const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot);
+  const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot, source);
   const transforms = [`scale(${zoom})`];
   if (rot) transforms.unshift(`rotate(${rot}deg)`);
   return {
@@ -475,12 +508,13 @@ export function getSharkBiteUploadPreviewLayout(
   settings = loadSharkBiteSettings(),
   slot = "chomp",
   videoWidth = 0,
-  videoHeight = 0
+  videoHeight = 0,
+  source = "local"
 ) {
   const zoom = Math.max(1, Number(settings?.sourceZoom) || 1);
   const panX = Math.max(-1, Math.min(1, Number(settings?.sourcePanX) || 0));
   const panY = Math.max(-1, Math.min(1, Number(settings?.sourcePanY) || 0));
-  const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot);
+  const rot = getSharkBiteVideoRotationDeg(settings, videoWidth, videoHeight, slot, source);
   const swap = isSharkBiteRotationSwap(rot);
   const transforms = [`scale(${zoom})`];
   if (rot) transforms.unshift(`rotate(${rot}deg)`);

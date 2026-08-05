@@ -1,0 +1,17 @@
+---
+description: Shark Bite local uploads skip catalog 90°; clear blackout on complete/error
+globs: src/lib/sharkBiteSettings.js,src/components/game/BlueGelPowerFX.jsx
+alwaysApply: false
+---
+
+# Shark Bite phone rotation + black screen
+
+- Catalog chomp keeps default `videoRotationDeg: 90` (sideways pixels in `blue_gel_power.mp4`).
+- Local uploads use `rotationSource: "local"` → 0° unless `_userSetChompRotation` (set when Lab rotation slider changes).
+- Pass `rotationSource` into `getSharkBiteVideoRotationDeg` / `ChromaKeyVideo`.
+- Never put a black layer *under* the chroma canvas (stuck black when shark keyed out / off-frame). Blackout only via top overlay; clear on `fireComplete`, beat error, and `!active`.
+
+## Verification
+- Phone local upload bite: shark upright; screen returns to game after FX
+- Catalog bite: still upright with 90°
+- Lab rotation slider sets `_userSetChompRotation`

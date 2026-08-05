@@ -21,13 +21,27 @@ export function isFreshUnstartedGame(game) {
 /** Clear transient FX so remount restore cannot auto-play Shark Bite. */
 export function sanitizeRestoredGame(game) {
   if (!game || typeof game !== "object") return game;
-  return {
+  const pending =
+    typeof game.pendingTurnAfterSharkBite === "number"
+      ? game.pendingTurnAfterSharkBite
+      : null;
+  const next = {
     ...game,
     sharkBiteFx: false,
     sharkDiceHidden: false,
     matrixGlitchFx: false,
     matrixGlitchDieIds: [],
+    pendingTurnAfterSharkBite: null,
   };
+  if (
+    pending != null &&
+    pending !== game.currentIndex &&
+    Array.isArray(game.players) &&
+    game.players[pending]
+  ) {
+    next.currentIndex = pending;
+  }
+  return next;
 }
 
 function shouldBlockOverwrite(existing, snapshot) {

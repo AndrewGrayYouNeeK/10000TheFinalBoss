@@ -418,6 +418,8 @@ export function ChromaKeyVideo({
   layoutOffsetY = null,
   /** Which shark-bite clip rotation to apply (`chomp` vs `intro`). */
   rotationSlot = "chomp",
+  /** Catalog vs local — local uploads skip catalog's default 90° rotation. */
+  rotationSource = null,
 }) {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
@@ -437,6 +439,7 @@ export function ChromaKeyVideo({
   const layoutOffsetXRef = React.useRef(layoutOffsetX);
   const layoutOffsetYRef = React.useRef(layoutOffsetY);
   const rotationSlotRef = React.useRef(rotationSlot);
+  const rotationSourceRef = React.useRef(rotationSource);
   // Keep media-loop callbacks stable — identity changes remounted the video and
   // replayed intro/chomp beats (looked like Shark Bite playing 2–3 times).
   const onTimeUpdateRef = React.useRef(onTimeUpdate);
@@ -453,6 +456,7 @@ export function ChromaKeyVideo({
   layoutOffsetXRef.current = layoutOffsetX;
   layoutOffsetYRef.current = layoutOffsetY;
   rotationSlotRef.current = rotationSlot;
+  rotationSourceRef.current = rotationSource;
   onTimeUpdateRef.current = onTimeUpdate;
   onEndedRef.current = onEnded;
   onErrorRef.current = onError;
@@ -539,7 +543,8 @@ export function ChromaKeyVideo({
         biteRef.current,
         vw,
         vh,
-        rotationSlotRef.current
+        rotationSlotRef.current,
+        rotationSourceRef.current
       );
       const swapDims = isSharkBiteRotationSwap(rotationDeg);
       const baseW = swapDims ? vh : vw;
@@ -861,7 +866,7 @@ export function ChromaKeyVideo({
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, loop, fullViewport, rotationSlot]);
+  }, [src, loop, fullViewport, rotationSlot, rotationSource]);
 
   return (
     <>
@@ -1091,6 +1096,7 @@ export function BlueGelPowerVideoScreen({
             layoutOffsetX={layoutOffsetX}
             layoutOffsetY={layoutOffsetY}
             rotationSlot={isIntro ? "intro" : "chomp"}
+            rotationSource={videoSource === "auto" ? null : videoSource}
             playbackStartAtSeconds={startAt}
             playbackStopAtProgress={stopAt}
             skipExitPan={skipExitPan}
@@ -1176,6 +1182,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     chompEmitted.current = true;
     const beat = queueRef.current[beatIndexRef.current];
     // Blackout on the sync-chomp beat (or SVG path where queue is empty / svg).
+    // Only paint black on top of gameplay — never under a failed/transparent chroma layer.
     if (!beat || beat.syncChomp || beat.id === "svg") {
       setScreenBlackout(true);
     }
@@ -1186,6 +1193,11 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const fireComplete = React.useCallback(() => {
     if (completeEmitted.current) return;
     completeEmitted.current = true;
+    setScreenBlackout(false);
+    if (interBeatTimerRef.current) {
+      clearTimeout(interBeatTimerRef.current);
+      interBeatTimerRef.current = null;
+    }
     onCompleteRef.current?.();
   }, []);
 
@@ -1242,11 +1254,20 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     const idx = beatIndexRef.current;
     if (beatEndedRef.current >= idx) return;
     beatEndedRef.current = idx;
+    // Soft fail: never leave a stuck black screen when video/chroma dies on mobile.
+    setScreenBlackout(false);
+    if (interBeatTimerRef.current) {
+      clearTimeout(interBeatTimerRef.current);
+      interBeatTimerRef.current = null;
+    }
     const beat = queueRef.current[idx];
-    if (beat?.syncChomp) fireChomp();
-    if (interBeatTimerRef.current) clearTimeout(interBeatTimerRef.current);
+    if (beat?.syncChomp && !chompEmitted.current) {
+      chompEmitted.current = true;
+      emitSharkBiteChomp();
+      onChompRef.current?.();
+    }
     advanceBeat();
-  }, [advanceBeat, fireChomp]);
+  }, [advanceBeat]);
 
   React.useEffect(() => {
     if (!active) {
@@ -1371,6 +1392,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       ? setTimeout(() => fireChomp(), biteSettings.fallbackVanishMs)
       : null;
     const absoluteMax = setTimeout(() => {
+      setScreenBlackout(false);
       fireChomp();
       fireComplete();
       setPhase(null);
@@ -1421,15 +1443,9 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
     const isLastBeat = beatIndex >= queueRef.current.length - 1;
     return portalToViewport(
       <>
-        {/* No standing scenery/mouth plate — chroma strips the chomp background;
-            full-screen black only at the climax via blackoutOverlay. */}
-        {screenBlackout ? (
-          <div
-            className="fixed inset-0 w-screen h-screen h-[100dvh] max-w-none max-h-none bg-black pointer-events-none"
-            style={{ zIndex: 54, left: 0, top: 0, width: "100vw", height: "100dvh" }}
-            aria-hidden
-          />
-        ) : null}
+        {/* Full-screen black only via blackoutOverlay (z56) after jaws close —
+            never a layer under the chroma canvas (that read as a stuck black
+            phone screen when the shark was off-frame / keyed out). */}
         <BlueGelPowerVideoScreen
           key={beatKey}
           active
@@ -1521,7 +1537,16 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
  */
 export function BlueGelSharkBiteCharge({ size, radius, count = 1, dieSeed = 0, children }) {
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ borderRadius: radius }}>
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      style={{
+        borderRadius: radius,
+        zIndex: 0,
+        transform: "translateZ(0)",
+        WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+        maskImage: "radial-gradient(white, black)",
+      }}
+    >
       <motion.div
         className="absolute inset-0"
         style={{ borderRadius: radius }}
@@ -1586,7 +1611,15 @@ export function SharkTankOverlay({
     <div
       className="absolute inset-0 pointer-events-none overflow-hidden"
       data-shark-overlay="tank"
-      style={{ borderRadius: radius }}
+      style={{
+        borderRadius: radius,
+        // iOS Safari: overflow:hidden + border-radius fails to clip transformed
+        // Framer Motion children — sharks leak out of the die and look huge/stuck.
+        zIndex: 0,
+        transform: "translateZ(0)",
+        WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+        maskImage: "radial-gradient(white, black)",
+      }}
     >
       <div
         className="absolute inset-0 opacity-40"
@@ -1741,7 +1774,16 @@ export function BlueGelSharkAttack({
     phase === "normal" ? 1 : phase === "bubble3" ? 1.65 : phase === "bubble2" ? 2.1 : 2.6;
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ borderRadius: radius }}>
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      style={{
+        borderRadius: radius,
+        zIndex: 0,
+        transform: "translateZ(0)",
+        WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+        maskImage: "radial-gradient(white, black)",
+      }}
+    >
       {/* Water tint — goes bloody after the eat and stays red */}
       <motion.div
         className="absolute inset-0"

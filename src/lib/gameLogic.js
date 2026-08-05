@@ -172,24 +172,46 @@ function sharkBiteDebuffOnly(player) {
 /**
  * Clear shark bite screen FX. Tray dice stay hidden until the next roll
  * (see rollDice clearing sharkDiceHidden).
+ * If bank deferred the turn for the bite (`pendingTurnAfterSharkBite`), advance now
+ * so local pass-and-play does not hand off mid-animation.
  */
 export function clearSharkBiteFx(state) {
   if (
     !state?.sharkBiteFx &&
     !state?.sharkFishFeast &&
     state?.sharkFishFeastTargetIdx == null &&
-    !state?.sharkDiceHidden
+    !state?.sharkDiceHidden &&
+    state?.pendingTurnAfterSharkBite == null
   ) {
     return state;
   }
-  return {
+  const pending =
+    typeof state.pendingTurnAfterSharkBite === "number"
+      ? state.pendingTurnAfterSharkBite
+      : null;
+  const next = {
     ...state,
     sharkBiteFx: false,
     sharkFishFeast: false,
     sharkFishFeastTargetIdx: null,
+    pendingTurnAfterSharkBite: null,
     // FX finished — put tray dice back immediately (do not leave skins vanished).
     sharkDiceHidden: false,
   };
+  if (
+    pending != null &&
+    pending !== state.currentIndex &&
+    Array.isArray(state.players) &&
+    state.players[pending]
+  ) {
+    return {
+      ...next,
+      currentIndex: pending,
+      message: `${state.players[pending].name}'s turn — roll the dice!`,
+      messageVariant: "info",
+    };
+  }
+  return next;
 }
 
 /** Restore tray dice after a shark bite (preview / next round). */
@@ -250,6 +272,7 @@ export function createInitialState(playerNames, options = {}) {
     sharkDiceHidden: false,
     sharkFishFeast: false,
     sharkFishFeastTargetIdx: null,
+    pendingTurnAfterSharkBite: null,
     storyIceFreeze: null,
     matrixGlitchArmed: null,
     matrixGlitchFx: false,
@@ -299,6 +322,7 @@ function beginStoryIceCasterTurn(state, casterIdx) {
     luckyRollNext: false,
     sharkDiceHidden: false,
     sharkBiteFx: false,
+    pendingTurnAfterSharkBite: null,
     ...turnPowerReset(),
     message: `${caster?.name}'s turn — enemy frozen!`,
     messageVariant: "info",
@@ -831,6 +855,7 @@ export function bankAndPass(state) {
       sharkDiceHidden: false,
       sharkFishFeast: false,
       sharkFishFeastTargetIdx: null,
+      pendingTurnAfterSharkBite: null,
       message: `🎉 ${winner.name} wins with ${winner.score.toLocaleString()}!`,
       messageVariant: "success",
     };
@@ -868,6 +893,7 @@ export function bankAndPass(state) {
       sharkDiceHidden: false,
       sharkFishFeast: false,
       sharkFishFeastTargetIdx: null,
+      pendingTurnAfterSharkBite: null,
       ...turnPowerReset(),
       message: stayMessage,
       messageVariant: variant,
@@ -876,10 +902,37 @@ export function bankAndPass(state) {
 
   const nextIndex = (finishedIdx + 1) % state.players.length;
   const bankMessage = chargeSaved ? `${message} ⚡ Power charge saved for your next turn.` : message;
+  // Hold the turn on the banker until Shark Bite FX finishes — then clearSharkBiteFx advances.
+  if (sharkBiteFx) {
+    return {
+      ...state,
+      players: playersAfterBank,
+      currentIndex: finishedIdx,
+      pendingTurnAfterSharkBite: nextIndex,
+      dice: makeFreshDice(),
+      turnScore: 0,
+      hasRolled: false,
+      farkle: false,
+      farkleTurnScore: null,
+      pendingPrisonRelease: null,
+      perfectTenKPending: false,
+      turnScoreMultiplier: 1,
+      doubleOrNothing: false,
+      luckyRollNext: false,
+      sharkBiteFx: true,
+      sharkDiceHidden: true,
+      sharkFishFeast: false,
+      sharkFishFeastTargetIdx: null,
+      ...turnPowerReset(),
+      message: bankMessage,
+      messageVariant: variant,
+    };
+  }
   return {
     ...state,
     players: playersAfterBank,
     currentIndex: nextIndex,
+    pendingTurnAfterSharkBite: null,
     dice: makeFreshDice(),
     turnScore: 0,
     hasRolled: false,
@@ -890,9 +943,8 @@ export function bankAndPass(state) {
     turnScoreMultiplier: 1,
     doubleOrNothing: false,
     luckyRollNext: false,
-    sharkBiteFx,
-    // Dice stay gone through FX; cleared when FX completes / next round is ready.
-    sharkDiceHidden: sharkBiteFx,
+    sharkBiteFx: false,
+    sharkDiceHidden: false,
     // Bank-steal Shark Bite is not Feeding Frenzy.
     sharkFishFeast: false,
     sharkFishFeastTargetIdx: null,
@@ -934,6 +986,7 @@ export function passAfterFarkle(state) {
     // Fresh turn for the next player — restore tray dice if a prior bite hid them.
     sharkDiceHidden: false,
     sharkBiteFx: false,
+    pendingTurnAfterSharkBite: null,
     ...turnPowerReset(),
     message: `${players[nextIndex].name}'s turn — roll the dice!`,
     messageVariant: "info",

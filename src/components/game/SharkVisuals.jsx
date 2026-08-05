@@ -146,11 +146,11 @@ const ORCA_VARIANT = SHARK_VARIANTS.find((v) => v.orca);
 const TIGER_VARIANT = SHARK_VARIANTS.find((v) => v.id === "tiger");
 const HAMMERHEAD_VARIANT = SHARK_VARIANTS.find((v) => v.id === "hammerhead");
 
-/** Killer whales are the biggest tank creatures — clearly larger than adult sharks. */
-const ORCA_SCALE_MULTIPLIER = 1.85;
-/** Die-face width fraction — great whites read clearly larger; orcas still wider. */
-const SHARK_WIDTH_FRAC = 0.66;
-const ORCA_WIDTH_FRAC = 0.72;
+/** Killer whales are larger than adult sharks, but must stay clip-friendly on mobile. */
+const ORCA_SCALE_MULTIPLIER = 1.35;
+/** Die-face width fraction — great whites read clearly; orcas still a bit wider. */
+const SHARK_WIDTH_FRAC = 0.58;
+const ORCA_WIDTH_FRAC = 0.64;
 /** Height/width of the swim box — orca taller for upright dorsal + fluke beat. */
 const SHARK_ASPECT = 0.40;
 const HAMMERHEAD_ASPECT = 0.36;
@@ -1206,7 +1206,13 @@ export function SharkCreature({
   };
 
   return (
-    <svg viewBox={viewBox} width={size} height={size} style={{ filter: shadow, overflow: "visible" }}>
+    <svg
+      viewBox={viewBox}
+      width={size}
+      height={size}
+      style={{ filter: shadow, overflow: "hidden" }}
+      preserveAspectRatio="xMidYMid meet"
+    >
       <defs>
         <linearGradient id={`shark-body-${v.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor={v.top} />
@@ -1496,14 +1502,18 @@ export function buildSharkTankCreatures(count, dieSeed = 0, powerMode = false) {
       n === 1
         ? 34 + seededUnit(hashSeed(slotSeed, "top")) * 14
         : 7 + (i * 80) / Math.max(1, n - 1) + (seededUnit(hashSeed(slotSeed, "lane")) - 0.5) * 10;
-    const duration =
+    const cruiseDur =
       7.4 +
       seededUnit(hashSeed(slotSeed, "dur")) * 5.6 +
       (variant.hammerhead ? 0.85 : 0) +
       (variant.orca ? 0.55 : 0) +
       (variant.age === "juvenile" ? -0.55 : 0) +
       (variant.age === "bull" ? 0.35 : 0);
-    const delay = -(seededUnit(hashSeed(slotSeed, "delay")) * 5.4 + i * 1.15);
+    const duration = Math.max(4.5, cruiseDur);
+    // Keep delay within one cruise cycle — large negative delays can freeze
+    // Framer Motion Infinity loops on iOS Safari.
+    const rawDelay = seededUnit(hashSeed(slotSeed, "delay")) * 5.4 + i * 1.15;
+    const delay = -(((rawDelay % duration) + duration) % duration);
     const pathStyle = seededIndex(hashSeed(slotSeed, "path"), 3);
     // Orcas: strong vertical cruise bob (fluke propulsion) — obvious whale swim, not static.
     const swayFrac =

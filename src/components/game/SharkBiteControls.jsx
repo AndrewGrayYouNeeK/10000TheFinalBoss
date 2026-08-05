@@ -260,7 +260,9 @@ export default function SharkBiteControls({
             step={90}
             format={(v) => `${Math.round(v)}°`}
             hint="Fix sideways phone uploads. Try 90° or -90° if the shark appears on its side."
-            onChange={(videoRotationDeg) => update({ videoRotationDeg })}
+            onChange={(videoRotationDeg) =>
+              update({ videoRotationDeg, _userSetChompRotation: true })
+            }
           />
           <label className="flex items-center gap-2 text-[11px] text-slate-300">
             <input

@@ -15,6 +15,53 @@ If you use Cursor agents to edit code, run `npm run dev` yourself in a normal Te
 
 Optional: copy `.env.example` to `.env.local` for local overrides (not required).
 
+## Web hosting (Cloudflare Pages)
+
+- Live now: **https://roll10000.pages.dev**
+- Custom domain (after DNS below): **https://www.roll10000.com**
+
+| Setting | Value |
+|---------|-------|
+| Pages project | `roll10000` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Node | 20 |
+| SPA fallback | `public/_redirects` → `/* /index.html 200` |
+
+### DNS for www.roll10000.com
+
+The Pages project is on the Cloudflare account used for deploy. The `roll10000.com` **zone** must point at that project. In the Cloudflare dashboard where **Websites → roll10000.com** appears, add (or fix) these DNS records (Proxied / orange cloud):
+
+| Type | Name | Target |
+|------|------|--------|
+| CNAME | `www` | `roll10000.pages.dev` |
+| CNAME | `@` (apex) | `roll10000.pages.dev` |
+
+Optional: a Redirect Rule so `https://roll10000.com` → `https://www.roll10000.com`.
+
+Until those CNAMEs exist, custom-domain SSL stays pending (`CNAME record not set`). The `*.pages.dev` URL works immediately.
+
+### Public site vs creator tools
+
+Do **not** put Cloudflare Access on the whole domain — that blocks players with a Cloudflare login. Instead, creator tools are gated in-app with `VITE_LAB_GATE_PASSWORD` (see `.env.example`).
+
+Protected routes (password wall in production): Sprite Lab, Felt Lab, Ice/Shark labs, Video Assets, Fish Showcase, Preview Dice.
+
+Stay public for players: Shop, Game, Story, Held Style, Soundwave Mic, etc.
+
+- Local `npm run dev`: labs unlock automatically.
+- Production: set `VITE_LAB_GATE_PASSWORD` in `.env.local` (or Pages env), rebuild, deploy; open `/sprite-lab` and enter the password (session unlock for that tab).
+
+If `roll10000.com` still shows **Sign in · Cloudflare Access**, remove the Access application for that hostname in the **youneekartifacts** Zero Trust dashboard (Access → Applications).
+
+### Deploy updates
+
+```bash
+npm run build && npx wrangler pages deploy dist --project-name=roll10000
+```
+
+Or connect the GitHub repo in **Workers & Pages → roll10000 → Settings → Builds** for auto-deploy on push to `main`.
+
 ## Scripts
 
 | Command | Description |

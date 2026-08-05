@@ -196,7 +196,7 @@ export default function StoryGame() {
   const [frozenDiceReveal, setFrozenDiceReveal] = useState(false);
   const frozenRevealTimerRef = useRef(null);
   const practiceSharkBiteRef = useRef(false);
-  /** Victim tray snapshot while Shark Bite FX plays (bank advances turn before FX ends). */
+  /** Victim tray snapshot while Shark Bite FX plays (turn advances after FX completes). */
   const biteTrayFreezeRef = useRef(null);
   const [biteTrayFreeze, setBiteTrayFreeze] = useState(null);
 

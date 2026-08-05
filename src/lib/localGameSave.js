@@ -40,13 +40,28 @@ export function isFreshUnstartedGame(game) {
  */
 export function sanitizeRestoredGame(game) {
   if (!game || typeof game !== "object") return game;
-  return {
+  const pending =
+    typeof game.pendingTurnAfterSharkBite === "number"
+      ? game.pendingTurnAfterSharkBite
+      : null;
+  const next = {
     ...game,
     sharkBiteFx: false,
     sharkDiceHidden: false,
     matrixGlitchFx: false,
     matrixGlitchDieIds: [],
+    pendingTurnAfterSharkBite: null,
   };
+  // Mid-bite save: apply deferred handoff so restore does not leave the banker stuck.
+  if (
+    pending != null &&
+    pending !== game.currentIndex &&
+    Array.isArray(game.players) &&
+    game.players[pending]
+  ) {
+    next.currentIndex = pending;
+  }
+  return next;
 }
 
 /** Prefer keeping the richer mid-match save when an HMR remount races a fresh board. */
