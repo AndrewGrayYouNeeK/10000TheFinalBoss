@@ -139,3 +139,18 @@ export function hasResumableLocalGame() {
   const saved = loadLocalGame();
   return !!(saved && (saved.game || saved.rollOffSetup));
 }
+
+/** Repopulate session roster from localStorage when the tab session was cleared. */
+export function ensureSessionPlayersFromSave() {
+  try {
+    const existing = sessionStorage.getItem("dice10k_players");
+    if (existing) return existing;
+    const saved = loadLocalGame();
+    if (!saved?.playerNames?.length) return null;
+    const json = JSON.stringify(saved.playerNames);
+    sessionStorage.setItem("dice10k_players", json);
+    return json;
+  } catch {
+    return null;
+  }
+}

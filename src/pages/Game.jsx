@@ -83,6 +83,7 @@ import { xrayRevealsVisible } from "@/lib/xrayScan";
 import { Link } from "react-router-dom";
 import {
   clearLocalGame,
+  ensureSessionPlayersFromSave,
   isFreshUnstartedGame,
   loadLocalGame,
   namesMatch,
@@ -94,7 +95,7 @@ function readBootLocalSnapshot(previewSharkBite) {
   if (typeof window === "undefined" || previewSharkBite) return null;
   try {
     if (readOnlineMockSession()) return null;
-    const stored = sessionStorage.getItem("dice10k_players");
+    const stored = ensureSessionPlayersFromSave();
     if (!stored) return null;
     const names = JSON.parse(stored);
     if (!Array.isArray(names) || names.length === 0) return null;
@@ -207,6 +208,9 @@ export default function Game() {
     if (!stored && previewSharkBite) {
       stored = JSON.stringify(["You", "Rival"]);
       sessionStorage.setItem("dice10k_players", stored);
+    }
+    if (!stored) {
+      stored = ensureSessionPlayersFromSave();
     }
     if (!stored) {
       navigate("/setup");
