@@ -1,0 +1,13 @@
+---
+description: "Shark Bite chomp must not paint a black mouth circle"
+alwaysApply: false
+---
+
+# Shark Bite No Mouth Black Circle
+
+Do NOT call fillMouthInteriorBlack / paint opaque black ellipses into Shark Bite chomp jaws. User wants no black circle in the mouth — chroma plate strip only. fillMouthInteriorBlack setting defaults false; layout pass V9 forces it off. Leave video assets untouched.
+
+## Verification
+- Verified: fillMouthInteriorBlack function removed from ChromaKeyVideo; default fillMouthInteriorBlack false; npm run lint && npm run build exited 0
+- Failure pattern avoided: Chomp shark shows a solid black circle/ellipse in the open mouth
+- Dead-end ruled out: Keeping fillMouthInteriorBlack ellipse overlay after chroma (prior mouth-black-fill rule)

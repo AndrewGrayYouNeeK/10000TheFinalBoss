@@ -5,7 +5,6 @@
 const STORAGE_KEY = "dice10k_shark_bite_settings_v2";
 const PREV_STORAGE_KEY = "dice10k_shark_bite_settings_v1";
 const LEGACY_PLAYBACK_KEY = "dice10k_blue_gel_playback_v1";
-const SHARK_SETTINGS_MIGRATION_VERSION = 4;
 
 /** Saved crops to reset — old weak pan, then aggressive crop that cut the shark out. */
 const LEGACY_BAD_SOURCE_CROPS = [
@@ -32,14 +31,18 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
 
   /** Chomp horizontal nudge — fraction of viewport width (positive = right). 0 = centered. */
   offsetX: 0,
-  /** Intro swim-in horizontal nudge — separate from chomp. */
-  introOffsetX: 0.06,
+  /**
+   * Intro swim-in horizontal nudge — separate from chomp.
+   * Positive = right. Large right bias so jaws cover the full dice tray.
+   * Applied as drawX += viewportWidth * introOffsetX on the intro chroma blit.
+   */
+  introOffsetX: 0.5,
   /** Chomp clip vertical nudge — fraction of viewport height (positive = down). */
   offsetY: 0,
   /** Intro swim-in clip vertical nudge — fraction of viewport height (positive = down). */
   introOffsetY: 0,
-  /** Clip progress (0–1) when tray dice vanish / chomp fires — aim for jaws over the tray. */
-  chompProgress: 0.72,
+  /** Clip progress (0–1) when tray dice vanish / chomp fires — aim for jaws closing. */
+  chompProgress: 0.52,
   /** Clip progress where end fade begins (non-queue path). */
   fadeStart: 0.96,
   /**
@@ -47,6 +50,23 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
    * it plays through so the shark fills the screen.
    */
   exitPanStart: 0.88,
+  /**
+   * Chomp beat enter-pan end (0–1). Kept for lab compat — chomp no longer
+   * slides in from the side (enterFromSide is off).
+   */
+  enterPanEnd: 0.34,
+  /** How long full-screen black holds after jaws close before FX teardown (ms). */
+  blackoutHoldMs: 1400,
+  /**
+   * When true, paint opaque black into chomp jaw cavities after chroma.
+   * Default OFF — open mouth stays keyed transparent (no black circle overlay).
+   */
+  fillMouthInteriorBlack: false,
+  /** Legacy ellipse params (only used when fillMouthInteriorBlack is true). */
+  mouthBlackCx: 0.52,
+  mouthBlackCy: 0.48,
+  mouthBlackRx: 0.3,
+  mouthBlackRy: 0.24,
   /** Clip progress where playback stops (1 = play to end). Trims tail content. */
   stopAtProgress: 1,
   /**
@@ -59,12 +79,12 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   introVideoRotationDeg: 0,
   /** When true and stored frames are portrait (h > w), auto-apply 90° rotation. */
   autoRotatePortrait: true,
-  /** Extra viewport-width slide during intro exit pan (at progress 1). */
-  exitPanExtra: 1.25,
+  /** Extra viewport/frame slide during intro exit pan (at progress 1). */
+  exitPanExtra: 1.65,
   /** Exit slide direction: -1 = left (off-screen), +1 = right. */
   exitPanDirection: -1,
-  /** Pause between intro swim-in ending and chomp starting (ms). */
-  interBeatMs: 400,
+  /** Pause between intro swimming off-screen and chomp re-entering (ms). */
+  interBeatMs: 450,
 
   /** Ms before fullscreen bite after FX activates (after in-die feast). */
   preSwimMs: 280,
@@ -77,8 +97,11 @@ export const DEFAULT_SHARK_BITE_SETTINGS = {
   /** Safety timeout if chomp event never fires. */
   fallbackVanishMs: 10000,
 
-  /** Cover scale for fullscreen chroma canvas (1 = fit, >1 = zoom in). */
-  videoScale: 1.18,
+  /**
+   * Extra zoom on top of cover-fit for fullscreen chroma canvas.
+   * 1 = exact cover; >1 crops in for a tighter shark fill.
+   */
+  videoScale: 1.08,
   /** Unused when vertically centered — kept for lab slider compatibility. */
   verticalOffset: 0,
 
@@ -134,15 +157,19 @@ function applyTimingMigration(parsed) {
 /** One-time reset for saved crops that matched broken or aggressive defaults. */
 function applySourceCropMigration(parsed) {
   if (!parsed || typeof parsed !== "object") return parsed;
+  const px = Number(parsed.sourcePanX);
+  const py = Number(parsed.sourcePanY);
+  const zoom = Number(parsed.sourceZoom);
+  const wrongSign = (Number.isFinite(px) && px > 0) || (Number.isFinite(py) && py > 0);
   const matchesLegacy = LEGACY_BAD_SOURCE_CROPS.some(
     (crop) =>
       near(parsed.sourceZoom, crop.sourceZoom) &&
       near(parsed.sourcePanX, crop.sourcePanX) &&
       near(parsed.sourcePanY, crop.sourcePanY)
   );
-  // Positive pans and deeper crops are legal lab values. Only migrate the
-  // exact broken presets that shipped previously.
-  if (!matchesLegacy) return parsed;
+  const aggressiveCrop =
+    Number.isFinite(zoom) && zoom > 1.05 && (px <= -0.5 || py <= -0.5);
+  if (!wrongSign && !matchesLegacy && !aggressiveCrop) return parsed;
   return {
     ...parsed,
     sourceZoom: DEFAULT_SHARK_BITE_SETTINGS.sourceZoom,
@@ -172,7 +199,9 @@ function applyLayoutPassV3(parsed) {
   const next = { ...parsed, _sharkLayoutPassV3: true };
   if (near(next.offsetX, 0.18)) next.offsetX = DEFAULT_SHARK_BITE_SETTINGS.offsetX;
   if (next.introOffsetX == null) next.introOffsetX = DEFAULT_SHARK_BITE_SETTINGS.introOffsetX;
-  if (near(next.chompProgress, 0.78)) next.chompProgress = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
+  if (near(next.chompProgress, 0.78) || near(next.chompProgress, 0.72)) {
+    next.chompProgress = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
+  }
   if (near(next.fadeStart, 0.93)) next.fadeStart = DEFAULT_SHARK_BITE_SETTINGS.fadeStart;
   if (near(next.exitPanStart, 0.93)) next.exitPanStart = DEFAULT_SHARK_BITE_SETTINGS.exitPanStart;
   if (near(next.exitPanExtra, 1.1)) next.exitPanExtra = DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
@@ -183,21 +212,130 @@ function applyLayoutPassV3(parsed) {
   return next;
 }
 
+/**
+ * Cover-fit pass: bump intro exit distance + videoScale left at old contain-era defaults.
+ * Does not reset custom lab tuning.
+ */
+function applyLayoutPassV4(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV4) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV4: true };
+  if (near(next.exitPanExtra, 1.25) || near(next.exitPanExtra, 1.1)) {
+    next.exitPanExtra = DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
+  }
+  if (near(next.videoScale, 1.18) || near(next.videoScale, 1.08)) {
+    next.videoScale = DEFAULT_SHARK_BITE_SETTINGS.videoScale;
+  }
+  return next;
+}
+
+/** Chomp sync pass: jaws close earlier than the old 0.72/0.78 defaults. */
+function applyLayoutPassV5(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV5) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV5: true };
+  if (near(next.chompProgress, 0.78) || near(next.chompProgress, 0.72)) {
+    next.chompProgress = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
+  }
+  return next;
+}
+
+/**
+ * Once-only motion pass: shorter intro→chomp gap, earlier vanish, enter-pan defaults.
+ * Only rewrites values still stuck on prior shipped defaults.
+ */
+function applyLayoutPassV6(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV6) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV6: true };
+  if (near(next.interBeatMs, 3000)) {
+    next.interBeatMs = DEFAULT_SHARK_BITE_SETTINGS.interBeatMs;
+  }
+  if (
+    near(next.chompProgress, 0.78) ||
+    near(next.chompProgress, 0.72) ||
+    near(next.chompProgress, 0.58)
+  ) {
+    next.chompProgress = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
+  }
+  if (next.enterPanEnd == null) {
+    next.enterPanEnd = DEFAULT_SHARK_BITE_SETTINGS.enterPanEnd;
+  }
+  return next;
+}
+
+/**
+ * Intro right-shift + longer climax blackout. Only bumps prior shipped defaults.
+ */
+function applyLayoutPassV7(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV7) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV7: true };
+  if (near(next.introOffsetX, 0.06) || next.introOffsetX == null) {
+    next.introOffsetX = DEFAULT_SHARK_BITE_SETTINGS.introOffsetX;
+  }
+  if (next.blackoutHoldMs == null || near(next.blackoutHoldMs, 0, 1)) {
+    next.blackoutHoldMs = DEFAULT_SHARK_BITE_SETTINGS.blackoutHoldMs;
+  }
+  return next;
+}
+
+/** Stronger intro right bias so the first shark covers the full dice tray. */
+function applyLayoutPassV8(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV8) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV8: true };
+  if (
+    near(next.introOffsetX, 0.06) ||
+    near(next.introOffsetX, 0.2) ||
+    next.introOffsetX == null
+  ) {
+    next.introOffsetX = DEFAULT_SHARK_BITE_SETTINGS.introOffsetX;
+  }
+  return next;
+}
+
+/**
+ * Intro still looked centered because canvas object-fit:cover re-cropped the
+ * blit — bump prior shipped intro offsets (0.06 / 0.20 / 0.36) to the new
+ * large right default, and force mouth black fill off.
+ */
+function applyLayoutPassV9(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed._sharkLayoutPassV9) return parsed;
+  const next = { ...parsed, _sharkLayoutPassV9: true };
+  if (
+    near(next.introOffsetX, 0.06) ||
+    near(next.introOffsetX, 0.2) ||
+    near(next.introOffsetX, 0.36) ||
+    next.introOffsetX == null
+  ) {
+    next.introOffsetX = DEFAULT_SHARK_BITE_SETTINGS.introOffsetX;
+  }
+  // Mouth black circle removed — do not keep prior ellipse fill on.
+  next.fillMouthInteriorBlack = false;
+  return next;
+}
+
 function parseStoredSettings(raw) {
   const parsed = JSON.parse(raw);
-  if (Number(parsed?._sharkSettingsMigrationVersion) >= SHARK_SETTINGS_MIGRATION_VERSION) {
-    return {
-      ...DEFAULT_SHARK_BITE_SETTINGS,
-      ...parsed,
-    };
-  }
-  const migrated = applyLayoutPassV3(
-    applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed)))
-  );
   return {
     ...DEFAULT_SHARK_BITE_SETTINGS,
-    ...migrated,
-    _sharkSettingsMigrationVersion: SHARK_SETTINGS_MIGRATION_VERSION,
+    ...applyLayoutPassV9(
+      applyLayoutPassV8(
+        applyLayoutPassV7(
+          applyLayoutPassV6(
+            applyLayoutPassV5(
+              applyLayoutPassV4(
+                applyLayoutPassV3(
+                  applyChompRotationMigration(applyTimingMigration(applySourceCropMigration(parsed)))
+                )
+              )
+            )
+          )
+        )
+      )
+    ),
   };
 }
 
@@ -207,7 +345,16 @@ export function loadSharkBiteSettings() {
     if (raw) {
       const next = parseStoredSettings(raw);
       try {
-        if (JSON.stringify(next) !== raw) {
+        const parsed = JSON.parse(raw);
+        if (
+          !parsed._sharkLayoutPassV3 ||
+          !parsed._sharkLayoutPassV4 ||
+          !parsed._sharkLayoutPassV5 ||
+          !parsed._sharkLayoutPassV6 ||
+          !parsed._sharkLayoutPassV7 ||
+          !parsed._sharkLayoutPassV8 ||
+          !parsed._sharkLayoutPassV9
+        ) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         }
       } catch {
@@ -229,15 +376,7 @@ export function loadSharkBiteSettings() {
     }
 
     const migrated = migrateLegacyPlayback(localStorage.getItem(LEGACY_PLAYBACK_KEY));
-    if (migrated) {
-      const next = {
-        ...DEFAULT_SHARK_BITE_SETTINGS,
-        ...migrated,
-        _sharkSettingsMigrationVersion: SHARK_SETTINGS_MIGRATION_VERSION,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    }
+    if (migrated) return { ...DEFAULT_SHARK_BITE_SETTINGS, ...migrated };
     return { ...DEFAULT_SHARK_BITE_SETTINGS };
   } catch {
     return { ...DEFAULT_SHARK_BITE_SETTINGS };

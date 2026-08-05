@@ -1,0 +1,13 @@
+---
+description: "Shark Bite fullscreen chomp must cover-fit the viewport"
+alwaysApply: false
+---
+
+# Shark Bite Fullscreen Cover Fit
+
+For SharkBiteScreenFX / ChromaKeyVideo fullViewport blits, use Math.max (cover) not Math.min (contain), especially when catalog chomp is rotated 90°. Keep the portal root at fixed inset-0 100vw/100dvh with no max-width and no radial mask. Intro swim-in must enable exit pan (skipExitPan only for non-intro chomp beats) with exit distance based on max(viewport, drawW).
+
+## Verification
+- Verified: npm run lint && npm run build exited 0 after cover-fit + intro exit pan fixes
+- Failure pattern avoided: Fullscreen shark bite video looks inset/letterboxed on desktop despite 100vw/100dvh canvas
+- Dead-end ruled out: Assuming portal/CSS sizing alone was wrong — canvas already filled viewport; contain-fit on rotated clips caused side letterboxing

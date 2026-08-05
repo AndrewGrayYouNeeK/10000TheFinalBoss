@@ -1,0 +1,13 @@
+---
+description: "Shark Bite introOffsetX must use object-fit fill not cover"
+alwaysApply: false
+---
+
+# Shark Bite Intro Offset Object Fit
+
+For SharkBite ChromaKeyVideo fullscreen blits, never set canvas CSS object-fit:cover. Cover re-crops the bitmap from center and cancels drawX nudges from introOffsetX/layoutOffsetX. Use objectFit:fill (or omit). Intro must pass introOffsetX into layoutOffsetX; resolve offset with rotationSlot===intro fallback to bs.introOffsetX. Prove live values via canvas dataset.layoutOffsetX / dataset.drawX. Default introOffsetX ~0.5; migrate prior 0.06/0.20/0.36 via layout pass.
+
+## Verification
+- Verified: drawX formula check (+500px at 0.5 on 1000vw); objectFit cover→fill; default introOffsetX 0.5; npm run lint && npm run build exited 0
+- Failure pattern avoided: Changing introOffsetX 0.06→0.20→0.36 looked like no on-screen move
+- Dead-end ruled out: Raising DEFAULT introOffsetX alone while canvas CSS object-fit:cover re-centered the blit bitmap
