@@ -1,0 +1,23 @@
+---
+description: "Deploy YouNeeK to Cloudflare Pages roll10000 / www.roll10000.com"
+alwaysApply: false
+---
+
+# Cloudflare Pages roll10000 deploy
+
+Pages project is `roll10000` on account e69aee7ddf337a9804cded3e3012aa00 (andrewgray@usedartifacts.com).
+
+Deploy: `npx wrangler login` once, then `npm run deploy:web` (or `npx wrangler pages deploy dist --project-name=roll10000`).
+
+`www.roll10000.com` is Active on the Pages project. Apex `roll10000.com` is Pending until DNS `@` exists.
+
+The zone uses Cloudflare nameservers (brett/riya.ns.cloudflare.com) but is **not** in this Pages account (zone list is empty). Add apex CNAME `@` → `roll10000.pages.dev` (proxied) in the Cloudflare account that owns the zone, then optional Redirect Rule apex → www.
+
+SPA needs `public/_redirects` with `/* /index.html 200`.
+
+Do not invent A-record IPs for Pages custom domains.
+
+## Verification
+- Verified: wrangler pages deploy succeeded; curl https://www.roll10000.com and https://roll10000.pages.dev returned 200; www domain status active
+- Failure pattern avoided: Apex roll10000.com NXDOMAIN while www works
+- Dead-end ruled out: Creating apex DNS via Pages-account API when the zone lives on a different Cloudflare account
