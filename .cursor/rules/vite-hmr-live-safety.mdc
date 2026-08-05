@@ -1,0 +1,39 @@
+---
+description: Vite + React + Three.js HMR and live play-test safety for the dice game
+alwaysApply: true
+---
+
+# VITE + REACT + THREE.JS LIVE SAFETY (CRITICAL)
+
+The user is frequently play-testing the 3D dice game live in the browser (localhost:5173). Full page reloads destroy progress, selected skins, and debugging state. These rules have highest priority.
+
+## 1. Never force a full page reload while the user is testing
+- Prefer the smallest possible change that Vite can hot-update.
+- Do not restart the Vite dev server or kill processes.
+- Avoid changes that touch the root entry point, main Three.js scene setup, or files that Vite treats as non-HMR-safe unless absolutely necessary.
+- If a change will cause a full reload, **warn the user first** and ask for confirmation.
+
+## 2. Three.js scene & renderer cleanup
+- When editing the dice rendering code, always ensure the old renderer, scene, camera, and animation loop are properly disposed on HMR.
+- Prefer updating materials, textures, or dice meshes in place instead of recreating the entire scene when possible.
+- Never leave orphaned WebGL contexts or multiple canvases.
+
+## 3. Skins / sprites / assets (highest priority)
+- Skins and dice textures live in the project assets and are referenced from code + stored in localStorage via `src/lib/localProfile.js`.
+- **NEVER overwrite, regenerate, delete, or “improve” existing skin/texture image files** unless the user explicitly names the exact file and confirms.
+- Only change the code that *selects* or *applies* the skin (the mapping, the material assignment, the localStorage key, etc.).
+- If a new skin variant is needed, create a brand-new file. Do not modify existing ones.
+- After any skin-related change, remind the user that localStorage may still hold the previous selection and how to force a refresh of the skin if needed.
+
+## 4. Persistence awareness
+- Player progress (coins, XP, selected skins, felt tuning) is stored in localStorage through `src/lib/localProfile.js`.
+- Do not clear, overwrite, or reset localStorage keys unless the user explicitly asks to reset progress.
+- When debugging skin application, check both the code path and what is currently saved in localStorage.
+
+## 5. When the user says “it refreshed and everything reset” or “my skins are gone”
+- Treat it as a high-priority failure.
+- Investigate whether the last edit forced a full reload or touched an asset file.
+- Fix the root cause before doing any other work.
+- Summarize exactly which files were changed and whether a full reload is expected.
+
+These rules override normal agent behavior. Violating them wastes the user’s live testing progress.
