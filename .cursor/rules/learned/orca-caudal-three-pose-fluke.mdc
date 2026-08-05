@@ -1,0 +1,13 @@
+---
+description: "Orca caudal matches all three IMG_2273 poses"
+alwaysApply: false
+---
+
+# Orca Caudal Three Pose Fluke
+
+In SharkVisuals OrcaBody caudal, measure IMG_2273 all three poses: beefy peduncle wrist ~28-35% mid-body depth into a chunky side-profile crescent (~±3.8 root), not fat top-down leaf and not ~2u ultra-thin blade. Animate rear-third undulation + fluke rotate tip-down / near-flat / tip-up; scaleY opens planform on upstroke.
+
+## Verification
+- Verified: npm run lint && npm run build passed after rewriting OrcaBody caudal from measured IMG_2273 proportions
+- Failure pattern avoided: Using either failed fat-leaf paddle or failed ultra-thin edge-on sliver for orca flukes
+- Dead-end ruled out: Assuming side-view flukes must be a 2u horizontal blade per prior learned rule — contradicted by all three reference poses

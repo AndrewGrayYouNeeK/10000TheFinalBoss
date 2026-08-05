@@ -1,0 +1,13 @@
+---
+description: "Keep classic_white out of getSkinPower hash fallback"
+alwaysApply: false
+---
+
+# Classic white has no hash-pool skin power
+
+Unmapped skins in getSkinPower use a stable string-hash into LOCAL_POWER_POOL. classic_white is intentionally unmapped and must stay in NO_POWER_SKIN_IDS so getSkinPower returns null (SkinPowerPanel already hides when !skinPower). Keep Siphon retired only; do not reintroduce it for this fix.
+
+## Verification
+- Verified: npm run lint && npm run build exit 0; classic_white in NO_POWER_SKIN_IDS returns null; SkinPowerPanel gates on !skinPower
+- Failure pattern avoided: classic_white fell through getSkinPower hash fallback and showed a secret PowerSlot on starter dice
+- Dead-end ruled out: Do not invent a SKIN_POWER_MAP entry for classic_white or edit powers.js Siphon/pool — return null via NO_POWER_SKIN_IDS

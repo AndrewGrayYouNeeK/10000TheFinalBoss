@@ -37,6 +37,14 @@ import {
   subscribeSharkBiteSettings,
   sharkBiteClipProgress,
 } from "@/lib/sharkBiteSettings";
+import {
+  buildSharkTankCreatures,
+  SharkTankBloodFlash,
+  SharkTankFishSkeleton,
+  SwimmingShark,
+  useSharkTankRivalry,
+} from "@/components/game/SharkVisuals";
+import { AquariumBubbles, aquariumBubbleCount } from "@/components/game/AquariumBubbles";
 import { applyVideoStartOffset, bindVideoMuteAt } from "@/lib/videoAudio";
 
 /** Live-updating chroma-key settings for the shark video. */
@@ -1339,6 +1347,116 @@ export function BlueGelSharkBiteCharge({ size, radius, count = 1, children }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Shark Tank's in-die aquarium — mostly great whites + seeded orcas,
+ * rare tiger/hammerhead, seeded swim paths, and occasional rivalry attacks.
+ */
+export function SharkTankOverlay({
+  size,
+  radius,
+  count = 1,
+  dieSeed = 0,
+  frozen = false,
+  powerMode = false,
+}) {
+  const tankSize = Number(size) || 64;
+  const requestedCount = Math.floor(Number(count));
+  const sharkCount = Math.max(
+    1,
+    Math.min(6, Number.isFinite(requestedCount) ? requestedCount : 1)
+  );
+  const sharks = React.useMemo(
+    () => buildSharkTankCreatures(sharkCount, dieSeed, powerMode && !frozen),
+    [sharkCount, dieSeed, powerMode, frozen]
+  );
+  const { attack, bloodVisible, skeleton } = useSharkTankRivalry({
+    active: !frozen && sharkCount >= 2,
+    dieSeed,
+    sharkCount,
+  });
+  const biteLanded = Boolean(attack?.biteLanded);
+  const skeletonTop =
+    skeleton != null
+      ? Number(sharks[skeleton.victimIdx]?.top) || 42
+      : 42;
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      data-shark-overlay="tank"
+      style={{ borderRadius: radius }}
+    >
+      <div
+        className="absolute inset-0 opacity-40"
+        style={{
+          background:
+            "radial-gradient(ellipse at 28% 18%, rgba(148,163,184,0.18) 0%, transparent 44%), radial-gradient(ellipse at 72% 78%, rgba(8,145,178,0.28) 0%, transparent 54%), radial-gradient(ellipse at 50% 100%, rgba(15,23,42,0.35) 0%, transparent 62%)",
+        }}
+      />
+
+      {!frozen ? (
+        <AquariumBubbles
+          size={tankSize}
+          count={sharkCount}
+          dieSeed={dieSeed}
+          theme={bloodVisible ? "blood" : "shark"}
+          density="normal"
+          salt={bloodVisible ? "shark-tank-blood" : "shark-tank"}
+          riseMult={1.15}
+        />
+      ) : null}
+
+      {sharks.map((shark, index) => {
+        const isAttacker = attack?.attackerIdx === index;
+        const isVictim = attack?.victimIdx === index;
+        const victimTop = isAttacker ? sharks[attack.victimIdx]?.top : shark.top;
+        const lungeLaneDelta = isAttacker ? (Number(victimTop) || 40) - shark.top : 0;
+        return (
+          <SwimmingShark
+            key={shark.id}
+            size={tankSize}
+            top={shark.top}
+            duration={shark.duration}
+            delay={shark.delay}
+            dir={shark.dir}
+            scale={shark.scale}
+            variant={shark.variant}
+            frozen={frozen}
+            chomping={shark.chomping || isAttacker}
+            showTeeth={shark.showTeeth}
+            scary={shark.scary || isAttacker}
+            pathStyle={shark.pathStyle}
+            swayFrac={shark.swayFrac}
+            bodyRoll={shark.bodyRoll}
+            attacking={isAttacker}
+            telegraphing={isVictim && !biteLanded}
+            recoiling={isVictim && biteLanded}
+            attackKey={attack?.id || 0}
+            lungeLaneDelta={lungeLaneDelta}
+          />
+        );
+      })}
+
+      {!frozen && skeleton ? (
+        <SharkTankFishSkeleton
+          size={tankSize}
+          topPct={skeletonTop}
+          driftDir={skeleton.driftDir}
+          animKey={skeleton.id}
+        />
+      ) : null}
+
+      <SharkTankBloodFlash
+        size={tankSize}
+        radius={radius}
+        active={bloodVisible && !frozen}
+        count={sharkCount}
+        dieSeed={dieSeed}
+      />
     </div>
   );
 }

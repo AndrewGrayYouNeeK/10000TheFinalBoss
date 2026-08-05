@@ -25,8 +25,9 @@ import {
   BlueGelSharkBiteCharge,
   BloodPowerFx,
   BloodyWaterTint,
-  skinUsesBloodPowerFx,
+  SharkTankOverlay,
 } from "./BlueGelPowerFX";
+import { skinUsesBloodPowerFx } from "@/lib/skinPowerVisuals";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
 import IcePowerOverlay from "./IcePowerOverlay";
 import { isFreezeOverlayImmuneSkin } from "@/lib/icePowerSettings";
@@ -299,6 +300,7 @@ function Die({
   const freezeImmune =
     isFreezeOverlayImmuneSkin(effectiveSkinId) && !labForceFreezeOverlay;
   const icePowerActive = iceFrozenOverlay && !reduceEffects && !freezeImmune;
+  const isSharkTank = effectiveSkinId === "shark_gel";
   const iceOverlayActive = icePowerActive || levelFrostActive;
   const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
   const isBlueGelTank = effectiveSkinId === "blue_gel";
@@ -771,6 +773,78 @@ function Die({
                 }}
               />
             </>
+        )}
+
+        {/* Default power move for skins without dedicated power visuals — bloody water */}
+        {showBloodPowerFx ? (
+          <BloodPowerFx
+            size={size}
+            radius={radius}
+            count={value}
+            locked={bloodWaterLocked}
+            onSettled={onBloodWaterSettled}
+          />
+        ) : null}
+
+        {/* Shark Tank — separate dark aquarium skin; Blue Gel/Angelfish stays untouched. */}
+        {isSharkTank && (
+          <>
+            <div
+              className="absolute inset-0 pointer-events-none z-0"
+              style={{
+                background:
+                  "linear-gradient(160deg, rgba(100,116,139,0.68) 0%, rgba(14,116,144,0.78) 38%, rgba(15,23,42,0.9) 72%, rgba(2,6,23,0.96) 100%)",
+              }}
+            />
+            <div className="absolute inset-0 z-[1] pointer-events-none">
+              <SharkTankOverlay
+                size={size}
+                radius={radius}
+                count={value}
+                dieSeed={effectDieSeed}
+                frozen={icePowerActive}
+                powerMode={powerMode && !reducePowerPresentation}
+              />
+            </div>
+            {showAquamarineShell ? (() => {
+              const { xNudge, yNudge } = resolveBlueGelShellNudges(
+                value,
+                size,
+                liveBlueGelSettings
+              );
+              const aquaForShell = {
+                ...aquamarineShellSkin,
+                spriteCrop: getBlueGelShellCrop(
+                  aquamarineShellSkin?.spriteCrop,
+                  liveBlueGelSettings
+                ),
+              };
+              const shellStyle = getAquamarineShellStyle(
+                aquaForShell,
+                value,
+                size,
+                { xNudge, yNudge }
+              );
+              return (
+                <div
+                  className="absolute pointer-events-none z-[2]"
+                  style={{
+                    backgroundImage: `url(${assetUrl(aquamarineShellSkin.spriteUrl)})`,
+                    opacity: 0.58,
+                    mixBlendMode: "multiply",
+                    ...shellStyle,
+                  }}
+                />
+              );
+            })() : null}
+            <div
+              className="absolute inset-0 pointer-events-none z-[3]"
+              style={{
+                boxShadow:
+                  "inset 0 0 0 2px rgba(148,163,184,0.55), inset 0 -8px 16px rgba(0,0,0,0.42), inset 0 4px 8px rgba(255,255,255,0.25), inset 0 0 12px rgba(220,38,38,0.12)",
+              }}
+            />
+          </>
         )}
 
         {/* Default power move for skins without dedicated power visuals — bloody water */}
