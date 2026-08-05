@@ -17,7 +17,7 @@ Optional: copy `.env.example` to `.env.local` for local overrides (not required)
 
 ## Web hosting (Cloudflare Pages)
 
-Production site: **https://www.roll10000.com** · preview: **https://roll10000.pages.dev**
+Production site: [www.roll10000.com](https://www.roll10000.com) · preview: [roll10000.pages.dev](https://roll10000.pages.dev)
 
 | Setting | Value |
 |---------|-------|
@@ -41,7 +41,7 @@ Optional: in the Cloudflare dashboard, connect GitHub repo `AndrewGrayYouNeeK/10
 |------|------|--------|
 | CNAME | `@` | `roll10000.pages.dev` |
 
-Then (same zone) add a **Redirect Rule**: `http(s)://roll10000.com/*` → `https://www.roll10000.com/$1` (301), so bare domain goes to `www`.
+Then (same zone) add a **Redirect Rule** from `roll10000.com/*` to `https://www.roll10000.com/$1` (301), so bare domain goes to `www`.
 
 ## Scripts
 
