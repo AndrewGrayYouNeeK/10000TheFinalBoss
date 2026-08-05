@@ -1,0 +1,13 @@
+---
+description: "Orca white eye patch has no black pupil"
+alwaysApply: false
+---
+
+# Orca Eye Patch No Pupil
+
+In SharkVisuals OrcaBody, IMG_2273 white eye patch is a marking only. Draw the white oval; never add a separate black eye/pupil circle.
+
+## Verification
+- Verified: npm run lint && npm run build passed after removing OrcaBody black eye circles; white eyePatch ellipse retained
+- Failure pattern avoided: Drawing a black iris/pupil on the orca that sits wrongly relative to the white patch
+- Dead-end ruled out: Keeping a black eye dot and only repositioning it into the white oval — user wants the dot removed entirely

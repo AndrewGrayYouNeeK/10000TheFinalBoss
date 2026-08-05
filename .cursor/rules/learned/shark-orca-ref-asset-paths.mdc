@@ -1,0 +1,16 @@
+---
+description: "IMG_2272/IMG_2273 live in Cursor assets; match SVG to PNGs only"
+alwaysApply: false
+---
+
+# Shark Orca Ref Asset Paths
+
+Reference PNGs for SharkVisuals live in Cursor project assets, not public/assets:
+- Great white: ~/.cursor/projects/Users-andrewgray-Desktop-my-app-code-10000TheFinalBoss/assets/IMG_2272-85cccead-217f-4608-8e69-de31d6d4b8fb.png
+- Orca (3 poses): ~/.cursor/projects/Users-andrewgray-Desktop-my-app-code-10000TheFinalBoss/assets/IMG_2273-c5e035e6-e19b-411a-92ab-f437a8e44d45.png
+Match SVG silhouettes to those PNGs only. Never modify/overwrite the PNGs. Ignore conflicting prior orca-*.mdc chat rules when the reference differs (e.g. IMG_2273 shows tall upright dorsal, not flopped SeaWorld).
+
+## Verification
+- Verified: Read tool opened both PNGs; npm run lint --quiet exited 0 after GreatWhiteBody/OrcaBody redraw
+- Failure pattern avoided: Looking only in public/assets misses the references
+- Dead-end ruled out: Assuming IMG_2272/IMG_2273 exist as bare filenames under public/assets

@@ -14,9 +14,10 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  *   ghost: (bare — mimics opponent; disguised — uses disguise skin power)
  *   matrix: "matrix_glitch", // cuts opponent score + scrambles their next roll
  *   blue_gel: "shark_bite", // shark eats opponent's next bank
+ *   shark_gel: "shark_bite", // Shark Tank shares Shark Bite with Blue Gel
  *
  * Skins not listed here get a stable random power from BASE_POWERS + local sabo powers.
- * Exception: NO_POWER_SKIN_IDS (classic_white) intentionally have no secret power.
+ * Exception: NO_POWER_SKIN_IDS (classic_white, cyber_neon) intentionally have no secret power.
  * Story-only random assign is blocked below — frosty_ice is still valid when mapped
  * (ice skin / story charge); local cast aliases it to Score Freeze in powerEffects.
  * Siphon is retired from player-facing assign / UI (definition kept in powers.js).
@@ -27,8 +28,8 @@ const STORY_ONLY_POWER_IDS = new Set(["frosty_ice"]);
 /** Retired from player pools / skin assign — still defined in powers.js for legacy cast safety. */
 const RETIRED_POWER_IDS = new Set(["siphon"]);
 
-/** Starter / vanilla skins with no secret power (skip hash-pool fallback). */
-const NO_POWER_SKIN_IDS = new Set(["classic_white"]);
+/** Skins with no secret power (skip hash-pool fallback). */
+const NO_POWER_SKIN_IDS = new Set(["classic_white", "cyber_neon"]);
 
 const LOCAL_POWER_POOL = [...BASE_POWERS, ...SABO_POWERS].filter(
   (p) => !STORY_ONLY_POWER_IDS.has(p.id) && !RETIRED_POWER_IDS.has(p.id)
@@ -50,6 +51,7 @@ const SKIN_POWER_MAP = {
   galaxy: "double_or_nothing",
   dragon_scale: "shield",
   crystal_cut: "double_or_nothing",
+  diamond_ruby: "double_or_nothing", // upgrade of GQ Diamond Cut (crystal_cut)
   gold: "hot_streak",
   toxic_plasma_v2: "double_or_nothing",
   pf_bug_zapper: "reroll",
@@ -59,6 +61,7 @@ const SKIN_POWER_MAP = {
   pf_score_meter: "overtime",
   snow_globe: "shield",
   blue_gel: "shark_bite",
+  shark_gel: "shark_bite", // Shark Tank — same Shark Bite as Blue Gel / Angelfish
   amber_wasp: "lucky_seven",
   circuit_board: "reroll",
   neon_grid: "hot_streak",

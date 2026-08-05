@@ -1,0 +1,13 @@
+---
+description: "Orca flukes must be thin edge-on side profile"
+alwaysApply: false
+---
+
+# Orca Fluke Edge-On Side Profile
+
+In SharkVisuals OrcaBody, IMG_2273 side-profile flukes are horizontal so they appear as a short thin aft sliver (~2 units tall, ~1/4 body length) joining a slender peduncle. Do NOT draw a fat leaf (~8u tall, body-length). Flap with rotate-only about the peduncle hinge — no large y translation. Tighten orca viewBox left pad to match the short tip.
+
+## Verification
+- Verified: npm run lint && npm run build passed after rewriting OrcaBody caudal from fat leaf to ~2u edge-on blade; removed y-translate flap; tightened viewBox from -30 to 6
+- Failure pattern avoided: Drawing orca flukes as a thick leaf/paddle (top-down width) in side view, then animating with y+rotate so they look wrong vs IMG_2273
+- Dead-end ruled out: Keeping a long fat leaf caudal and only tweaking tip/notch — still reads as paddle, not edge-on horizontal flukes

@@ -1,0 +1,13 @@
+---
+description: "Seed aquarium bubbles by dieSeed + index so they are not copy-paste"
+alwaysApply: false
+---
+
+# Aquarium bubbles need dieSeed variety
+
+Use AquariumBubbles (buildAquariumBubbles) seeded by dieSeed + bubble index for size, oval aspect, opacity, rise speed, x-wobble, delay, highlight, and rim. Avoid (i % N) size ladders and (i * 37) % width lanes. Density ladder: 14/18/24/32 for faces 1/2-3/4/5-6.
+
+## Verification
+- Verified: npm run lint && npm run build clean after AquariumBubbles seeded builder; SharkTankOverlay and FishOverlay use dieSeed+index
+- Failure pattern avoided: Ambient aquarium bubbles look identical/copy-pasted across dice and bubble indices
+- Dead-end ruled out: Raising bubble count alone while keeping i%N size and i*37 left lanes still reads as a repeating pattern

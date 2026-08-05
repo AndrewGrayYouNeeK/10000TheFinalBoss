@@ -704,12 +704,12 @@ export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
   };
 }
 
-/** Per-face nudge map — clamp ref-pixel offsets (lab sliders ±12; catalog up to ~64; guard ±100). */
+/** Per-face nudge map — clamp ref-pixel offsets (lab sliders ±64; catalog up to ~64; guard ±100). */
 export function sanitizeSpriteFaceMap(faceMap) {
   const clamp = (n) => {
     const v = Number(n);
     if (!Number.isFinite(v)) return 0;
-    // Snapshots store absolute catalog-aligned offsets (often >12); only reject runaway saves.
+    // Snapshots store absolute catalog-aligned offsets; only reject runaway saves.
     return Math.min(100, Math.max(-100, v));
   };
   return Object.fromEntries(

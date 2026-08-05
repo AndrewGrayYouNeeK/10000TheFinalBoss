@@ -1,0 +1,13 @@
+---
+description: "Orca dorsal is tall upright per reference, not captive-bent"
+alwaysApply: false
+---
+
+# Orca Upright Dorsal Reference
+
+In SharkVisuals.jsx OrcaBody, use a tall upright triangular dorsal (straight, wild-profile) matching the user orca reference. Do not restore the old captive-bent / collapsed dorsal. Keep grey saddle behind the dorsal and bright white eye patch; flukes stay horizontal (side-profile blade).
+
+## Verification
+- Verified: OrcaBody redesigned from IMG_2273; npm run lint && npm run build passed
+- Failure pattern avoided: Reintroducing captive-bent orca dorsal after upright reference approved
+- Dead-end ruled out: Keeping prior captive-bent dorsal when user asked to match upright fins

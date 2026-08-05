@@ -249,6 +249,9 @@ export default function Shop() {
                       const tierLocked = !isDevUnlockAll && !isPreviewSkin(skin.id) && !checkUnlocked(skin.id, xp);
                       const achievementOnly = !isDevUnlockAll && !isPreviewSkin(skin.id) && isSkinAchievementOnly(skin.id, xp);
                       const effectivePrice = getSkinEffectivePrice(skin);
+                      const ownedSkinLevel = ownedSkins.includes(skin.id)
+                        ? getLocalSkinPowerLevel(skin.id, user)
+                        : 1;
                       return (
                         <ShopItemCard
                           key={skin.id}
@@ -258,17 +261,19 @@ export default function Shop() {
                           canAfford={coins >= effectivePrice}
                           onBuy={() => handleBuy("skin", skin)}
                           onEquip={() => handleEquip("skin", skin)}
-                          preview={<DicePreview skinId={skin.id} resolveGhost={false} />}
+                          preview={
+                            <DicePreview
+                              skinId={skin.id}
+                              skinLevel={ownedSkinLevel}
+                              resolveGhost={false}
+                            />
+                          }
                           duplicateTag={dupes[skin.id]}
                           tierLocked={tierLocked}
                           achievementOnly={achievementOnly}
                           effectivePrice={effectivePrice}
                           hideLockedAction={false}
-                          skinLevel={
-                            ownedSkins.includes(skin.id)
-                              ? getLocalSkinPowerLevel(skin.id, user)
-                              : undefined
-                          }
+                          skinLevel={ownedSkins.includes(skin.id) ? ownedSkinLevel : undefined}
                         />
                       );
                     })}

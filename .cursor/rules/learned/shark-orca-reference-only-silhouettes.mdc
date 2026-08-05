@@ -1,0 +1,18 @@
+---
+description: "Shark/orca SVG must match reference PNGs only"
+alwaysApply: false
+---
+
+# Shark Orca Reference-Only Silhouettes
+
+When redesigning tank creatures in SharkVisuals.jsx, match ONLY the user reference PNGs:
+
+- Great white / tiger architecture: IMG_2272 — fusiform body, falcate dorsal, sickle pectorals, narrow peduncle + keel, near-symmetric lunate caudal, highly jagged gray/white boundary with freckles.
+- Orca caudal: IMG_2273 — slender peduncle into a thin side-profile leaf/blade fluke with a sharp tip. Do NOT draw a top-down center notch or paddle-wide fluke in side view.
+
+Ignore prior chat experiments (captive-bent flukes, flatter wider tips, longer bottom half, gar teeth) unless the user reopens them. Never modify the reference PNG assets.
+
+## Verification
+- Verified: npm run lint && npm run build passed after rewriting GreatWhiteBody, StandardSharkBody, OrcaBody from IMG_2272 and IMG_2273
+- Failure pattern avoided: Prior chat instructions overriding reference picture silhouettes
+- Dead-end ruled out: Keeping earlier experimental caudal/boundary shapes when user demanded picture-only match
