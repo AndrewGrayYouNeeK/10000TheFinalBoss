@@ -1,5 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { AquariumBubbles } from "@/components/game/AquariumBubbles";
 
 /**
  * Fish color palettes — each entry defines the colors used by the shared Fish SVG.
@@ -18,7 +19,7 @@ export const FISH_VARIANTS = [
   { id: "purple", name: "Purple Reef", tail: "#7c3aed", body: "#a855f7", highlight: "#d8b4fe", fin: "#6b21a8", mouth: "#581c87", stripe: null },
   // Green
   { id: "green", name: "Green Reef", tail: "#15803d", body: "#22c55e", highlight: "#86efac", fin: "#14532d", mouth: "#166534", stripe: null },
-  // Angelfish — silver body with bold black bars and yellow fins.
+  // Angelfish — silver body with bold black vertical bars and yellow fins.
   {
     id: "angelfish",
     name: "Angelfish",
@@ -42,28 +43,9 @@ export const FISH_VARIANTS = [
     stripe: "#1e3a8a",
     angelfish: true,
   },
-  // Moorish Idol — an additional reef species for mixed aquarium trays.
-  {
-    id: "moorish_idol",
-    name: "Moorish Idol",
-    tail: "#facc15",
-    body: "#f8fafc",
-    highlight: "#ffffff",
-    fin: "#eab308",
-    mouth: "#334155",
-    stripe: null,
-    stripes: [
-      "M 16 10 Q 20 20 16 30 L 22 30 Q 26 20 22 10 Z",
-      "M 28 10 Q 32 20 28 30 L 34 30 Q 38 20 34 10 Z",
-      "M 40 11 Q 44 20 40 29 L 46 28 Q 50 20 46 12 Z",
-    ],
-  },
 ];
 
 export const ANGELFISH_VARIANT_INDICES = [6, 7];
-export const MOORISH_IDOL_VARIANT_INDEX = FISH_VARIANTS.findIndex(
-  (variant) => variant.id === "moorish_idol"
-);
 
 /** WAAPI rejects negative or non-finite durations — clamp before framer-motion → element.animate(). */
 function safeAnimDuration(seconds, min = 0.001) {
@@ -290,53 +272,24 @@ export function Fish({ size, top, duration, delay, dir = 1, scale = 1, variant, 
           </>
         ) : (
           <>
-            <path
-              d="M 5 13 L 3 20 L 5 27"
-              stroke={v.highlight}
-              strokeWidth="1"
-              opacity="0.55"
-              fill="none"
-              strokeLinecap="round"
-            />
-            <ellipse
-              cx="32"
-              cy="20"
-              rx="22"
-              ry="11"
-              fill={v.body}
-              stroke="rgba(2,6,23,0.38)"
-              strokeWidth="0.8"
-            />
-            <ellipse cx="32" cy="16.5" rx="19" ry="5.5" fill={v.highlight} opacity="0.72" />
-            <path
-              d="M 31 24 Q 35 20 39 24 Q 36 29 31 24 Z"
-              fill={v.fin}
-              opacity="0.86"
-              stroke="rgba(2,6,23,0.28)"
-              strokeWidth="0.6"
-            />
+            <ellipse cx="32" cy="20" rx="22" ry="11" fill={v.body} />
+            <ellipse cx="32" cy="17" rx="20" ry="6" fill={v.highlight} opacity="0.7" />
             {v.stripe && (
               <>
                 <path d="M 20 12 Q 22 20 20 28 L 24 28 Q 26 20 24 12 Z" fill={v.stripe} opacity="0.6" />
                 <path d="M 38 11 Q 40 20 38 29 L 42 29 Q 44 20 42 11 Z" fill={v.stripe} opacity="0.6" />
               </>
             )}
-            {v.stripes?.map((d) => (
-              <path key={d} d={d} fill={v.stripe ?? "#111827"} opacity="0.92" />
-            ))}
-            <path d="M 26 10 Q 32 2 38 10 Z" fill={v.fin} stroke="rgba(2,6,23,0.3)" strokeWidth="0.6" />
-            <path d="M 28 30 Q 32 36 36 30 Z" fill={v.fin} stroke="rgba(2,6,23,0.3)" strokeWidth="0.6" />
-            <path
-              d="M 42 12 Q 39 17 42 23"
-              stroke={v.mouth}
-              strokeWidth="0.9"
-              opacity="0.58"
-              fill="none"
-              strokeLinecap="round"
-            />
+            <path d="M 26 10 Q 32 2 38 10 Z" fill={v.fin} />
+            <path d="M 28 30 Q 32 36 36 30 Z" fill={v.fin} />
             <circle cx="46" cy="18" r="2.5" fill="white" />
             <circle cx="46.5" cy="18" r="1.4" fill="#0f172a" />
-            <path d="M 40 17 Q 38 20 40 23" stroke={v.mouth} strokeWidth="1" fill="none" />
+            <path
+              d="M 40 17 Q 38 20 40 23"
+              stroke={v.mouth}
+              strokeWidth="1"
+              fill="none"
+            />
           </>
         )}
       </svg>
@@ -372,8 +325,8 @@ export default function FishOverlay({
     const requestedIndices = Array.isArray(fishVariantIndices)
       ? fishVariantIndices.filter((index) => FISH_VARIANTS[index])
       : [];
-    // A bad/empty filter should never make the fish disappear or make every
-    // creature fall back to one repeated species.
+    // A bad or empty filter should never make fish disappear or repeat one
+    // fallback species across the whole die.
     const allowedIndices = requestedIndices.length
       ? [...new Set(requestedIndices)]
       : FISH_VARIANTS.map((_, index) => index);
@@ -448,34 +401,18 @@ export default function FishOverlay({
         }}
       />
 
-      {/* Bubbles drifting up — more on higher-value dice (hidden when frozen). */}
-      {!frozen && (() => {
-        const bubbleCount = count >= 5 ? 22 : count === 4 ? 14 : 8;
-        return Array.from({ length: bubbleCount }, (_, i) => {
-          const sz = size * (0.02 + (i % 4) * 0.013);
-          const leftPct = (i * 37) % 95 + 2;
-          return (
-            <motion.div
-              key={i}
-              className="absolute rounded-full bg-white/70"
-              style={{
-                width: sz,
-                height: sz,
-                left: `${leftPct}%`,
-                bottom: -size * 0.05,
-              }}
-              animate={{ y: [0, -size * 1.15], opacity: [0, 0.8, 0] }}
-              transition={{
-                duration: 2.2 + ((i * 0.31) % 1.8),
-                repeat: Infinity,
-                delay: (i * 0.22) % 3,
-                ease: "easeOut",
-              }}
-            />
-          );
-        });
-      })()}
-
+      {/* Bubbles drifting up — unique per dieSeed; denser on higher faces (hidden when frozen). */}
+      {!frozen ? (
+        <AquariumBubbles
+          size={size}
+          count={count}
+          dieSeed={dieSeed}
+          theme="clear"
+          density="normal"
+          salt="blue-gel-fish"
+          riseMult={1.15}
+        />
+      ) : null}
       {/* Fish + real jellyfish */}
       {creatures.map((c, i) =>
         c.kind === "jellyfish" ? (

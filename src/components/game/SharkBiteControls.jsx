@@ -4,18 +4,20 @@ import {
   BlueGelPowerVideoScreen,
   useSharkBiteSettings,
 } from "@/components/game/BlueGelPowerFX";
+import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import {
   DEFAULT_SHARK_BITE_SETTINGS,
   resetSharkBiteSettings,
   saveSharkBiteSettings,
 } from "@/lib/sharkBiteSettings";
 
-function SliderRow({ label, value, min, max, step = 0.01, onChange, format, hint }) {
+function SliderRow({ label, value, min, max, step = 0.01, onChange, format, hint, accent = "rose" }) {
   const display =
     typeof format === "function" ? format(value) : Number(value).toFixed(step < 1 ? 2 : 0);
+  const accentClass = accent === "cyan" ? "accent-cyan-400" : "accent-rose-400";
   return (
     <label className="block text-[11px] text-slate-400">
-      {label}: <span className="text-rose-100 tabular-nums">{display}</span>
+      {label}: <span className="text-rose-100 tabular-nums font-bold">{display}</span>
       {hint ? <span className="block text-[10px] text-slate-500 mt-0.5">{hint}</span> : null}
       <input
         type="range"
@@ -24,7 +26,7 @@ function SliderRow({ label, value, min, max, step = 0.01, onChange, format, hint
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-rose-400 mt-1"
+        className={`w-full ${accentClass} mt-1`}
       />
     </label>
   );
@@ -43,6 +45,13 @@ export default function SharkBiteControls({
 }) {
   const settings = useSharkBiteSettings();
   const update = (patch) => saveSharkBiteSettings({ ...settings, ...patch });
+  const introXPct = (settings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX) * 100;
+  const introYPct = (settings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY) * 100;
+
+  const saveNow = () => {
+    // Re-save current values so practice Bite FX / subscribers refresh immediately.
+    saveSharkBiteSettings({ ...settings });
+  };
 
   return (
     <div
@@ -52,10 +61,10 @@ export default function SharkBiteControls({
     >
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-sm font-bold text-rose-200">Shark Bite video timing & layout</p>
+          <p className="text-sm font-bold text-rose-200">Shark Bite Lab controls</p>
           <p className="text-[11px] text-slate-400 mt-0.5 max-w-md">
-            Trim the clip, nudge position, and sync when dice vanish. Changes apply in-game
-            immediately.
+            Tune intro / chomp yourself. Changes save to this device and apply on the next Bite
+            preview immediately.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -68,15 +77,13 @@ export default function SharkBiteControls({
               {previewActive ? "Replay bite" : "▶ Preview bite"}
             </button>
           ) : null}
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-200">
-            <input
-              type="checkbox"
-              checked={settings.muted !== false}
-              onChange={(e) => update({ muted: e.target.checked })}
-              className="accent-rose-500 w-4 h-4"
-            />
-            Muted
-          </label>
+          <button
+            type="button"
+            onClick={saveNow}
+            className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white"
+          >
+            Save
+          </button>
           <button
             type="button"
             onClick={() => resetSharkBiteSettings()}
@@ -86,6 +93,86 @@ export default function SharkBiteControls({
           </button>
         </div>
       </div>
+
+      {/* ─── Primary DIY: Intro position ─── */}
+      <section className="rounded-xl border-2 border-cyan-400/50 bg-cyan-950/30 p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-black text-cyan-100">Intro horizontal position</p>
+            <p className="text-[11px] text-cyan-200/80 mt-0.5">
+              First shark (swim-in). Drag right until jaws cover all dice.
+            </p>
+          </div>
+          <div className="rounded-lg bg-black/40 border border-cyan-400/40 px-3 py-1.5 text-right">
+            <p className="text-[9px] uppercase tracking-wider text-cyan-400/80 font-bold">
+              introOffsetX
+            </p>
+            <p className="text-lg font-black text-cyan-50 tabular-nums leading-tight">
+              {introXPct >= 0 ? "+" : ""}
+              {introXPct.toFixed(1)}%
+            </p>
+            <p className="text-[10px] text-slate-400 tabular-nums">
+              ({(introXPct / 100).toFixed(3)} vw)
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[12px] font-bold text-amber-200 bg-amber-950/40 border border-amber-500/30 rounded-lg px-3 py-2">
+          Tip: Drag Intro X right until jaws cover all dice
+        </p>
+
+        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 px-0.5">
+          <span>← Left</span>
+          <span className="text-cyan-300">Intro X</span>
+          <span>Right →</span>
+        </div>
+        <input
+          type="range"
+          min={-50}
+          max={70}
+          step={0.5}
+          value={introXPct}
+          onChange={(e) => update({ introOffsetX: Number(e.target.value) / 100 })}
+          className="w-full accent-cyan-400 h-3"
+          aria-label="Intro horizontal position"
+        />
+
+        <SliderRow
+          label="Intro vertical"
+          value={introYPct}
+          min={-40}
+          max={40}
+          step={0.5}
+          accent="cyan"
+          format={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
+          hint="Negative = up · positive = down (viewport height)."
+          onChange={(v) => update({ introOffsetY: v / 100 })}
+        />
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => update({ introOffsetX: 0 })}
+            className="text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 border border-white/15 text-slate-300 hover:bg-white/5"
+          >
+            Center (0%)
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ introOffsetX: 0.5 })}
+            className="text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-950/50"
+          >
+            Default +50%
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ introOffsetX: 0.55 })}
+            className="text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 bg-cyan-700/80 hover:bg-cyan-600 text-white"
+          >
+            Strong right +55%
+          </button>
+        </div>
+      </section>
 
       {showWorkbenchLinks ? (
         <div className="flex flex-wrap gap-2">
@@ -121,6 +208,7 @@ export default function SharkBiteControls({
             min={0}
             max={8}
             step={0.05}
+            accent="cyan"
             format={(v) => `${v.toFixed(2)}s`}
             onChange={(introStartAtSeconds) => update({ introStartAtSeconds })}
           />
@@ -130,6 +218,7 @@ export default function SharkBiteControls({
             min={0.5}
             max={1}
             step={0.01}
+            accent="cyan"
             hint="End intro playback here (1 = play to end)."
             onChange={(introStopAtProgress) => update({ introStopAtProgress })}
           />
@@ -161,8 +250,7 @@ export default function SharkBiteControls({
             Chomp video position
           </p>
           <p className="text-[10px] text-slate-500 -mt-1">
-            Nudge <b className="text-rose-200/90">Chomps whole screen</b> after upload — applies
-            in-game immediately.
+            Second shark (fullscreen eat) — separate from intro.
           </p>
           <SliderRow
             label="Video rotation"
@@ -209,49 +297,26 @@ export default function SharkBiteControls({
             min={0.85}
             max={1.45}
             step={0.01}
+            hint="Extra zoom on cover-fit (1 = fill screen, >1 crops in)."
             onChange={(videoScale) => update({ videoScale })}
           />
-          <SliderRow
-            label="Chomp baseline from bottom"
-            value={settings.verticalOffset * 100}
-            min={0}
-            max={20}
-            step={0.25}
-            format={(v) => `${v.toFixed(1)}%`}
-            hint="Legacy bottom inset (chomp is vertically centered now — leave at 0)."
-            onChange={(v) => update({ verticalOffset: v / 100 })}
-          />
 
-          <p className="text-[10px] uppercase tracking-wider text-cyan-300/80 font-bold pt-1">
-            Intro swim position
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-200">
+            <input
+              type="checkbox"
+              checked={settings.muted !== false}
+              onChange={(e) => update({ muted: e.target.checked })}
+              className="accent-rose-500 w-4 h-4"
+            />
+            Muted
+          </label>
+
+          <p className="text-[10px] text-slate-500">
+            Mouth black circle: removed. Chroma plate strip only — no ellipse / hole fill in jaws.
           </p>
-          <SliderRow
-            label="Move intro left / right"
-            value={(settings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX) * 100}
-            min={-15}
-            max={35}
-            step={0.5}
-            format={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
-            hint="Swim forward clip only — then exits left off-screen."
-            onChange={(v) => update({ introOffsetX: v / 100 })}
-          />
-          <SliderRow
-            label="Move intro up / down"
-            value={(settings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY) * 100}
-            min={-35}
-            max={35}
-            step={0.5}
-            format={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
-            hint="Swim forward clip only — separate from chomp."
-            onChange={(v) => update({ introOffsetY: v / 100 })}
-          />
 
           <p className="text-[10px] uppercase tracking-wider text-rose-300/80 font-bold pt-1">
             Source crop (optional)
-          </p>
-          <p className="text-[10px] text-slate-500">
-            Default shows the full shark. Trim corners in your export, or use these sliders if
-            needed.
           </p>
           <SliderRow
             label="Source zoom"
@@ -301,7 +366,7 @@ export default function SharkBiteControls({
             max={0.99}
             step={0.01}
             format={(v) => v.toFixed(2)}
-            hint="Opacity fade after chomp — relative to trimmed clip. Default 0.93 keeps the bite visible."
+            hint="Opacity fade after chomp — relative to trimmed clip."
             onChange={(fadeStart) => update({ fadeStart })}
           />
           <SliderRow
@@ -321,7 +386,7 @@ export default function SharkBiteControls({
             max={1}
             step={0.01}
             format={(v) => (v >= 0.999 ? "full clip" : v.toFixed(2))}
-            hint="End playback here to trim tail (e.g. shark pop-back-up). 1 = no trim."
+            hint="End playback here to trim tail. 1 = no trim."
             onChange={(stopAtProgress) => update({ stopAtProgress })}
           />
           <SliderRow
@@ -379,6 +444,16 @@ export default function SharkBiteControls({
             format={(v) => `${Math.round(v)}ms`}
             onChange={(fallbackVanishMs) => update({ fallbackVanishMs })}
           />
+          <SliderRow
+            label="Blackout hold"
+            value={settings.blackoutHoldMs ?? DEFAULT_SHARK_BITE_SETTINGS.blackoutHoldMs}
+            min={0}
+            max={3000}
+            step={50}
+            format={(v) => `${Math.round(v)}ms`}
+            hint="Full-screen black after jaws close."
+            onChange={(blackoutHoldMs) => update({ blackoutHoldMs })}
+          />
 
           <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold pt-1">
             SVG fallback (no upload)
@@ -411,35 +486,30 @@ export default function SharkBiteControls({
             onChange={(svgBeatMs) => update({ svgBeatMs })}
           />
 
-          <button
-            type="button"
-            onClick={() =>
-              update({
-                ...DEFAULT_SHARK_BITE_SETTINGS,
-              })
-            }
-            className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-white pt-1"
-          >
-            Reset all shark bite defaults
-          </button>
-
           {onPreviewBite ? (
             <div
-              className="relative rounded-xl overflow-hidden border border-white/10 min-h-[120px] mt-2"
+              className="relative rounded-xl overflow-hidden border border-white/10 min-h-[140px] mt-2"
               style={{
                 background:
                   "repeating-linear-gradient(45deg, #0b3b2e 0 14px, #0e4a39 14px 28px)",
               }}
             >
+              <p className="absolute top-2 left-2 z-10 text-[9px] font-bold uppercase tracking-wider text-cyan-200/90 bg-black/50 rounded px-2 py-0.5">
+                Intro live preview · offset {(introXPct >= 0 ? "+" : "") + introXPct.toFixed(0)}%
+              </p>
               <BlueGelPowerVideoScreen
                 active={previewActive}
                 loop={false}
                 overGameplay
+                playFullClip
+                syncChomp={false}
+                videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO}
                 zIndex={1}
+                containInParent
               />
               {!previewActive ? (
                 <p className="text-[11px] text-slate-400 px-4 py-8 text-center">
-                  Tap ▶ Preview bite to test timing over this checkerboard.
+                  Tap ▶ Preview bite to test intro position over this checkerboard.
                 </p>
               ) : null}
             </div>

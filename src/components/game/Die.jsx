@@ -300,10 +300,10 @@ function Die({
   const freezeImmune =
     isFreezeOverlayImmuneSkin(effectiveSkinId) && !labForceFreezeOverlay;
   const icePowerActive = iceFrozenOverlay && !reduceEffects && !freezeImmune;
-  const isSharkTank = effectiveSkinId === "shark_gel";
   const iceOverlayActive = icePowerActive || levelFrostActive;
   const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
   const isBlueGelTank = effectiveSkinId === "blue_gel";
+  const isSharkTank = effectiveSkinId === "shark_gel";
   const blueGelVariantSeed = Number(effectDieSeed);
   const blueGelBigFishVariantIndex =
     value === 1

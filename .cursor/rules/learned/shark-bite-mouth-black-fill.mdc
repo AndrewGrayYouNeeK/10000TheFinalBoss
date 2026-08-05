@@ -1,0 +1,13 @@
+---
+description: "Fill Shark Bite open-mouth holes black after chroma so gameplay never shows through jaws"
+alwaysApply: false
+---
+
+# Shark Bite Mouth Black Fill
+
+After chroma keys the chomp plate, call fillMouthInteriorBlack on stripPlate frames: (1) O(w*h) enclosed-hole fill for cavities surrounded by shark body, (2) paint transparent pixels inside mouthBlackCx/Cy/Rx/Ry ellipse opaque black. Do not overwrite video assets.
+
+## Verification
+- Verified: npm run lint && npm run build exited 0 after fillMouthInteriorBlack + introOffsetX 0.36
+- Failure pattern avoided: Open shark jaws chroma-key transparent and window the live game through the mouth
+- Dead-end ruled out: Overwriting the video asset or relying only on climax full-screen blackout without painting mouth interior opaque black

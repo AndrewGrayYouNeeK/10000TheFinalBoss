@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BLUE_GEL_BUBBLE_MS,
@@ -38,6 +39,13 @@ import {
   sharkBiteClipProgress,
 } from "@/lib/sharkBiteSettings";
 import {
+  emitSharkBiteChomp,
+  SHARK_BITE_CHOMP_PROGRESS,
+  SHARK_BITE_FADE_START,
+  SHARK_BITE_STOP_AT_PROGRESS,
+} from "@/lib/sharkBiteChomp";
+import { applyVideoStartOffset, bindVideoMuteAt } from "@/lib/videoAudio";
+import {
   buildSharkTankCreatures,
   SharkTankBloodFlash,
   SharkTankFishSkeleton,
@@ -45,7 +53,6 @@ import {
   useSharkTankRivalry,
 } from "@/components/game/SharkVisuals";
 import { AquariumBubbles, aquariumBubbleCount } from "@/components/game/AquariumBubbles";
-import { applyVideoStartOffset, bindVideoMuteAt } from "@/lib/videoAudio";
 
 /** Live-updating chroma-key settings for the shark video. */
 export function useBlueGelChromaSettings() {
@@ -75,22 +82,34 @@ export function useBlueGelPlaybackSettings() {
   };
 }
 
-/** CustomEvent name — DiceTray listens so tray dice vanish on chomp. */
-export const SHARK_BITE_CHOMP_EVENT = "yourneek:shark-bite-chomp";
-
-/** Default timing exports — prefer useSharkBiteSettings() for live values. */
-export const SHARK_BITE_CHOMP_MS = DEFAULT_SHARK_BITE_SETTINGS.chompMs;
-export const SHARK_BITE_FX_MS = DEFAULT_SHARK_BITE_SETTINGS.fxMs;
-export const SHARK_BITE_PRE_SWIM_MS = DEFAULT_SHARK_BITE_SETTINGS.preSwimMs;
-export const SHARK_BITE_SVG_BEAT_MS = DEFAULT_SHARK_BITE_SETTINGS.svgBeatMs;
-export const SHARK_BITE_TOTAL_MS =
-  DEFAULT_SHARK_BITE_SETTINGS.svgBeatMs + DEFAULT_SHARK_BITE_SETTINGS.fxMs;
-export const SHARK_BITE_FALLBACK_VANISH_MS = DEFAULT_SHARK_BITE_SETTINGS.fallbackVanishMs;
-export const SHARK_BITE_CHOMP_PROGRESS = DEFAULT_SHARK_BITE_SETTINGS.chompProgress;
-export const SHARK_BITE_FADE_START = DEFAULT_SHARK_BITE_SETTINGS.fadeStart;
-export const SHARK_BITE_STOP_AT_PROGRESS = DEFAULT_SHARK_BITE_SETTINGS.stopAtProgress;
 /** Soft fade band (px at process res) so the video rect never shows a hard edge/line. */
 const CHROMA_EDGE_FEATHER_PX = 12;
+
+function getVisibleViewportSize() {
+  if (typeof window === "undefined") return { width: 400, height: 800 };
+  const visualViewport = window.visualViewport;
+  const documentWidth =
+    typeof document !== "undefined" ? document.documentElement?.clientWidth : 0;
+  const documentHeight =
+    typeof document !== "undefined" ? document.documentElement?.clientHeight : 0;
+  return {
+    width:
+      Number(visualViewport?.width) ||
+      Number(documentWidth) ||
+      Number(window.innerWidth) ||
+      400,
+    height:
+      Number(visualViewport?.height) ||
+      Number(documentHeight) ||
+      Number(window.innerHeight) ||
+      800,
+  };
+}
+
+function portalToViewport(node) {
+  if (typeof document === "undefined" || !document.body) return null;
+  return createPortal(node, document.body);
+}
 
 /** Calm blue-gel water before the shark feast. */
 const BLUE_GEL_WATER_IDLE =
@@ -103,17 +122,6 @@ const BLUE_GEL_BLOOD_WATER =
 /** Darker crimson once the feast settles — rest of the match. */
 const BLUE_GEL_BLOOD_WATER_SETTLED =
   "radial-gradient(ellipse at 50% 36%, rgba(210,12,12,0.88) 0%, rgba(38,4,4,0.82) 52%, rgba(8,0,0,0.9) 100%)";
-
-const BLUE_GEL_BLOOD_BUBBLE =
-  "radial-gradient(circle at 30% 30%, rgba(252,165,165,0.9), rgba(110,10,10,0.58))";
-
-const BLUE_GEL_BLOOD_BUBBLE_SETTLED =
-  "radial-gradient(circle at 30% 30%, rgba(248,113,113,0.82), rgba(90,8,8,0.62))";
-
-export function emitSharkBiteChomp() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(SHARK_BITE_CHOMP_EVENT));
-}
 
 /** Live dice-tray center for aligning the fullscreen shark bite. */
 export function useGameplayDiceTrayAnchor(active) {
@@ -128,10 +136,11 @@ export function useGameplayDiceTrayAnchor(active) {
     const measure = () => {
       const el = document.getElementById("gameplay-dice-tray");
       if (!el) {
+        const { width, height } = getVisibleViewportSize();
         setAnchor({
-          x: window.innerWidth * 0.5,
-          y: window.innerHeight * 0.72,
-          w: Math.min(window.innerWidth * 0.88, 420),
+          x: width * 0.5,
+          y: height * 0.72,
+          w: Math.min(width * 0.88, 420),
           h: 140,
         });
         return;
@@ -148,9 +157,11 @@ export function useGameplayDiceTrayAnchor(active) {
     measure();
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
+    window.visualViewport?.addEventListener("resize", measure);
     return () => {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
+      window.visualViewport?.removeEventListener("resize", measure);
     };
   }, [active]);
 
@@ -159,8 +170,7 @@ export function useGameplayDiceTrayAnchor(active) {
 
 /** Live dice-tray center — used to dip the jaw onto the dice at chomp. */
 function getSharkBiteLayout(trayAnchor, offsetX = DEFAULT_SHARK_BITE_SETTINGS.offsetX) {
-  const vw = typeof window !== "undefined" ? window.innerWidth : 400;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const { width: vw, height: vh } = getVisibleViewportSize();
   const anchor = trayAnchor ?? {
     x: vw * 0.5,
     y: vh * 0.72,
@@ -180,6 +190,9 @@ function getSharkBiteLayout(trayAnchor, offsetX = DEFAULT_SHARK_BITE_SETTINGS.of
   const mouthY = baseTop + sharkH * 0.58;
   const chompDip = Math.min(Math.max(anchor.y - mouthY + 12, 28), sharkH * 0.28);
   const chompTop = baseTop + chompDip;
+  // Clear past the viewport edge by a full shark width (+ margin) so the chomp/exit
+  // never stops short mid-frame (scale keyframes can enlarge the silhouette).
+  const edgePad = Math.max(sharkW * 1.35, vw * 0.22, 220);
 
   return {
     anchor,
@@ -189,8 +202,8 @@ function getSharkBiteLayout(trayAnchor, offsetX = DEFAULT_SHARK_BITE_SETTINGS.of
     baseTop,
     chompTop,
     chompDip,
-    offLeft: -(baseLeft + sharkW + 64),
-    offRight: vw - baseLeft + sharkW + 120,
+    offLeft: -(baseLeft + edgePad),
+    offRight: vw - baseLeft + edgePad,
   };
 }
 
@@ -296,13 +309,14 @@ export function useBlueGelPowerVideoUrl(enabled = true) {
   return useSharkBiteVideoUrl(VIDEO_KEYS.BLUE_GEL_POWER, enabled);
 }
 
-function SharkSvg({ chomping, size = "100%" }) {
+export function SharkSvg({ chomping, size = "100%", showTeeth = false, scary = false }) {
+  const teethVisible = chomping || showTeeth;
   return (
     <svg viewBox="0 0 96 48" width={size} height={size} style={{ filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.55))" }}>
       {/* Body */}
       <path
         d="M 8 26 Q 28 8 56 14 Q 78 18 88 24 Q 78 34 54 36 Q 28 40 8 26 Z"
-        fill="#64748b"
+        fill={scary ? "#475569" : "#64748b"}
       />
       <path d="M 20 18 Q 48 10 70 18" stroke="#94a3b8" strokeWidth="4" fill="none" opacity="0.45" />
       {/* Dorsal */}
@@ -312,8 +326,8 @@ function SharkSvg({ chomping, size = "100%" }) {
       {/* Belly */}
       <ellipse cx="52" cy="30" rx="18" ry="5" fill="#cbd5e1" opacity="0.55" />
       {/* Eye */}
-      <circle cx="74" cy="20" r="2.4" fill="#0f172a" />
-      <circle cx="74.6" cy="19.5" r="0.7" fill="white" />
+      <circle cx="74" cy="20" r="2.4" fill={scary ? "#dc2626" : "#0f172a"} />
+      <circle cx="74.6" cy="19.5" r="0.7" fill={scary ? "#fecaca" : "white"} />
       {/* Jaw — opens when chomping */}
       <motion.path
         d={chomping ? "M 70 28 Q 82 36 88 28" : "M 70 26 Q 82 30 88 24"}
@@ -324,11 +338,11 @@ function SharkSvg({ chomping, size = "100%" }) {
         transition={chomping ? { duration: 0.35, repeat: 3, ease: "easeInOut" } : undefined}
       />
       {/* Teeth flash */}
-      {chomping && (
+      {teethVisible && (
         <motion.g
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 1, 0.8, 0] }}
-          transition={{ duration: 0.9, delay: 0.15 }}
+          initial={{ opacity: chomping ? 0 : 0.85 }}
+          animate={chomping ? { opacity: [0, 1, 0.8, 0] } : { opacity: 0.85 }}
+          transition={chomping ? { duration: 0.9, delay: 0.15 } : { duration: 0 }}
         >
           {[72, 76, 80, 84].map((x) => (
             <path key={x} d={`M ${x} 27 L ${x + 1.5} 32 L ${x + 3} 27 Z`} fill="white" />
@@ -386,6 +400,18 @@ export function ChromaKeyVideo({
   playbackStopAtProgress = null,
   /** When true, call onEnded immediately instead of sliding off-screen. */
   skipExitPan = false,
+  /**
+   * When true (chomp beat), slide in from off-screen (opposite exit direction)
+   * until enterPanEnd progress, then hold center for the eat.
+   */
+  enterFromSide = false,
+  /** Hold the final frame while a following queued beat is prepared. */
+  holdOnEnded = false,
+  /**
+   * Stronger plate removal for the fullscreen chomp beat — kill dark/flat
+   * scenery so only the shark remains (no background plate).
+   */
+  stripBackgroundPlate = false,
   /** Horizontal nudge override (viewport fraction; + = right). Defaults to biteSettings.offsetX. */
   layoutOffsetX = null,
   /** Vertical nudge override (viewport fraction; + = down). Defaults to biteSettings.offsetY. */
@@ -405,17 +431,31 @@ export function ChromaKeyVideo({
   const playbackStartRef = React.useRef(playbackStartAtSeconds);
   const playbackStopRef = React.useRef(playbackStopAtProgress);
   const skipExitPanRef = React.useRef(skipExitPan);
+  const enterFromSideRef = React.useRef(enterFromSide);
+  const holdOnEndedRef = React.useRef(holdOnEnded);
+  const stripBackgroundPlateRef = React.useRef(stripBackgroundPlate);
   const layoutOffsetXRef = React.useRef(layoutOffsetX);
   const layoutOffsetYRef = React.useRef(layoutOffsetY);
   const rotationSlotRef = React.useRef(rotationSlot);
+  // Keep media-loop callbacks stable — identity changes remounted the video and
+  // replayed intro/chomp beats (looked like Shark Bite playing 2–3 times).
+  const onTimeUpdateRef = React.useRef(onTimeUpdate);
+  const onEndedRef = React.useRef(onEnded);
+  const onErrorRef = React.useRef(onError);
   fadeOpacityRef.current = fadeOpacity;
   fadeOutFromRef.current = fadeOutFrom;
   playbackStartRef.current = playbackStartAtSeconds;
   playbackStopRef.current = playbackStopAtProgress;
   skipExitPanRef.current = skipExitPan;
+  enterFromSideRef.current = enterFromSide;
+  holdOnEndedRef.current = holdOnEnded;
+  stripBackgroundPlateRef.current = stripBackgroundPlate;
   layoutOffsetXRef.current = layoutOffsetX;
   layoutOffsetYRef.current = layoutOffsetY;
   rotationSlotRef.current = rotationSlot;
+  onTimeUpdateRef.current = onTimeUpdate;
+  onEndedRef.current = onEnded;
+  onErrorRef.current = onError;
 
   // Live settings without restarting the render loop. Re-sample when the key
   // mode / color changes so the preview updates immediately.
@@ -538,29 +578,70 @@ export function ChromaKeyVideo({
       let drawH = fh;
       if (fullViewport && typeof window !== "undefined") {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        outW = Math.max(1, Math.round(window.innerWidth * dpr));
-        outH = Math.max(1, Math.round(window.innerHeight * dpr));
+        const { width: viewportWidth, height: viewportHeight } = getVisibleViewportSize();
+        outW = Math.max(1, Math.round(viewportWidth * dpr));
+        outH = Math.max(1, Math.round(viewportHeight * dpr));
         const bs = biteRef.current;
-        const fit = Math.min(outW / fw, outH / fh) * (Number(bs?.videoScale) || 1.18);
+        // Cover (Math.max), not contain — rotated catalog clips are portrait-in-landscape
+        // and letterbox badly with Math.min, leaving an inset "video window".
+        const cover = Math.max(outW / fw, outH / fh);
+        const fit = cover * (Number(bs?.videoScale) || DEFAULT_SHARK_BITE_SETTINGS.videoScale);
         drawW = fw * fit;
         drawH = fh * fit;
-        const offsetX =
-          layoutOffsetXRef.current ?? bs?.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX;
+        // Resolve horizontal nudge: prop override → intro/chomp setting → default.
+        // Intro uses introOffsetX (NOT offsetX). Positive = right, as fraction of viewport.
+        const slot = rotationSlotRef.current === "intro" ? "intro" : "chomp";
+        let offsetX;
+        if (layoutOffsetXRef.current != null && Number.isFinite(Number(layoutOffsetXRef.current))) {
+          offsetX = Number(layoutOffsetXRef.current);
+        } else if (slot === "intro") {
+          offsetX = Number(bs?.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX) || 0;
+        } else {
+          offsetX = Number(bs?.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX) || 0;
+        }
+        // Explicit blit nudge — must not be cancelled by CSS object-fit cover.
         drawX = (outW - drawW) / 2 + outW * offsetX;
-        const offsetY =
-          layoutOffsetYRef.current ?? bs?.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY;
+        let offsetY;
+        if (layoutOffsetYRef.current != null && Number.isFinite(Number(layoutOffsetYRef.current))) {
+          offsetY = Number(layoutOffsetYRef.current);
+        } else if (slot === "intro") {
+          offsetY = Number(bs?.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY) || 0;
+        } else {
+          offsetY = Number(bs?.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY) || 0;
+        }
         // Vertically center so the shark fills the middle of the screen (not glued to the bottom).
         drawY = (outH - drawH) / 2 + outH * offsetY;
-        // Late exit pan — intro slides off; chomp (full-screen eat) usually skips this.
+        // Prove offset is live on the canvas element (lab / DevTools).
+        canvas.dataset.sharkSlot = slot;
+        canvas.dataset.introOffsetX = String(
+          slot === "intro" ? offsetX : Number(bs?.introOffsetX ?? 0)
+        );
+        canvas.dataset.layoutOffsetX = String(offsetX);
+        canvas.dataset.drawX = String(Math.round(drawX));
+        const startAtSec =
+          playbackStartRef.current ?? bs?.startAtSeconds ?? DEFAULT_SHARK_BITE_SETTINGS.startAtSeconds;
+        const p = video.duration > 0 ? sharkBiteClipProgress(video, startAtSec) : 0;
+        const exitExtra = bs?.exitPanExtra ?? DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
+        const exitDir = Number(bs?.exitPanDirection);
+        const dir = Number.isFinite(exitDir) && exitDir !== 0 ? Math.sign(exitDir) : -1;
+        const slideSpan = Math.max(outW, drawW) * exitExtra;
+        // Chomp beat: enter from the opposite side, cross to center, then eat.
+        if (!loop && enterFromSideRef.current && video.duration > 0) {
+          const enterEnd = Math.max(
+            0.05,
+            Math.min(0.85, Number(bs?.enterPanEnd) || DEFAULT_SHARK_BITE_SETTINGS.enterPanEnd)
+          );
+          if (p < enterEnd) {
+            const t = 1 - p / enterEnd; // 1 off-screen → 0 centered
+            drawX += slideSpan * t * -dir;
+          }
+        }
+        // Intro swim-in: late exit pan so the shark clears the viewport edge-to-edge.
         if (!loop && !skipExitPanRef.current && video.duration > 0) {
-          const p = sharkBiteClipProgress(video, bs?.startAtSeconds ?? 0);
           const exitStart = bs?.exitPanStart ?? DEFAULT_SHARK_BITE_SETTINGS.exitPanStart;
-          const exitExtra = bs?.exitPanExtra ?? DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
-          const exitDir = Number(bs?.exitPanDirection);
-          const dir = Number.isFinite(exitDir) && exitDir !== 0 ? Math.sign(exitDir) : -1;
           if (p >= exitStart) {
             const t = (p - exitStart) / Math.max(0.001, 1 - exitStart);
-            drawX += outW * exitExtra * t * dir;
+            drawX += slideSpan * t * dir;
           }
         }
       }
@@ -583,8 +664,8 @@ export function ChromaKeyVideo({
         }
       };
 
-      // Keying disabled — show the raw frame.
-      if (cfg && cfg.enabled === false) {
+      // Keying disabled — show the raw frame (chomp beat always strips the plate).
+      if (cfg && cfg.enabled === false && !stripBackgroundPlateRef.current) {
         blit(work);
         scheduleNext();
         return;
@@ -606,10 +687,13 @@ export function ChromaKeyVideo({
       const key = keyColorRef.current;
       const keyLuma = 0.299 * key.r + 0.587 * key.g + 0.114 * key.b;
       const keyIsDark = keyLuma < 40;
-      const inner = cfg?.tolerance ?? 48;
-      const soft = cfg?.softness ?? 26;
+      const stripPlate = !!stripBackgroundPlateRef.current;
+      // Fullscreen chomp: gentle plate peel — aggressive adds punched holes in the shark.
+      const inner = (cfg?.tolerance ?? 48) + (stripPlate ? 6 : 0);
+      const soft = (cfg?.softness ?? 26) + (stripPlate ? 4 : 0);
       const outer = inner + soft;
-      const lumaCut = cfg?.lumaThreshold ?? 20;
+      const lumaCut = (cfg?.lumaThreshold ?? 20) + (stripPlate ? 6 : 0);
+      const plateChromaCut = stripPlate ? 16 : 14;
       const data = frame.data;
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
@@ -617,8 +701,13 @@ export function ChromaKeyVideo({
         const b = data[i + 2];
         const luma = 0.299 * r + 0.587 * g + 0.114 * b;
         const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-        // Only kill near-black, near-neutral plate — leave gray shark body alone.
-        if (keyIsDark && luma <= lumaCut && chroma <= 14) {
+        // Kill near-black / flat plate — leave gray shark body alone.
+        if ((keyIsDark || stripPlate) && luma <= lumaCut && chroma <= plateChromaCut) {
+          data[i + 3] = 0;
+          continue;
+        }
+        // Strip muted dark-blue/teal ocean plates — soft thresholds so shark skin survives.
+        if (stripPlate && luma < 38 && chroma < 22 && b >= r - 4 && b >= g - 8) {
           data[i + 3] = 0;
           continue;
         }
@@ -628,19 +717,21 @@ export function ChromaKeyVideo({
         const dist = Math.sqrt(dr * dr + dg * dg + db * db);
         let alpha = data[i + 3];
         if (dist < inner) {
-          if (!keyIsDark || luma < 42) alpha = 0;
+          // Do not force-zero mid-gray shark pixels on stripPlate (was too aggressive).
+          if (!keyIsDark || luma < 36) alpha = 0;
         } else if (dist < outer) {
-          if (!keyIsDark || luma < 55) {
+          if (!keyIsDark || luma < 48) {
             alpha = Math.round((alpha * (dist - inner)) / (outer - inner));
           }
         }
         data[i + 3] = alpha;
       }
+      // Mouth black ellipse/hole fill removed — chroma plate strip only.
       featherFrameEdges(data, fw, fh);
       wctx.putImageData(frame, 0, 0);
 
       blit(work);
-      onTimeUpdate?.(video);
+      onTimeUpdateRef.current?.(video);
 
       if (!loop && video.duration > 0) {
         const bs = biteRef.current;
@@ -661,7 +752,7 @@ export function ChromaKeyVideo({
     };
 
     const scheduleNext = () => {
-      if (cancelled) return;
+      if (cancelled || endedFired) return;
       if (typeof video.requestVideoFrameCallback === "function") {
         vfcId = video.requestVideoFrameCallback(() => renderFrame());
       } else {
@@ -669,14 +760,16 @@ export function ChromaKeyVideo({
       }
     };
 
-    const handleTime = () => onTimeUpdate?.(video);
+    const handleTime = () => onTimeUpdateRef.current?.(video);
     const handleEnded = () => {
       if (endedFired) return;
       endedFired = true;
       if (skipExitPanRef.current) {
-        canvas.style.opacity = "0";
-        octx.clearRect(0, 0, canvas.width, canvas.height);
-        onEnded?.();
+        if (!holdOnEndedRef.current) {
+          canvas.style.opacity = "0";
+          octx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        onEndedRef.current?.();
         return;
       }
       // Hold the last frame and finish sliding off-screen so the shark
@@ -684,22 +777,26 @@ export function ChromaKeyVideo({
       if (!fullViewport || !lastBlit.ready) {
         canvas.style.opacity = "0";
         octx.clearRect(0, 0, canvas.width, canvas.height);
-        onEnded?.();
+        onEndedRef.current?.();
         return;
       }
       let start = null;
-      const EXIT_MS = 720;
+      const EXIT_MS = 820;
       const baseX = lastBlit.drawX;
       const { drawY: by, drawW: bw, drawH: bh } = lastBlit;
       const exitDirRaw = Number(biteRef.current?.exitPanDirection);
       const exitDir = Number.isFinite(exitDirRaw) && exitDirRaw !== 0 ? Math.sign(exitDirRaw) : -1;
+      const exitExtra =
+        Number(biteRef.current?.exitPanExtra) || DEFAULT_SHARK_BITE_SETTINGS.exitPanExtra;
+      // Cover-scaled frames are wider than the viewport — slide past the drawn width.
+      const slideSpan = Math.max(canvas.width, bw) * Math.max(1.15, exitExtra);
       const step = (ts) => {
         if (cancelled) return;
         if (start == null) start = ts;
         const t = Math.min(1, (ts - start) / EXIT_MS);
         octx.clearRect(0, 0, canvas.width, canvas.height);
         // Slide fully off-screen in exitPanDirection (default left).
-        const slide = canvas.width * 1.2 * t * exitDir;
+        const slide = slideSpan * t * exitDir;
         octx.drawImage(work, baseX + slide, by, bw, bh);
         canvas.style.opacity = String(Math.max(0, 1 - t * t));
         if (t < 1) {
@@ -707,17 +804,20 @@ export function ChromaKeyVideo({
         } else {
           octx.clearRect(0, 0, canvas.width, canvas.height);
           canvas.style.opacity = "0";
-          onEnded?.();
+          onEndedRef.current?.();
         }
       };
       rafId = requestAnimationFrame(step);
     };
-    const handleError = () => onError?.();
+    const handleError = () => onErrorRef.current?.();
 
     const onResize = () => {
-      // Next frame recalculates full-viewport canvas size.
+      // The next video frame recalculates the full-viewport canvas size.
     };
-    if (fullViewport) window.addEventListener("resize", onResize);
+    if (fullViewport) {
+      window.addEventListener("resize", onResize);
+      window.visualViewport?.addEventListener("resize", onResize);
+    }
 
     video.addEventListener("timeupdate", handleTime);
     video.addEventListener("ended", handleEnded);
@@ -739,7 +839,7 @@ export function ChromaKeyVideo({
           video.volume = 0;
         });
       }
-      video.play().catch(() => onError?.());
+      video.play().catch(() => onErrorRef.current?.());
     };
     if (video.readyState >= 1) begin();
     else video.addEventListener("loadedmetadata", begin, { once: true });
@@ -752,13 +852,16 @@ export function ChromaKeyVideo({
       if (vfcId && typeof video.cancelVideoFrameCallback === "function") {
         video.cancelVideoFrameCallback(vfcId);
       }
-      if (fullViewport) window.removeEventListener("resize", onResize);
+      if (fullViewport) {
+        window.removeEventListener("resize", onResize);
+        window.visualViewport?.removeEventListener("resize", onResize);
+      }
       video.removeEventListener("loadedmetadata", begin);
       video.removeEventListener("timeupdate", handleTime);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
     };
-  }, [src, loop, fullViewport, layoutOffsetY, rotationSlot, onTimeUpdate, onEnded, onError]);
+  }, [src, loop, fullViewport, rotationSlot]);
 
   return (
     <>
@@ -770,14 +873,20 @@ export function ChromaKeyVideo({
         muted={biteSettings.muted !== false}
         playsInline
         preload="auto"
-        className="absolute w-px h-px opacity-0 pointer-events-none"
-        style={{ left: -9999, top: -9999 }}
+        // Keep the decoder in-viewport — off-screen 1×1 videos get throttled and
+        // delay chomp-progress sync (dice vanish / blackout fire late).
+        className={
+          fullViewport
+            ? "absolute inset-0 h-full w-full opacity-0 pointer-events-none"
+            : "absolute w-px h-px opacity-0 pointer-events-none"
+        }
+        style={fullViewport ? undefined : { left: -9999, top: -9999 }}
       />
       <canvas
         ref={canvasRef}
         className={
           fullViewport
-            ? "absolute inset-0 w-full h-full pointer-events-none"
+            ? "absolute inset-0 w-full h-full max-w-none max-h-none pointer-events-none"
             : className
         }
         style={{
@@ -785,13 +894,26 @@ export function ChromaKeyVideo({
           filter: "none",
           background: "transparent",
           mixBlendMode: "normal",
-          // Soft corner veil only — keep the shark body fully visible mid-screen.
-          WebkitMaskImage: fullViewport
-            ? "radial-gradient(ellipse 165% 145% at 50% 50%, #000 88%, transparent 100%)"
-            : "linear-gradient(#000, #000)",
-          maskImage: fullViewport
-            ? "radial-gradient(ellipse 165% 145% at 50% 50%, #000 88%, transparent 100%)"
-            : undefined,
+          ...(fullViewport
+            ? {
+                position: "absolute",
+                inset: 0,
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: "100%",
+                height: "100%",
+                maxWidth: "none",
+                maxHeight: "none",
+                // CRITICAL: do NOT use object-fit:cover — it re-crops the canvas
+                // bitmap from center and cancels layoutOffsetX / introOffsetX.
+                objectFit: "fill",
+              }
+            : {}),
+          // No radial mask on fullscreen — it read as an inset video window.
+          WebkitMaskImage: "none",
+          maskImage: "none",
         }}
       />
     </>
@@ -830,12 +952,14 @@ export function BlueGelPowerVideoScreen({
   const url = useSharkBiteVideoUrl(videoKey, active, videoSource);
   const biteSettings = useSharkBiteSettings();
   const isIntro = videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO;
+  // Intro swim-in MUST use introOffsetX (fraction of viewport, + = right).
+  // Passed into ChromaKeyVideo as layoutOffsetX → drawX += outW * layoutOffsetX.
   const layoutOffsetX = isIntro
-    ? biteSettings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX ?? 0
-    : biteSettings.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX ?? 0;
+    ? Number(biteSettings.introOffsetX ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetX) || 0
+    : Number(biteSettings.offsetX ?? DEFAULT_SHARK_BITE_SETTINGS.offsetX) || 0;
   const layoutOffsetY = isIntro
-    ? biteSettings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY ?? 0
-    : biteSettings.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY ?? 0;
+    ? Number(biteSettings.introOffsetY ?? DEFAULT_SHARK_BITE_SETTINGS.introOffsetY) || 0
+    : Number(biteSettings.offsetY ?? DEFAULT_SHARK_BITE_SETTINGS.offsetY) || 0;
   const startAt = isIntro
     ? biteSettings.introStartAtSeconds ?? 0
     : biteSettings.startAtSeconds ?? 0;
@@ -859,9 +983,9 @@ export function BlueGelPowerVideoScreen({
   const finishOnce = React.useCallback(() => {
     if (loop || endedSent.current) return;
     endedSent.current = true;
-    setFadeOpacity(0);
+    if (!(playFullClip && !syncChomp)) setFadeOpacity(0);
     onEnded?.();
-  }, [loop, onEnded]);
+  }, [loop, onEnded, playFullClip, syncChomp]);
 
   const handleChompProgress = React.useCallback(
     (video) => {
@@ -913,19 +1037,45 @@ export function BlueGelPowerVideoScreen({
     : syncChomp
       ? biteSettings.fadeStart ?? SHARK_BITE_FADE_START
       : null;
-  // Intro (not last): exit-pan LEFT off-screen. Chomp (last / sync): hold full-screen eat — no slide-off.
-  const skipExitPan = playFullClip ? isSequenceEnd || syncChomp : !syncChomp;
+  // Chomp beat: no side-slide enter (user: second shark must not pan in from the side).
+  // Intro swim-in still pans fully off-edge so beat 1 clears before beat 2.
+  const isChompBeat = !!syncChomp && !isIntro;
+  const skipExitPan =
+    overGameplay && !loop
+      ? isChompBeat
+      : playFullClip
+        ? !!(isSequenceEnd && isChompBeat)
+        : !syncChomp;
+  const enterFromSide = false;
+  // Hold end frame only when exit pan is intentionally skipped (fullscreen chomp).
+  const holdEndFrame = playFullClip && skipExitPan;
 
   const rootClass = containInParent
-    ? "absolute inset-0 overflow-hidden flex items-center justify-center pointer-events-none"
-    : "fixed inset-0 overflow-hidden flex items-center justify-center pointer-events-none";
+    ? "absolute inset-0 w-full h-full overflow-hidden pointer-events-none"
+    : "fixed inset-0 w-screen h-screen h-[100dvh] max-w-none max-h-none overflow-hidden pointer-events-none";
 
   return (
     <AnimatePresence>
       <motion.div
         key={`blue-gel-power-video-${loop ? "loop" : "once"}`}
         className={rootClass}
-        style={{ zIndex, background: "transparent", opacity: layerOpacity }}
+        style={{
+          zIndex,
+          background: "transparent",
+          opacity: layerOpacity,
+          ...(containInParent
+            ? {}
+            : {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: "100vw",
+                height: "100dvh",
+                maxWidth: "none",
+                maxHeight: "none",
+              }),
+        }}
         initial={{ opacity: containInParent ? layerOpacity : 0 }}
         animate={{ opacity: layerOpacity }}
         exit={{ opacity: 0 }}
@@ -944,6 +1094,9 @@ export function BlueGelPowerVideoScreen({
             playbackStartAtSeconds={startAt}
             playbackStopAtProgress={stopAt}
             skipExitPan={skipExitPan}
+            enterFromSide={enterFromSide}
+            stripBackgroundPlate={isChompBeat}
+            holdOnEnded={holdEndFrame}
             onTimeUpdate={handleChompProgress}
             onEnded={() => {
               if (!loop) finishOnce();
@@ -994,16 +1147,21 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const [beatIndex, setBeatIndex] = React.useState(0);
   const [swim, setSwim] = React.useState(false);
   const [chomping, setChomping] = React.useState(false);
+  /** Full-screen black takeover once the jaws close (chomp beat / SVG chomp). */
+  const [screenBlackout, setScreenBlackout] = React.useState(false);
   const chompEmitted = React.useRef(false);
   const completeEmitted = React.useRef(false);
-  const sequenceLockRef = React.useRef(false);
-  const beatEndedAtRef = React.useRef(-1);
+  /** Prevents the same beat from advancing twice (double ended / remount). */
+  const beatEndedRef = React.useRef(-1);
+  const sequenceGenRef = React.useRef(0);
   const queueRef = React.useRef([]);
   const beatIndexRef = React.useRef(0);
   const onChompRef = React.useRef(onChomp);
   const onCompleteRef = React.useRef(onComplete);
   const trayAnchor = useGameplayDiceTrayAnchor(active);
   const biteSettings = useSharkBiteSettings();
+  const biteSettingsRef = React.useRef(biteSettings);
+  biteSettingsRef.current = biteSettings;
   onChompRef.current = onChomp;
   onCompleteRef.current = onComplete;
 
@@ -1016,6 +1174,11 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const fireChomp = React.useCallback(() => {
     if (chompEmitted.current) return;
     chompEmitted.current = true;
+    const beat = queueRef.current[beatIndexRef.current];
+    // Blackout on the sync-chomp beat (or SVG path where queue is empty / svg).
+    if (!beat || beat.syncChomp || beat.id === "svg") {
+      setScreenBlackout(true);
+    }
     emitSharkBiteChomp();
     onChompRef.current?.();
   }, []);
@@ -1046,17 +1209,24 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
 
   const handleBeatEnded = React.useCallback(() => {
     const idx = beatIndexRef.current;
-    if (beatEndedAtRef.current === idx) return;
-    beatEndedAtRef.current = idx;
+    // One advance per beat — blocks triple replay from double ended/exit-pan callbacks.
+    if (beatEndedRef.current >= idx) return;
+    beatEndedRef.current = idx;
     const beat = queueRef.current[idx];
     if (beat?.syncChomp) fireChomp();
     const next = idx + 1;
     const hasMore = next < queueRef.current.length;
-    // Short pause after intro swim-in before the full-screen chomp (not a long re-loop window).
-    const pauseMs =
+    // Short pause after intro swims off before the chomp beat starts.
+    const interBeatPause =
       hasMore && !beat?.syncChomp
-        ? Math.min(800, Math.max(0, Number(biteSettings.interBeatMs) || 0))
+        ? Math.max(0, Number(biteSettingsRef.current.interBeatMs) || 0)
         : 0;
+    // Hold full-screen black after the chomp climax before tearing down FX.
+    const blackoutHold =
+      !hasMore && beat?.syncChomp
+        ? Math.max(0, Number(biteSettingsRef.current.blackoutHoldMs) || 0)
+        : 0;
+    const pauseMs = Math.max(interBeatPause, blackoutHold);
     if (interBeatTimerRef.current) clearTimeout(interBeatTimerRef.current);
     if (pauseMs > 0) {
       interBeatTimerRef.current = setTimeout(() => {
@@ -1066,12 +1236,12 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       return;
     }
     advanceBeat();
-  }, [advanceBeat, fireChomp, biteSettings.interBeatMs]);
+  }, [advanceBeat, fireChomp]);
 
   const handleBeatError = React.useCallback(() => {
     const idx = beatIndexRef.current;
-    if (beatEndedAtRef.current === idx) return;
-    beatEndedAtRef.current = idx;
+    if (beatEndedRef.current >= idx) return;
+    beatEndedRef.current = idx;
     const beat = queueRef.current[idx];
     if (beat?.syncChomp) fireChomp();
     if (interBeatTimerRef.current) clearTimeout(interBeatTimerRef.current);
@@ -1080,14 +1250,15 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
 
   React.useEffect(() => {
     if (!active) {
+      sequenceGenRef.current += 1;
       setPhase(null);
       setBeatIndex(0);
       setSwim(false);
       setChomping(false);
+      setScreenBlackout(false);
       chompEmitted.current = false;
       completeEmitted.current = false;
-      sequenceLockRef.current = false;
-      beatEndedAtRef.current = -1;
+      beatEndedRef.current = -1;
       queueRef.current = [];
       if (interBeatTimerRef.current) {
         clearTimeout(interBeatTimerRef.current);
@@ -1096,15 +1267,14 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       return undefined;
     }
 
-    // One sequence per activation — never rebuild/replay while still active.
-    if (sequenceLockRef.current) return undefined;
-    sequenceLockRef.current = true;
-
+    // Start exactly one sequence per active=true — do not restart on settings churn.
+    const gen = ++sequenceGenRef.current;
     chompEmitted.current = false;
     completeEmitted.current = false;
-    beatEndedAtRef.current = -1;
+    beatEndedRef.current = -1;
     setSwim(false);
     setChomping(false);
+    setScreenBlackout(false);
     setBeatIndex(0);
     setPhase(null);
     queueRef.current = [];
@@ -1115,20 +1285,28 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       getCatalogChompVideoUrl() ||
       hasUploadedSharkBiteBeatSync() ||
       !!getCachedBlueGelPowerVideoObjectUrl();
-    const delayMs = usesVideo ? 0 : biteSettings.preSwimMs;
+    const delayMs = usesVideo ? 0 : biteSettingsRef.current.preSwimMs;
 
     const startT = setTimeout(() => {
-      if (cancelled) return;
+      if (cancelled || sequenceGenRef.current !== gen) return;
       buildSharkBitePhaseQueue().then((queue) => {
-        if (cancelled) return;
-        // Hard cap: intro + chomp only (never stack repeats).
-        queueRef.current = (queue || []).slice(0, 2);
-        const first = queueRef.current[0];
+        if (cancelled || sequenceGenRef.current !== gen) return;
+        // Deduplicate identical beats — never stack the same clip twice.
+        const seen = new Set();
+        const unique = [];
+        for (const beat of queue) {
+          const key = `${beat.id}:${beat.videoKey ?? ""}:${beat.source ?? ""}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          unique.push(beat);
+        }
+        queueRef.current = unique;
+        const first = unique[0];
         if (!first || first.id === "svg") {
           setPhase("svg");
           return;
         }
-        for (const beat of queueRef.current) {
+        for (const beat of unique) {
           if (beat.videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
             preloadSharkBiteIntroVideo();
           } else if (beat.source === "local") {
@@ -1145,7 +1323,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       cancelled = true;
       clearTimeout(startT);
     };
-  }, [active, biteSettings.preSwimMs]);
+  }, [active]);
 
   // SVG timeline — only when no uploaded / catalog video is available.
   React.useEffect(() => {
@@ -1168,7 +1346,10 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       return undefined;
     }
     setChomping(false);
-    const chompMs = biteSettings.chompMs;
+    // Align with SVG keyframes: re-enter completes ~0.62, then jaws close / dice vanish.
+    const chompMs = Math.round(
+      Math.max(biteSettings.chompMs, (biteSettings.fxMs || 3800) * 0.62)
+    );
     const chompT = setTimeout(() => {
       setChomping(true);
       fireChomp();
@@ -1178,7 +1359,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
       clearTimeout(chompT);
       clearTimeout(doneChomp);
     };
-  }, [swim, phase, fireChomp, biteSettings.chompMs]);
+  }, [swim, phase, fireChomp, biteSettings.chompMs, biteSettings.fxMs]);
 
   // Safety — never advance beats early; only force chomp/complete if a clip stalls.
   React.useEffect(() => {
@@ -1210,15 +1391,48 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
 
   if (!active || !phase) return null;
 
+  const blackoutOverlay = (
+    <AnimatePresence>
+      {screenBlackout ? (
+        <motion.div
+          key="shark-bite-screen-blackout"
+          className="fixed inset-0 w-screen h-screen h-[100dvh] max-w-none max-h-none bg-black pointer-events-none"
+          style={{
+            zIndex: 56,
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100dvh",
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16, ease: "easeIn" }}
+          aria-hidden
+        />
+      ) : null}
+    </AnimatePresence>
+  );
+
   if (phase === "video" && currentBeat) {
     const beatKey = `${beatIndex}-${currentBeat.id}-${currentBeat.source ?? "auto"}`;
     const isLastBeat = beatIndex >= queueRef.current.length - 1;
-    return (
-      <div className="fixed inset-0 z-[55] pointer-events-none">
+    return portalToViewport(
+      <>
+        {/* No standing scenery/mouth plate — chroma strips the chomp background;
+            full-screen black only at the climax via blackoutOverlay. */}
+        {screenBlackout ? (
+          <div
+            className="fixed inset-0 w-screen h-screen h-[100dvh] max-w-none max-h-none bg-black pointer-events-none"
+            style={{ zIndex: 54, left: 0, top: 0, width: "100vw", height: "100dvh" }}
+            aria-hidden
+          />
+        ) : null}
         <BlueGelPowerVideoScreen
           key={beatKey}
           active
-          containInParent
           loop={false}
           overGameplay
           playFullClip
@@ -1231,7 +1445,8 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
           onEnded={handleBeatEnded}
           onError={handleBeatError}
         />
-      </div>
+        {blackoutOverlay}
+      </>
     );
   }
 
@@ -1240,12 +1455,12 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
   const fxSecRaw = biteSettings.fxMs / 1000;
   const fxSec = Number.isFinite(fxSecRaw) ? Math.max(0.001, fxSecRaw) : 0.001;
 
-  return (
+  return portalToViewport(
     <AnimatePresence>
       {swim ? (
         <motion.div
           key="shark-bite-screen"
-          className="fixed inset-0 z-[55] overflow-hidden pointer-events-none"
+          className="fixed inset-0 w-screen h-screen h-[100dvh] z-[55] overflow-hidden pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -1262,17 +1477,15 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
             }}
             initial={{ x: offLeft, y: -chompDip, opacity: 0 }}
             animate={{
-              x: [offLeft, 0, offRight * 0.35, offRight],
-              y: [-chompDip, 0, 0, -chompDip * 0.35],
-              // Stay fully visible until past the right edge — no mid-screen vanish.
-              opacity: [0, 1, 1, 1],
-              // Keep scale keyframe count aligned with `times` (4) — WAAPI throws
-              // "duration must be non-negative" on mismatched keyframe/times lengths.
-              scale: chomping ? [1, 1.12, 1.04, 1.04] : 1,
+              // Swim across → exit off-screen → re-enter from opposite side → eat over tray.
+              x: [offLeft, 0, offRight, offRight * 1.05, offLeft, 0, offRight * 0.08],
+              y: [-chompDip, 0, -chompDip * 0.35, -chompDip * 0.35, -chompDip, 0, 0],
+              opacity: [0, 1, 1, 0, 0, 1, 1],
+              scale: chomping ? [1, 1, 1, 1, 1, 1.12, 1.04] : 1,
             }}
             transition={{
               duration: fxSec,
-              times: [0, 0.32, 0.55, 1],
+              times: [0, 0.18, 0.36, 0.4, 0.42, 0.62, 1],
               ease: "easeInOut",
             }}
           >
@@ -1297,6 +1510,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
           ) : null}
         </motion.div>
       ) : null}
+      {blackoutOverlay}
     </AnimatePresence>
   );
 }
@@ -1305,8 +1519,7 @@ export function SharkBiteScreenFX({ active, onChomp, onComplete }) {
  * Blue Gel Shark Bite power-mode charge (OWN power) — fish stay alive.
  * Hunting cyan water / bubbles. Not Feeding Frenzy (that eats the fish).
  */
-export function BlueGelSharkBiteCharge({ size, radius, count = 1, children }) {
-  const bubbleCount = count >= 5 ? 18 : count === 4 ? 12 : 8;
+export function BlueGelSharkBiteCharge({ size, radius, count = 1, dieSeed = 0, children }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ borderRadius: radius }}>
       <motion.div
@@ -1322,31 +1535,126 @@ export function BlueGelSharkBiteCharge({ size, radius, count = 1, children }) {
         transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       />
       <div className="absolute inset-0">{children}</div>
-      {Array.from({ length: bubbleCount }, (_, i) => {
-        const sz = size * (0.02 + (i % 5) * 0.012);
+      <AquariumBubbles
+        size={size}
+        count={count}
+        dieSeed={dieSeed}
+        theme="clear"
+        density="normal"
+        salt="shark-bite-charge"
+        riseMult={1.25}
+        speedScale={1.35}
+      />
+    </div>
+  );
+}
+
+/**
+ * Shark Tank's in-die aquarium — mostly great whites + seeded orcas,
+ * rare tiger/hammerhead, seeded swim paths, and occasional rivalry attacks.
+ */
+export function SharkTankOverlay({
+  size,
+  radius,
+  count = 1,
+  dieSeed = 0,
+  frozen = false,
+  powerMode = false,
+}) {
+  const tankSize = Number(size) || 64;
+  const requestedCount = Math.floor(Number(count));
+  const sharkCount = Math.max(
+    1,
+    Math.min(6, Number.isFinite(requestedCount) ? requestedCount : 1)
+  );
+  const sharks = React.useMemo(
+    () => buildSharkTankCreatures(sharkCount, dieSeed, powerMode && !frozen),
+    [sharkCount, dieSeed, powerMode, frozen]
+  );
+  const { attack, bloodVisible, skeleton } = useSharkTankRivalry({
+    active: !frozen && sharkCount >= 2,
+    dieSeed,
+    sharkCount,
+  });
+  const biteLanded = Boolean(attack?.biteLanded);
+  const skeletonTop =
+    skeleton != null
+      ? Number(sharks[skeleton.victimIdx]?.top) || 42
+      : 42;
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      data-shark-overlay="tank"
+      style={{ borderRadius: radius }}
+    >
+      <div
+        className="absolute inset-0 opacity-40"
+        style={{
+          background:
+            "radial-gradient(ellipse at 28% 18%, rgba(148,163,184,0.18) 0%, transparent 44%), radial-gradient(ellipse at 72% 78%, rgba(8,145,178,0.28) 0%, transparent 54%), radial-gradient(ellipse at 50% 100%, rgba(15,23,42,0.35) 0%, transparent 62%)",
+        }}
+      />
+
+      {!frozen ? (
+        <AquariumBubbles
+          size={tankSize}
+          count={sharkCount}
+          dieSeed={dieSeed}
+          theme={bloodVisible ? "blood" : "shark"}
+          density="normal"
+          salt={bloodVisible ? "shark-tank-blood" : "shark-tank"}
+          riseMult={1.15}
+        />
+      ) : null}
+
+      {sharks.map((shark, index) => {
+        const isAttacker = attack?.attackerIdx === index;
+        const isVictim = attack?.victimIdx === index;
+        const victimTop = isAttacker ? sharks[attack.victimIdx]?.top : shark.top;
+        const lungeLaneDelta = isAttacker ? (Number(victimTop) || 40) - shark.top : 0;
         return (
-          <motion.div
-            key={`sb-${i}`}
-            className="absolute rounded-full"
-            style={{
-              width: sz,
-              height: sz,
-              left: `${(i * 37 + 5) % 92}%`,
-              bottom: -4,
-              background:
-                "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(56,189,248,0.4))",
-              border: "1px solid rgba(186,230,253,0.45)",
-            }}
-            animate={{ y: [0, -size * 1.25], opacity: [0, 0.9, 0], scale: [0.55, 1.1, 0.8] }}
-            transition={{
-              duration: 1.6 + (i % 4) * 0.2,
-              repeat: Infinity,
-              delay: (i * 0.05) % 1,
-              ease: "easeOut",
-            }}
+          <SwimmingShark
+            key={shark.id}
+            size={tankSize}
+            top={shark.top}
+            duration={shark.duration}
+            delay={shark.delay}
+            dir={shark.dir}
+            scale={shark.scale}
+            variant={shark.variant}
+            frozen={frozen}
+            chomping={shark.chomping || isAttacker}
+            showTeeth={shark.showTeeth}
+            scary={shark.scary || isAttacker}
+            pathStyle={shark.pathStyle}
+            swayFrac={shark.swayFrac}
+            bodyRoll={shark.bodyRoll}
+            attacking={isAttacker}
+            telegraphing={isVictim && !biteLanded}
+            recoiling={isVictim && biteLanded}
+            attackKey={attack?.id || 0}
+            lungeLaneDelta={lungeLaneDelta}
           />
         );
       })}
+
+      {!frozen && skeleton ? (
+        <SharkTankFishSkeleton
+          size={tankSize}
+          topPct={skeletonTop}
+          driftDir={skeleton.driftDir}
+          animKey={skeleton.id}
+        />
+      ) : null}
+
+      <SharkTankBloodFlash
+        size={tankSize}
+        radius={radius}
+        active={bloodVisible && !frozen}
+        count={sharkCount}
+        dieSeed={dieSeed}
+      />
     </div>
   );
 }
@@ -1520,11 +1828,9 @@ export function BlueGelSharkAttack({
     phase === "normal";
   const bloodWaterBg =
     phase === "normal" ? BLUE_GEL_BLOOD_WATER_SETTLED : BLUE_GEL_BLOOD_WATER;
-  const bloodBubbleBg =
-    phase === "normal" ? BLUE_GEL_BLOOD_BUBBLE_SETTLED : BLUE_GEL_BLOOD_BUBBLE;
 
-  const normalBubbleCount = count >= 5 ? 22 : count === 4 ? 14 : 8;
-  const bubbleCount =
+  const feastSeed = bigFishVariantIndex * 97 + count * 13;
+  const explicitBubbleCount =
     phase === "bubbling"
       ? 48
       : phase === "enter"
@@ -1538,11 +1844,11 @@ export function BlueGelSharkAttack({
               : phase === "bubble3"
                 ? 18
                 : phase === "normal"
-                  ? normalBubbleCount
+                  ? aquariumBubbleCount(count)
                   : 0;
 
-  const bubbleSpeed =
-    phase === "normal" ? 2.2 : phase === "bubble3" ? 1.35 : phase === "bubble2" ? 1.05 : 0.8;
+  const bubbleSpeedScale =
+    phase === "normal" ? 1 : phase === "bubble3" ? 1.65 : phase === "bubble2" ? 2.1 : 2.6;
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ borderRadius: radius }}>
@@ -1609,37 +1915,25 @@ export function BlueGelSharkAttack({
       ) : null}
 
       {/* Bubble timers: heavy → medium → light → normal pace (water stays red) */}
-      {Array.from({ length: bubbleCount }, (_, i) => {
-        const sz = size * (0.02 + (i % 6) * (phase === "normal" ? 0.012 : 0.016));
-        return (
-          <motion.div
-            key={`b-${phase}-${i}`}
-            className="absolute rounded-full"
-            style={{
-              width: sz,
-              height: sz,
-              left: `${(i * 37 + 3) % 94}%`,
-              bottom: -4,
-              background: waterRed ? bloodBubbleBg : "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(125,211,252,0.35))",
-              border: "1px solid rgba(255,255,255,0.35)",
-            }}
-            animate={{ y: [0, -size * 1.35], opacity: [0, 0.95, 0], scale: [0.55, 1.15, 0.85] }}
-            transition={{
-              duration: bubbleSpeed + (i % 5) * 0.14,
-              repeat: Infinity,
-              delay: (i * 0.045) % 1.1,
-              ease: "easeOut",
-            }}
-          />
-        );
-      })}
+      {explicitBubbleCount > 0 ? (
+        <AquariumBubbles
+          key={`feast-bubbles-${phase}`}
+          size={size}
+          count={count}
+          dieSeed={feastSeed}
+          theme={waterRed ? (phase === "normal" ? "bloodSettled" : "blood") : "clear"}
+          salt={`feast-${phase}`}
+          riseMult={1.35}
+          speedScale={bubbleSpeedScale}
+          explicitCount={explicitBubbleCount}
+        />
+      ) : null}
     </div>
   );
 }
 
 /** Permanent bloody tint + calm bubbles (rest of match after power FX settles). */
-export function BloodyWaterTint({ size, radius, count = 1 }) {
-  const bubbleCount = count >= 5 ? 22 : count === 4 ? 14 : 8;
+export function BloodyWaterTint({ size, radius, count = 1, dieSeed = 0 }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-[3]" style={{ borderRadius: radius }}>
       <div
@@ -1649,30 +1943,15 @@ export function BloodyWaterTint({ size, radius, count = 1 }) {
           background: BLUE_GEL_BLOOD_WATER_SETTLED,
         }}
       />
-      {Array.from({ length: bubbleCount }, (_, i) => {
-        const sz = size * (0.02 + (i % 6) * 0.012);
-        return (
-          <motion.div
-            key={`bw-${i}`}
-            className="absolute rounded-full"
-            style={{
-              width: sz,
-              height: sz,
-              left: `${(i * 37 + 3) % 94}%`,
-              bottom: -4,
-              background: BLUE_GEL_BLOOD_BUBBLE_SETTLED,
-              border: "1px solid rgba(255,255,255,0.3)",
-            }}
-            animate={{ y: [0, -size * 1.35], opacity: [0, 0.9, 0], scale: [0.55, 1.1, 0.85] }}
-            transition={{
-              duration: 2.2 + (i % 5) * 0.14,
-              repeat: Infinity,
-              delay: (i * 0.045) % 1.1,
-              ease: "easeOut",
-            }}
-          />
-        );
-      })}
+      <AquariumBubbles
+        size={size}
+        count={count}
+        dieSeed={dieSeed}
+        theme="bloodSettled"
+        density="normal"
+        salt="bloody-tint"
+        riseMult={1.35}
+      />
     </div>
   );
 }
@@ -1712,8 +1991,8 @@ export function BloodPowerFx({ size, radius, count = 1, locked = false, onSettle
     return <BloodyWaterTint size={size} radius={radius} count={count} />;
   }
 
-  const bubbleCount = phase === "bubble1" ? 44 : phase === "bubble2" ? 30 : 18;
-  const bubbleSpeed = phase === "bubble3" ? 1.35 : phase === "bubble2" ? 1.05 : 0.8;
+  const explicitCount = phase === "bubble1" ? 44 : phase === "bubble2" ? 30 : 18;
+  const speedScale = phase === "bubble3" ? 1.65 : phase === "bubble2" ? 2.1 : 2.6;
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-[3]" style={{ borderRadius: radius }}>
@@ -1725,30 +2004,17 @@ export function BloodPowerFx({ size, radius, count = 1, locked = false, onSettle
         }}
         transition={{ duration: 0.5 }}
       />
-      {Array.from({ length: bubbleCount }, (_, i) => {
-        const sz = size * (0.02 + (i % 6) * 0.016);
-        return (
-          <motion.div
-            key={`bp-${phase}-${i}`}
-            className="absolute rounded-full"
-            style={{
-              width: sz,
-              height: sz,
-              left: `${(i * 37 + 3) % 94}%`,
-              bottom: -4,
-              background: BLUE_GEL_BLOOD_BUBBLE,
-              border: "1px solid rgba(255,255,255,0.35)",
-            }}
-            animate={{ y: [0, -size * 1.35], opacity: [0, 0.95, 0], scale: [0.55, 1.15, 0.85] }}
-            transition={{
-              duration: bubbleSpeed + (i % 5) * 0.14,
-              repeat: Infinity,
-              delay: (i * 0.045) % 1.1,
-              ease: "easeOut",
-            }}
-          />
-        );
-      })}
+      <AquariumBubbles
+        key={`bp-${phase}`}
+        size={size}
+        count={count}
+        dieSeed={count * 41}
+        theme="blood"
+        salt={`blood-power-${phase}`}
+        riseMult={1.35}
+        speedScale={speedScale}
+        explicitCount={explicitCount}
+      />
     </div>
   );
 }
