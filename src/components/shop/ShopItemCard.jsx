@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Coins, Check, Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSkin } from "@/lib/shopCatalog";
 
 /**
  * Generic shop item card.
@@ -18,6 +19,9 @@ export default function ShopItemCard({
   skinLevel,
 }) {
   const displayPrice = effectivePrice ?? item.price;
+  const upgradeBaseName = item.upgradesFrom
+    ? (getSkin(item.upgradesFrom)?.name || item.upgradesFrom)
+    : null;
 
   return (
     <motion.div
@@ -51,6 +55,11 @@ export default function ShopItemCard({
       </div>
 
       <div className="text-white font-bold text-sm truncate">{item.name}</div>
+      {upgradeBaseName ? (
+        <div className="text-[10px] font-black uppercase tracking-wider text-rose-300/90 mb-0.5">
+          Upgrade · {upgradeBaseName}
+        </div>
+      ) : null}
       <div className="text-slate-400 text-xs mb-3 h-8 overflow-hidden">{item.description}</div>
 
       {owned ? (

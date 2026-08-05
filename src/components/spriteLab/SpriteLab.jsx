@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
-import { getFelt, getSkin, skinHasPowerSprite, DICE_SKINS } from "@/lib/shopCatalog";
+import { getFelt, getSkin, skinHasPowerSprite, DICE_SKINS, getSkinUpgradesFrom, getSkinUpgradeOf } from "@/lib/shopCatalog";
 import { getSkinPowerMeta } from "@/lib/skinPowers";
 import {
   getStoryBossesForSkin,
@@ -547,8 +547,8 @@ function FaceNudgePanel({ face, nudge, onChange, onResetFace, onResetAll, modeLa
       </div>
       <p className="text-[10px] text-slate-500">Per-die nudge in ref pixels (@ 64px die size).</p>
       {[
-        { key: "x", min: -12, max: 12, step: 0.5, label: "Nudge X" },
-        { key: "y", min: -12, max: 12, step: 0.5, label: "Nudge Y" },
+        { key: "x", min: -64, max: 64, step: 0.5, label: "Nudge X" },
+        { key: "y", min: -64, max: 64, step: 0.5, label: "Nudge Y" },
       ].map(({ key, min, max, step, label: sliderLabel }) => (
         <label key={key} className="block text-[10px] text-slate-400">
           {sliderLabel}: <span className="text-white tabular-nums">{nudge[key]?.toFixed(1)}</span>
@@ -585,6 +585,14 @@ export default function SpriteLab({ skinId }) {
   const profile = useMemo(() => loadProfile(), []);
   const skinPowerMeta = useMemo(() => getSkinPowerMeta(skinId), [skinId]);
   const storyBossesForSkin = useMemo(() => getStoryBossesForSkin(skinId), [skinId]);
+  const upgradeFromId = useMemo(() => getSkinUpgradesFrom(skinId), [skinId]);
+  const upgradeToId = useMemo(() => getSkinUpgradeOf(skinId), [skinId]);
+  const upgradeFromSkin = upgradeFromId ? getSkin(upgradeFromId) : null;
+  const upgradeToSkin = upgradeToId ? getSkin(upgradeToId) : null;
+  const upgradeBaseBosses = useMemo(
+    () => (upgradeFromId ? getStoryBossesForSkin(upgradeFromId) : []),
+    [upgradeFromId]
+  );
   const currentSkinLevel = getLocalSkinPowerLevel(skinId, profile);
   const skinLevelVisual = getSkinLevelVisual(skinId);
   const hasSpriteSheet = !!catalogSkin.spriteUrl;
@@ -1210,6 +1218,43 @@ export default function SpriteLab({ skinId }) {
             <p className="text-xs text-slate-300 leading-relaxed">{catalogSkin.description}</p>
           ) : null}
 
+          {(upgradeFromSkin || upgradeToSkin) ? (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-950/25 p-3 space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">
+                Skin upgrade
+              </p>
+              {upgradeFromSkin ? (
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Upgrade of{" "}
+                  <Link
+                    to={`/sprite-lab/${upgradeFromId}`}
+                    className="font-black text-cyan-200 underline underline-offset-2"
+                  >
+                    {upgradeFromSkin.name}
+                  </Link>
+                  <span className="text-slate-500 font-mono"> ({upgradeFromId})</span>
+                  {upgradeBaseBosses.some((b) => b.id === GQ_BOSS_ID) ? (
+                    <span> — GQ&apos;s Diamond Cut line</span>
+                  ) : null}
+                  . Shares the same secret power.
+                </p>
+              ) : null}
+              {upgradeToSkin ? (
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Upgrades to{" "}
+                  <Link
+                    to={`/sprite-lab/${upgradeToId}`}
+                    className="font-black text-rose-200 underline underline-offset-2"
+                  >
+                    {upgradeToSkin.name}
+                  </Link>
+                  <span className="text-slate-500 font-mono"> ({upgradeToId})</span>
+                  .
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="rounded-lg border border-white/10 bg-black/25 p-3 space-y-1.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-orange-200">
               Secret power
@@ -1427,13 +1472,12 @@ export default function SpriteLab({ skinId }) {
           </label>
         </div>
 
-        {/* Sticky preview: stretch grid (no items-start); sticky on overflow-visible wrapper. */}
+        {/* Sticky preview: stretch grid (no items-start); sticky on overflow-visible wrapper.
+            All-dice mode uses a full-width slim 1×6 strip (same shape as bottom All faces). */}
         <div
           className={cn(
-            "flex flex-col gap-4 lg:grid",
-            topPreviewAll
-              ? "lg:grid-cols-[minmax(220px,1fr),minmax(240px,1fr)]"
-              : "lg:grid-cols-[minmax(160px,auto),1fr]"
+            "flex flex-col gap-4",
+            !topPreviewAll && "lg:grid lg:grid-cols-[minmax(160px,auto),1fr]"
           )}
         >
           <div
@@ -1447,13 +1491,13 @@ export default function SpriteLab({ skinId }) {
               allowDieOverflow={
                 iceFreezeOn || (previewSkinLevel > 1 && skinLevelVisual?.effect === "frost")
               }
-              className={cn(topPreviewAll && "w-full")}
               innerClassName={cn(
-                "flex flex-col items-center gap-2 p-4 sm:p-5",
-                topPreviewAll && "w-full overflow-visible"
+                topPreviewAll
+                  ? "p-4 overflow-visible"
+                  : "flex flex-col items-center gap-2 p-4 sm:p-5"
               )}
             >
-              <div className="w-full flex items-center justify-between gap-2">
+              <div className="w-full flex items-center justify-between gap-2 mb-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
                   Live preview · {topPreviewAll ? "all faces" : "single die"}
                 </p>
@@ -1463,28 +1507,20 @@ export default function SpriteLab({ skinId }) {
               </div>
               {topPreviewAll ? (
                 <>
-                  <div
-                    className="grid grid-cols-3 gap-3 sm:gap-4 justify-items-center w-full py-1"
-                    style={{ overflow: "visible" }}
-                  >
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 justify-items-center">
                     {FACES.map((face) => (
                       <button
                         key={face}
                         type="button"
                         onClick={() => setSelectedFace(face)}
                         className={cn(
-                          "text-center rounded-xl p-1.5 transition-all overflow-visible",
+                          "text-center rounded-xl p-1 transition-all overflow-visible",
                           selectedFace === face
                             ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-transparent bg-cyan-500/10"
                             : "hover:bg-white/5"
                         )}
                       >
-                        <div
-                          className="relative mx-auto overflow-visible"
-                          style={{ width: allPreviewSize, height: allPreviewSize }}
-                        >
-                          {renderLabDie(face, allPreviewSize)}
-                        </div>
+                        {renderLabDie(face, allPreviewSize)}
                         <p
                           className={cn(
                             "text-[10px] mt-1 tabular-nums",
@@ -1496,7 +1532,7 @@ export default function SpriteLab({ skinId }) {
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-cyan-200 tabular-nums">
+                  <p className="text-xs text-cyan-200 tabular-nums mt-2">
                     Editing face {selectedFace} · x {activeNudge.x.toFixed(1)} · y{" "}
                     {activeNudge.y.toFixed(1)}
                   </p>
@@ -2156,14 +2192,23 @@ export default function SpriteLab({ skinId }) {
         </div>
         )}
 
-        {skinId === "crystal_cut" && (
+        {(skinId === "crystal_cut" || skinId === "diamond_ruby") && (
           <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
               Story mode — before &amp; after (GQ)
             </p>
             <p className="text-[10px] text-slate-400">
-              Only plays in <b>Story mode</b> fights against GQ. <b>Before match</b> fullscreen
-              intro when the fight starts. <b>After victory</b> when you win.
+              {skinId === "diamond_ruby" ? (
+                <>
+                  Diamond Ruby is the upgrade of GQ&apos;s Diamond Cut. These slots are GQ&apos;s
+                  story videos (same as <Link to="/sprite-lab/crystal_cut" className="text-cyan-200 underline">Diamond Cut lab</Link>).
+                </>
+              ) : (
+                <>
+                  Only plays in <b>Story mode</b> fights against GQ. <b>Before match</b> fullscreen
+                  intro when the fight starts. <b>After victory</b> when you win.
+                </>
+              )}
             </p>
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
