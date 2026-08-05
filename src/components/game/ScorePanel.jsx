@@ -98,6 +98,9 @@ export default function ScorePanel({
                     title="Power charge held"
                   >
                     ⚡ Charge
+                    {(Number(p.powerCharges) || 0) > 0
+                      ? ` ×${1 + (Number(p.powerCharges) || 0)}`
+                      : ""}
                   </span>
                 )}
                 {p.score >= target && (

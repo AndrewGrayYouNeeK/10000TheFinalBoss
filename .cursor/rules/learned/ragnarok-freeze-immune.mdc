@@ -1,0 +1,13 @@
+---
+description: "Ragnarok / lava never show Score Freeze ice cubes"
+alwaysApply: false
+---
+
+# Ragnarok is freeze-overlay immune
+
+Fire skins `ragnarok`, `lava`, and `ragnarok_regular` never paint `IcePowerOverlay` cubes. Gate with `isFreezeOverlayImmuneSkin()` in `icePowerSettings.js` (used from `Die.jsx`). Sprite Lab hides the freeze preview toggle and shows “Freeze immune · fire skin”. Score Freeze / freeze debuffs may still apply mechanically; only the ice-cube visual is blocked.
+
+## Verification
+- Verified: `npm run lint` passed; Die ignores `iceFrozenOverlay` when immune; Sprite Lab Ragnarok shows immune badge instead of freeze toggle
+- Failure pattern avoided: Magma dice coated in blue ice cubes after earlier “make sure Ragnarok can be frozen” wiring
+- Dead-end ruled out: Do not re-enable via `forceEnabled` alone — Die must short-circuit before overlay mount

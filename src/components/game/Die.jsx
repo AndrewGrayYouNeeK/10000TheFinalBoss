@@ -12,7 +12,6 @@ import {
 } from "@/lib/diamondCutPowerVideo";
 import {
   AQUARIUM_OVERLAY_SKIN_IDS,
-  BLUE_GEL_SPRITE_URL,
   getSkin,
   getSkinSpriteLayer,
   getActiveVideoUrl,
@@ -20,10 +19,18 @@ import {
 import { layoutGrid } from "@/lib/diceAssets";
 import { useXrayMorphLayout } from "@/hooks/useXrayMorphLayout";
 import Pip from "./Pip";
-import FishOverlay from "./FishOverlay";
-import { BlueGelSharkAttack, BlueGelSharkBiteCharge, BloodPowerFx, BloodyWaterTint, skinUsesBloodPowerFx } from "./BlueGelPowerFX";
+import FishOverlay, { ANGELFISH_VARIANT_INDICES, FISH_VARIANTS } from "./FishOverlay";
+import {
+  BlueGelSharkAttack,
+  BlueGelSharkBiteCharge,
+  BloodPowerFx,
+  BloodyWaterTint,
+  SharkTankOverlay,
+} from "./BlueGelPowerFX";
+import { skinUsesBloodPowerFx } from "@/lib/skinPowerVisuals";
 import SnowGlobeOverlay from "./SnowGlobeOverlay";
 import IcePowerOverlay from "./IcePowerOverlay";
+import { isFreezeOverlayImmuneSkin } from "@/lib/icePowerSettings";
 import ExperimentalDieBody, { getExperimentalShadow, isExperimentalClearBody } from "./ExperimentalDieBody";
 import { PortfolioDieProvider } from "./portfolio/PortfolioDieContext";
 import HeldDiceOverlay from "./HeldDiceOverlay";
@@ -41,10 +48,18 @@ import {
   resolveSnowGlobeShellNudges,
   useSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
+import {
+  getBlueGelShellCrop,
+  resolveBlueGelShellNudges,
+  useBlueGelSettings,
+} from "@/lib/blueGelSettings";
 import { assetUrl } from "@/lib/assetUrl";
-import { BLUE_GEL_SPRITE_TUNING } from "@/lib/blueGelSpriteTuning";
-import { getBlueGelFaceImgStyle } from "@/lib/blueGelFaceStyle";
 import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
+import { clampSkinLevel, getSkinLevelVisual } from "@/lib/skinLevelVisuals";
+
+// Keep the live aquarium roster available for every face while reserving
+// indices 6 and 7 for the two deterministic face-1 Angelfish variants.
+const BLUE_GEL_FISH_VARIANT_INDICES = FISH_VARIANTS.map((_, index) => index);
 
 const LOCAL_POWER_VIDEO_SKINS = {
   matrix: {
@@ -124,6 +139,11 @@ function Die({
   /** When true (power mode + chosen die), X-Ray may morph this die's pip face. */
   allowXrayMorph = false,
   iceFrozenOverlay = false,
+  /**
+   * Sprite Lab only — paint freeze cubes even on fire-immune skins while tuning.
+   * In-game Ragnarok / lava stay freeze-overlay immune.
+   */
+  labForceFreezeOverlay = false,
   sharkBiteFx = false,
   /** Feeding Frenzy — opponent targeted these fish dice (not Blue Gel's own Shark Bite charge). */
   fishFeastMode = false,
@@ -135,6 +155,8 @@ function Die({
   onBloodWaterSettled,
   /** Brief RGB glitch overlay when Matrix Glitch rewrites this die. */
   matrixGlitchFx = false,
+  /** Earned local skin level used by Sprite Lab visual progression. */
+  skinLevel = 1,
   devSkin = null,
   /** Sprite Lab override for Snow Globe glass-shell alignment. */
   snowGlobeShellSettings: snowGlobeShellSettingsProp = null,
@@ -184,6 +206,12 @@ function Die({
   const videoOk = !!activeVideoUrl;
   const reduceEffects = lowPower || rolling;
   const reducePowerPresentation = reduceEffects || powerModeSubtle;
+  const skinLevelForRender = clampSkinLevel(skinLevel);
+  const skinLevelVisual = getSkinLevelVisual(effectiveSkinId);
+  const levelFrostActive =
+    !reduceEffects &&
+    skinLevelForRender > 1 &&
+    skinLevelVisual?.effect === "frost";
   // Reserve sprite only while the video layer is actually on screen (not during roll/lowPower/subtle).
   const videoPlaying = Boolean(activeVideoUrl && !reducePowerPresentation);
   const videoSkinActive = videoPlaying;
@@ -204,11 +232,8 @@ function Die({
       ? "powerSprite"
       : "regular";
   const [spriteFailed, setSpriteFailed] = React.useState(false);
-  const isBlueGelTankEarly = (devSkin?.id ?? skinId) === "blue_gel";
   React.useEffect(() => {
-    const url = isBlueGelTankEarly
-      ? BLUE_GEL_SPRITE_URL
-      : displaySpriteLayer?.spriteUrl;
+    const url = displaySpriteLayer?.spriteUrl;
     if (!url) {
       setSpriteFailed(false);
       return undefined;
@@ -223,7 +248,7 @@ function Die({
       if (ok) setSpriteFailed(false);
       else setSpriteFailed(true);
     });
-  }, [displaySpriteLayer?.spriteUrl, isBlueGelTankEarly]);
+  }, [displaySpriteLayer?.spriteUrl]);
   const usesBloodPowerFx = skinUsesBloodPowerFx(skin);
   const showBloodPowerFx =
     !reducePowerPresentation && usesBloodPowerFx && (powerMode || bloodWaterLocked);
@@ -271,9 +296,22 @@ function Die({
   const radius = Math.round(size * 0.06);
 
   // Score Freeze cube overlay — only when explicitly frozen (never from ice skin power charge).
-  const icePowerActive = iceFrozenOverlay && !reduceEffects;
+  // Ragnarok / lava never get ice cubes in-game; Sprite Lab can force preview via labForceFreezeOverlay.
+  const freezeImmune =
+    isFreezeOverlayImmuneSkin(effectiveSkinId) && !labForceFreezeOverlay;
+  const icePowerActive = iceFrozenOverlay && !reduceEffects && !freezeImmune;
+  const iceOverlayActive = icePowerActive || levelFrostActive;
   const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
   const isBlueGelTank = effectiveSkinId === "blue_gel";
+  const isSharkTank = effectiveSkinId === "shark_gel";
+  const blueGelVariantSeed = Number(effectDieSeed);
+  const blueGelBigFishVariantIndex =
+    value === 1
+      ? ANGELFISH_VARIANT_INDICES[
+          (Number.isFinite(blueGelVariantSeed) ? Math.abs(blueGelVariantSeed) : 0) %
+            ANGELFISH_VARIANT_INDICES.length
+        ]
+      : bigFishVariantIndex;
   const aquamarineShellSkin = isAquariumOverlaySkin ? getSkin("aquamarine") : null;
   const aquamarineShellUrl = aquamarineShellSkin?.spriteUrl ?? null;
   const [aquaShellOk, setAquaShellOk] = React.useState(true);
@@ -287,6 +325,7 @@ function Die({
   }, [aquamarineShellUrl]);
   const showAquamarineShell = Boolean(aquamarineShellUrl && aquaShellOk);
   const liveSnowGlobeSettings = useSnowGlobeSettings();
+  const liveBlueGelSettings = useBlueGelSettings();
   const snowGlobeShellSettings =
     effectiveSkinId === "snow_globe"
       ? snowGlobeShellSettingsProp ?? liveSnowGlobeSettings
@@ -300,8 +339,6 @@ function Die({
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     !spriteFailed;
-  // Face sheet must stay visible — in-die video would hide baked pips (shark uses fullscreen FX).
-  const showBlueGelFace = isBlueGelTank;
   // Pip grid only when there is no sprite sheet, or the sheet failed to load — never flash during load.
   const showPipFallback =
     !isBlueGelTank &&
@@ -339,7 +376,6 @@ function Die({
   const isPortfolioFx = skin.experimental && skin.style?.effectId && !reduceEffects;
 
   const renderPipGrid = () => {
-    if (isBlueGelTank) return null;
     // Private / redacted faces — spectral body only, no pip readout underneath.
     if (spectralHidden || valueHidden) return null;
     const flat = layout.flat();
@@ -386,6 +422,7 @@ function Die({
 
     return (
     <div
+      data-die-pip-grid
       className="absolute grid grid-cols-3 grid-rows-3"
       style={{ inset: padding, gap: Math.round(size * 0.045) }}
     >
@@ -424,32 +461,6 @@ function Die({
         );
       })}
     </div>
-    );
-  };
-
-  const renderBlueGelFaceSprite = () => {
-    if (!showBlueGelFace) return null;
-    const spriteSkin = {
-      id: "blue_gel",
-      spriteUrl: BLUE_GEL_SPRITE_URL,
-      spriteCrop: skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      spriteFaceOffsets: skin.spriteFaceOffsets ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
-    };
-    const faceOffset = getSkinFaceOffset(spriteSkin, value, "regular");
-    const { sheetUrl, imgStyle } = getBlueGelFaceImgStyle(spriteSkin, value, size, faceOffset);
-    return (
-      <div
-        className="absolute inset-0 pointer-events-none z-[20] overflow-hidden"
-        style={dieShapeStyle}
-      >
-        <img
-          src={sheetUrl}
-          alt=""
-          draggable={false}
-          className="pointer-events-none select-none"
-          style={imgStyle}
-        />
-      </div>
     );
   };
 
@@ -517,7 +528,7 @@ function Die({
         style={{
           boxShadow: icePowerActive ? "none" : buildShadow(),
           // Ice drips must paint outside the squircle — don't clip the button.
-          overflow: icePowerActive ? "visible" : "hidden",
+          overflow: iceOverlayActive ? "visible" : "hidden",
           background: "transparent",
         }}>
         {/* Visual stack — squircle clip-path on skin layers only (not ice overlay). */}
@@ -648,7 +659,7 @@ function Die({
           );
         })()}
 
-        {/* Blue Gel — fish tank behind the catalog sprite face (pips on sprite sheet) */}
+        {/* Blue Gel — original live aquarium, kept in the existing die stack. */}
         {effectiveSkinId === "blue_gel" && (
             <>
               <div
@@ -665,7 +676,7 @@ function Die({
                   size={size}
                   radius={radius}
                   count={value}
-                  bigFishVariantIndex={bigFishVariantIndex}
+                  bigFishVariantIndex={blueGelBigFishVariantIndex}
                   onSettled={onBloodWaterSettled}
                 >
                   <FishOverlay
@@ -673,23 +684,25 @@ function Die({
                     radius={radius}
                     count={value}
                     dieSeed={effectDieSeed}
-                    bigFishVariantIndex={bigFishVariantIndex}
-                    bigFishExtraScale={bigFishExtraScale}
-                    bigFishStaticPose={bigFishStaticPose}
+                    bigFishVariantIndex={blueGelBigFishVariantIndex}
+                    bigFishExtraScale={Math.min(bigFishExtraScale, 1.65)}
+                    bigFishStaticPose={false}
+                    fishVariantIndices={BLUE_GEL_FISH_VARIANT_INDICES}
                     includeJellyfish={includeJellyfish}
                     frozen={icePowerActive}
                   />
                 </BlueGelSharkAttack>
               ) : powerMode && !reducePowerPresentation ? (
-                <BlueGelSharkBiteCharge size={size} radius={radius} count={value}>
+                <BlueGelSharkBiteCharge size={size} radius={radius} count={value} dieSeed={effectDieSeed}>
                   <FishOverlay
                     size={size}
                     radius={radius}
                     count={value}
                     dieSeed={effectDieSeed}
-                    bigFishVariantIndex={bigFishVariantIndex}
-                    bigFishExtraScale={bigFishExtraScale}
-                    bigFishStaticPose={bigFishStaticPose}
+                    bigFishVariantIndex={blueGelBigFishVariantIndex}
+                    bigFishExtraScale={Math.min(bigFishExtraScale, 1.65)}
+                    bigFishStaticPose={false}
+                    fishVariantIndices={BLUE_GEL_FISH_VARIANT_INDICES}
                     includeJellyfish={includeJellyfish}
                     frozen={icePowerActive}
                   />
@@ -701,18 +714,50 @@ function Die({
                     radius={radius}
                     count={value}
                     dieSeed={effectDieSeed}
-                    bigFishVariantIndex={bigFishVariantIndex}
-                    bigFishExtraScale={bigFishExtraScale}
-                    bigFishStaticPose={bigFishStaticPose}
+                    bigFishVariantIndex={blueGelBigFishVariantIndex}
+                    bigFishExtraScale={Math.min(bigFishExtraScale, 1.65)}
+                    bigFishStaticPose={false}
+                    fishVariantIndices={BLUE_GEL_FISH_VARIANT_INDICES}
                     includeJellyfish={includeJellyfish}
                     frozen={icePowerActive}
                   />
                   {bloodWaterLocked && !reduceEffects ? (
-                    <BloodyWaterTint size={size} radius={radius} count={value} />
+                    <BloodyWaterTint size={size} radius={radius} count={value} dieSeed={effectDieSeed} />
                   ) : null}
                 </>
               )}
               </div>
+              {showAquamarineShell ? (() => {
+                const { xNudge, yNudge } = resolveBlueGelShellNudges(
+                  value,
+                  size,
+                  liveBlueGelSettings
+                );
+                const aquaForShell = {
+                  ...aquamarineShellSkin,
+                  spriteCrop: getBlueGelShellCrop(
+                    aquamarineShellSkin?.spriteCrop,
+                    liveBlueGelSettings
+                  ),
+                };
+                const shellStyle = getAquamarineShellStyle(
+                  aquaForShell,
+                  value,
+                  size,
+                  { xNudge, yNudge }
+                );
+                return (
+                  <div
+                    className="absolute pointer-events-none z-[2]"
+                    style={{
+                      backgroundImage: `url(${assetUrl(aquamarineShellSkin.spriteUrl)})`,
+                      opacity: 0.58,
+                      mixBlendMode: "multiply",
+                      ...shellStyle,
+                    }}
+                  />
+                );
+              })() : null}
               <div
                 className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
@@ -721,6 +766,67 @@ function Die({
                 }}
               />
             </>
+        )}
+
+        {/* Shark Tank — separate dark aquarium skin; Blue Gel/Angelfish stays untouched. */}
+        {isSharkTank && (
+          <>
+            <div
+              className="absolute inset-0 pointer-events-none z-0"
+              style={{
+                background:
+                  "linear-gradient(160deg, rgba(100,116,139,0.68) 0%, rgba(14,116,144,0.78) 38%, rgba(15,23,42,0.9) 72%, rgba(2,6,23,0.96) 100%)",
+              }}
+            />
+            <div className="absolute inset-0 z-[1] pointer-events-none">
+              <SharkTankOverlay
+                size={size}
+                radius={radius}
+                count={value}
+                dieSeed={effectDieSeed}
+                frozen={icePowerActive}
+                powerMode={powerMode && !reducePowerPresentation}
+              />
+            </div>
+            {showAquamarineShell ? (() => {
+              const { xNudge, yNudge } = resolveBlueGelShellNudges(
+                value,
+                size,
+                liveBlueGelSettings
+              );
+              const aquaForShell = {
+                ...aquamarineShellSkin,
+                spriteCrop: getBlueGelShellCrop(
+                  aquamarineShellSkin?.spriteCrop,
+                  liveBlueGelSettings
+                ),
+              };
+              const shellStyle = getAquamarineShellStyle(
+                aquaForShell,
+                value,
+                size,
+                { xNudge, yNudge }
+              );
+              return (
+                <div
+                  className="absolute pointer-events-none z-[2]"
+                  style={{
+                    backgroundImage: `url(${assetUrl(aquamarineShellSkin.spriteUrl)})`,
+                    opacity: 0.58,
+                    mixBlendMode: "multiply",
+                    ...shellStyle,
+                  }}
+                />
+              );
+            })() : null}
+            <div
+              className="absolute inset-0 pointer-events-none z-[3]"
+              style={{
+                boxShadow:
+                  "inset 0 0 0 2px rgba(148,163,184,0.55), inset 0 -8px 16px rgba(0,0,0,0.42), inset 0 4px 8px rgba(255,255,255,0.25), inset 0 0 12px rgba(220,38,38,0.12)",
+              }}
+            />
+          </>
         )}
 
         {/* Default power move for skins without dedicated power visuals — bloody water */}
@@ -749,9 +855,7 @@ function Die({
         {/* Sprite sheet texture or pip grid — skip when a video skin is active */}
         {showSpriteLayer ?
         (() => {
-          const faceSpriteUrl = isBlueGelTank
-            ? (displaySpriteLayer?.spriteUrl || skin.spriteUrl || BLUE_GEL_SPRITE_URL)
-            : displaySpriteLayer.spriteUrl;
+          const faceSpriteUrl = displaySpriteLayer.spriteUrl;
           const spriteSkin = {
             ...skin,
             spriteUrl: faceSpriteUrl,
@@ -774,7 +878,8 @@ function Die({
           );
         })() :
 
-        (skin.experimental || showPipFallback) &&
+        !isBlueGelTank &&
+          (skin.experimental || showPipFallback) &&
           !(isGhostSkin && rolling && !held && !used) &&
           renderPipGrid()}
 
@@ -850,11 +955,17 @@ function Die({
 
         </div>
 
-        {renderBlueGelFaceSprite()}
-
         {/* Ice overlay OUTSIDE squircle clip — drips / edge frost can overhang the die. */}
-        {icePowerActive && (
-          <IcePowerOverlay value={value} size={size} radius={radius} allowOverflow skinId={skin.id} />
+        {iceOverlayActive && (
+          <IcePowerOverlay
+            value={value}
+            size={size}
+            radius={radius}
+            allowOverflow
+            skinId={effectiveSkinId}
+            forceEnabled={icePowerActive}
+            levelFrost={levelFrostActive ? skinLevelForRender : null}
+          />
         )}
 
         {valueHidden && !spectralHidden && (
@@ -949,7 +1060,9 @@ function diePropsAreEqual(prev, next) {
   if (prev.valueHidden !== next.valueHidden) return false;
   if (prev.spectralHidden !== next.spectralHidden) return false;
   if (prev.iceFrozenOverlay !== next.iceFrozenOverlay) return false;
+  if (prev.labForceFreezeOverlay !== next.labForceFreezeOverlay) return false;
   if (prev.matrixGlitchFx !== next.matrixGlitchFx) return false;
+  if (prev.skinLevel !== next.skinLevel) return false;
   return (
     prev.value === next.value &&
     prev.held === next.held &&

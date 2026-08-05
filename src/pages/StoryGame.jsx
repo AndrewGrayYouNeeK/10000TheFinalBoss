@@ -22,6 +22,7 @@ import {
   consumeSkinPower,
   skipFrozenOpponentTurn,
   isPlayerPowerModeActive,
+  playerPowerChargeCount,
 } from "@/lib/gameLogic";
 import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import {
@@ -33,7 +34,7 @@ import {
   applyStoryBossHeadStart,
 } from "@/lib/storyBosses";
 import { getSkin } from "@/lib/shopCatalog";
-import { addSkinPlayXp } from "@/lib/progression";
+import { addSkinPlayXp, getLocalSkinPowerLevel } from "@/lib/progression";
 import { chooseDiceToHold, chooseBankOrRoll } from "@/lib/aiOpponent";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { useDiceSound } from "@/lib/useDiceSound";
@@ -54,12 +55,17 @@ import { assignPlayerSkin, resolvePlayerPower, getSkinLabel, getDisplaySkinId, G
 import { redactDiceForOpponent } from "@/lib/onlineGameState";
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford, getPower } from "@/lib/powers";
+import { getSkinPower } from "@/lib/skinPowers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
 import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
   SharkBiteScreenFX,
 } from "@/components/game/BlueGelPowerFX";
 import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
+import {
+  captureSharkBiteTrayFreeze,
+  playerHasSharkBiteMark,
+} from "@/lib/sharkBiteTrayFreeze";
 import { getPrisonTraySkinId } from "@/lib/prisonDice";
 import PrisonDiceStatus from "@/components/game/PrisonDiceStatus";
 import PowerModePracticeBar, {
@@ -73,7 +79,8 @@ import {
   loadStoryFight,
   saveStoryFight,
 } from "@/lib/storyGameSave";
-import { getStoryHotDicePowerConfirmOptions } from "@/lib/devConfig";
+import { getStoryHotDicePowerConfirmOptions, grantDevPowerCharge, isDevPowerToolsEnabled } from "@/lib/devConfig";
+import DevGrantPowerButton from "@/components/game/DevGrantPowerButton";
 import {
   STORY_PLAYER_INDEX,
   canFireStoryIce,
@@ -180,12 +187,33 @@ export default function StoryGame() {
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
   const [bloodWaterLocked, setBloodWaterLocked] = useState(() => initialSave?.bloodWaterLocked ?? false);
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
+  const [marlinLoopToolOpen, setMarlinLoopToolOpen] = useState(false);
+  /** Flash opponent dice with ice-cube skin on top while Frozen Ice is active. */
+  const [frozenDiceReveal, setFrozenDiceReveal] = useState(false);
+  const frozenRevealTimerRef = useRef(null);
+  const practiceSharkBiteRef = useRef(false);
+  /** Victim tray snapshot while Shark Bite FX plays (bank advances turn before FX ends). */
+  const biteTrayFreezeRef = useRef(null);
+  const [biteTrayFreeze, setBiteTrayFreeze] = useState(null);
 
   useEffect(() => {
     if (game?.sharkFishFeast && hasSharkBiteChompVideoSync() && game?.sharkBiteFx) {
       lockBloodWater();
     }
   }, [game?.sharkFishFeast, game?.sharkBiteFx, lockBloodWater]);
+
+  // Promote pre-bank victim tray freeze once sharkBiteFx flips on; clear when FX ends.
+  useLayoutEffect(() => {
+    if (game?.sharkBiteFx && biteTrayFreezeRef.current) {
+      setBiteTrayFreeze(biteTrayFreezeRef.current);
+      return;
+    }
+    if (!game?.sharkBiteFx) {
+      biteTrayFreezeRef.current = null;
+      setBiteTrayFreeze((prev) => (prev ? null : prev));
+    }
+  }, [game?.sharkBiteFx]);
 
   useEffect(() => {
     if (!game?.matrixGlitchFx) return undefined;
@@ -196,13 +224,6 @@ export default function StoryGame() {
     }, 800);
     return () => clearTimeout(t);
   }, [game?.matrixGlitchFx]);
-
-  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
-  const [marlinLoopToolOpen, setMarlinLoopToolOpen] = useState(false);
-  /** Flash opponent dice with ice-cube skin on top while Frozen Ice is active. */
-  const [frozenDiceReveal, setFrozenDiceReveal] = useState(false);
-  const frozenRevealTimerRef = useRef(null);
-  const practiceSharkBiteRef = useRef(false);
 
   const startFrozenDiceReveal = useCallback(() => {
     if (frozenRevealTimerRef.current != null) {
@@ -235,6 +256,32 @@ export default function StoryGame() {
     () => ({ ghostDisguiseId, ownedSkins }),
     [ghostDisguiseId, ownedSkins]
   );
+
+  /** Snapshot marked banker's tray before bankAndPass advances the turn. */
+  const captureBiteTrayIfMarked = useCallback(
+    (g) => {
+      const idx = g?.currentIndex;
+      const player = typeof idx === "number" ? g.players?.[idx] : null;
+      if (!player || !playerHasSharkBiteMark(player)) {
+        biteTrayFreezeRef.current = null;
+        return;
+      }
+      const victimSkinId = getPrisonTraySkinId(
+        g,
+        idx,
+        getDisplaySkinId(player, ghostOptions)
+      );
+      biteTrayFreezeRef.current = captureSharkBiteTrayFreeze({
+        dice: g.dice,
+        playerIndex: idx,
+        skinId: victimSkinId,
+        skinLevel:
+          idx === STORY_PLAYER_INDEX ? getLocalSkinPowerLevel(victimSkinId, user) : 1,
+      });
+    },
+    [ghostOptions, user]
+  );
+
   const playerPowerResolve = game
     ? resolvePlayerPower(game, STORY_PLAYER_INDEX, ghostOptions)
     : null;
@@ -485,6 +532,7 @@ export default function StoryGame() {
       return;
     }
 
+    const casterIndex = game.currentIndex;
     const result = applySkinPower(game, skinPower.id);
     if (result.variant === "warning") {
       if (result.message) {
@@ -492,11 +540,20 @@ export default function StoryGame() {
       }
       return;
     }
-    setGame(consumeSkinPower(result.state));
+    // Cast must not advance/swap whose turn the tray belongs to.
+    const spent = consumeSkinPower(result.state);
+    setGame({ ...spent, currentIndex: casterIndex });
     setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
+  };
+
+  const onDevGrantPower = () => {
+    if (!game || game.winner) return;
+    setPracticePowerPreview(false);
+    setGame((g) => (g ? grantDevPowerCharge(g, STORY_PLAYER_INDEX) : g));
+    setPopup({ word: "POWER CHARGED", variant: "success" });
   };
 
   const onConfirmPlasmaCut = (dieId, newValue) => {
@@ -702,11 +759,13 @@ export default function StoryGame() {
 
     schedule(() => {
       if (decision === "bank") {
-        setGame((current) =>
-          current?.players[current.currentIndex]?.name === boss?.name
-            ? bankAndPass(current)
-            : current
-        );
+        setGame((current) => {
+          if (current?.players[current.currentIndex]?.name !== boss?.name) return current;
+          captureBiteTrayIfMarked(current);
+          const next = bankAndPass(current);
+          if (!next.sharkBiteFx) biteTrayFreezeRef.current = null;
+          return next;
+        });
         return;
       }
       startOpponentRollAnim();
@@ -731,6 +790,7 @@ export default function StoryGame() {
     boss,
     playDiceSound,
     startOpponentRollAnim,
+    captureBiteTrayIfMarked,
   ]);
 
   // Player actions
@@ -802,7 +862,11 @@ export default function StoryGame() {
         heldInfo.valid &&
         points > 0 &&
         (!needsEntry || potentialTotal >= ENTRY_THRESHOLD);
-      return allowed ? bankAndPass(g) : g;
+      if (!allowed) return g;
+      captureBiteTrayIfMarked(g);
+      const next = bankAndPass(g);
+      if (!next.sharkBiteFx) biteTrayFreezeRef.current = null;
+      return next;
     });
   };
 
@@ -823,7 +887,10 @@ export default function StoryGame() {
       games_finished: (user?.games_finished ?? 0) + 1,
     };
 
-    const skinId = user?.equipped_skin || storyPlayerSkin;
+    const skinId =
+      game?.players?.[STORY_PLAYER_INDEX]?.skinId ||
+      storyPlayerSkin ||
+      user?.equipped_skin;
     Object.assign(patch, addSkinPlayXp(user, skinId, 2));
 
     // Mark boss defeated (only once)
@@ -987,23 +1054,22 @@ export default function StoryGame() {
   const previewSkinId = practicePreviewSkinId(practiceVariant);
   const practiceTraySkinId =
     practicePowerPreview && previewSkinId ? previewSkinId : traySkinId;
-  // Feeding Frenzy — fish dice were targeted (not Blue Gel's own Shark Bite charge).
+  // Feeding Frenzy VFX — do not swap tray skin to the opponent on cast.
   const fishFeastOnTray = !!game?.sharkFishFeast;
-  const feastTargetIdx = game?.sharkFishFeastTargetIdx;
-  const feastTraySkinId =
-    fishFeastOnTray && typeof feastTargetIdx === "number" && game.players[feastTargetIdx]
-      ? getPrisonTraySkinId(
-          game,
-          feastTargetIdx,
-          getDisplaySkinId(game.players[feastTargetIdx], { ghostDisguiseId, ownedSkins })
-        )
-      : null;
-  const diceTraySkinId = feastTraySkinId || practiceTraySkinId;
+  // Shark Bite bank-steal: keep the marked banker's tray frozen through the eat FX.
+  const diceTraySkinId = biteTrayFreeze?.skinId || practiceTraySkinId;
+  // Boss / opponent trays must not inherit the player's frost level for the same skin id.
+  const trayOwnerIndex = biteTrayFreeze?.playerIndex ?? trayPlayerIndex;
+  const diceTraySkinLevel = biteTrayFreeze
+    ? biteTrayFreeze.skinLevel
+    : trayOwnerIndex === STORY_PLAYER_INDEX
+      ? getLocalSkinPowerLevel(diceTraySkinId, user)
+      : 1;
   const practiceSkinPower =
     practiceVariant === "marlin"
       ? getPower("shark_bite")
       : practiceVariant === "gq"
-        ? getPower("siphon")
+        ? getSkinPower("crystal_cut")
         : practiceVariant === "ice"
           ? getPower("frosty_ice")
           : null;
@@ -1011,20 +1077,29 @@ export default function StoryGame() {
   const trayPlayerPowerMode = storyPlayerPowerMode && myTurn && !hideStoryGhostDice;
   const trayPowerMode =
     trayPlayerPowerMode || (practicePowerPreview && !!practiceVariant);
-  const trayIceFrozen = showFrozenEnemyDice;
+  // Story Frosty reveal OR freeze / Score Freeze on the tray owner (Die skips fire-immune skins).
+  const trayDebuffIce = (trayPlayer?.debuffs || []).some((d) => {
+    const id = typeof d === "string" ? d : d.id;
+    return id === "freeze_score" || id === "freeze";
+  });
+  const trayIceFrozen = showFrozenEnemyDice || trayDebuffIce;
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
-  const trayBloodWater = bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
-  const trayDice = hideStoryGhostDice ? redactDiceForOpponent(game.dice) : game.dice;
+  const trayBloodWater = bloodWaterLocked && fishFeastOnTray;
+  const trayDice = biteTrayFreeze?.dice
+    ? biteTrayFreeze.dice
+    : hideStoryGhostDice
+      ? redactDiceForOpponent(game.dice)
+      : game.dice;
   return (
-    <div className="min-h-screen text-white pb-6 flex flex-col relative">
+    <div className="min-h-screen min-h-[100dvh] min-w-0 text-white pb-6 flex flex-col relative">
       <BossRainBackground
         bossId={boss.id}
         lite={cutsceneOverlay || lowPower}
         bubblesFullScreen={bossId === "fisherman"}
         frontCanvasRef={foregroundFx && !cutsceneOverlay ? foregroundCanvasRef : null}
       />
-      <div className="relative z-10 flex flex-col">
+      <div className="relative z-10 flex flex-col min-w-0 min-h-0">
         {/* Header */}
         <div
           className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
@@ -1122,6 +1197,7 @@ export default function StoryGame() {
             power={MAX_POWER}
             skinPower={panelSkinPower}
             powerMode={panelPowerMode}
+            chargeCount={playerPowerChargeCount(game.players[STORY_PLAYER_INDEX])}
             used={false}
             locked={powerLocked}
             disabled={(powerFrozen && !storyIceReady) || practicePowerPreview}
@@ -1173,9 +1249,23 @@ export default function StoryGame() {
         </div>
       </div>
 
-      <div className="relative z-[15] flex-1 flex flex-col">
-        <div className="px-3 flex-1 flex items-center justify-center">
-          <div className="w-full space-y-2">
+      <div className="relative z-[15] flex-1 flex flex-col min-w-0 min-h-0">
+        <div className="px-3 flex-1 flex items-center justify-center min-w-0">
+          <div className="w-full min-w-0 space-y-2">
+            {isDevPowerToolsEnabled() && !dialogue && (
+              <div className="flex flex-wrap items-center gap-2">
+                <DevGrantPowerButton
+                  onGrant={onDevGrantPower}
+                  disabled={!!game.winner || rollAnim || !skinPower}
+                  charged={!!playerCharge}
+                />
+                {!skinPower ? (
+                  <span className="text-[9px] text-slate-500">
+                    Equip a power skin to test
+                  </span>
+                ) : null}
+              </div>
+            )}
             {practiceVariant && !dialogue && (
               <PowerModePracticeBar
                 variant={practiceVariant}
@@ -1201,6 +1291,7 @@ export default function StoryGame() {
                 !!game.winner
               }
               skinId={diceTraySkinId}
+              skinLevel={diceTraySkinLevel}
               feltId={storyFeltId}
               feltIntense={bossId === "neo"}
               heldStyleId={heldDiceStyleId}
@@ -1336,6 +1427,8 @@ export default function StoryGame() {
           practiceSharkBiteRef.current = false;
           // Bite finished — always restore tray dice + skins.
           setBloodWaterLocked(false);
+          biteTrayFreezeRef.current = null;
+          setBiteTrayFreeze(null);
           setGame((g) => restoreSharkDice(clearSharkBiteFx(g)));
         }}
       />
