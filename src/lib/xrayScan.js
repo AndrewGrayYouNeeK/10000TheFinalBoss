@@ -15,7 +15,7 @@ const DEBUFF_REVEALS = {
   freeze: { icon: "❄️", text: "Power bar frozen (Freeze — this turn)" },
   freeze_score: { icon: "🧊", text: "Banked score locked (Score Freeze — this turn)" },
   lockout: { icon: "🔒", text: "Powers locked out (Lockout — this turn)" },
-  shark_bite: { icon: "🦈", text: "Marked for Shark Bite — next bank will be eaten" },
+  matrix_glitch: { icon: "⚡", text: "Matrix Glitch — next roll scrambles dice (this turn)" },
 };
 
 function addFinding(findings, seen, icon, text) {

@@ -21,7 +21,11 @@ export default function PowerSlot({ power, currentPower = 0, used = false, locke
     <motion.button
       whileTap={disabled ? {} : { scale: 0.96 }}
       whileHover={disabled ? {} : { scale: 1.03 }}
-      onClick={() => !disabled && onFire?.(power)}
+      onClick={(ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        if (!disabled) onFire?.(power);
+      }}
       disabled={disabled}
       className="relative h-7 min-w-[5.25rem] max-w-[7.5rem] px-2.5 rounded-full border flex flex-row items-center justify-center gap-1 shrink-0 transition-opacity"
       style={{

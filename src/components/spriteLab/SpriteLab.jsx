@@ -629,6 +629,8 @@ export default function SpriteLab({ skinId }) {
   const [dossierOpen, setDossierOpen] = useState(false);
   const [howToOpen, setHowToOpen] = useState(false);
   const [levelPreviewOpen, setLevelPreviewOpen] = useState(false);
+  /** Sticky top preview: one large die, or faces 1–6 together. */
+  const [topPreviewMode, setTopPreviewMode] = useState("single");
   const [snowGlobeShell, setSnowGlobeShell] = useState(() =>
     skinId === "snow_globe" ? loadSnowGlobeSettings() : null
   );
@@ -644,6 +646,7 @@ export default function SpriteLab({ skinId }) {
     setPreviewSkinLevel(getLocalSkinPowerLevel(skinId, profile));
     if (skinId === "snow_globe") setSnowGlobeShell(loadSnowGlobeSettings());
     setFreezeOverlayPreview(false);
+    setTopPreviewMode("single");
   }, [skinId, profile]);
   const [selectedFace, setSelectedFace] = useState(1);
   const [size, setSize] = useState(100);
@@ -1031,11 +1034,32 @@ export default function SpriteLab({ skinId }) {
         };
 
   const labPreviewSkin = lockConfig?.noSpriteTuning ? null : tunedSkin;
+  const topPreviewAll = topPreviewMode === "all";
+  const singlePreviewSize = Math.max(size, 120);
+  // All-faces uses the Preview size slider 1:1 (no forced upscale).
+  const allPreviewSize = size;
+
+  const renderLabDie = (face, dieSize) => (
+    <Die
+      value={face}
+      size={dieSize}
+      skinId={skinId}
+      dieSeed={face}
+      powerMode={hasPowerPreview && powerMode}
+      iceFrozenOverlay={iceFreezeOn}
+      labForceFreezeOverlay={iceFreezeOn}
+      skinLevel={previewSkinLevel}
+      snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
+      devSkin={labPreviewSkin}
+      includeJellyfish={skinId === "blue_gel" && face >= 2}
+      {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(face - 1) : {})}
+    />
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-950 via-slate-950 to-black text-white pb-10">
       <div
-        className="sticky top-0 z-20 border-b border-white/10 backdrop-blur px-3 pb-3"
+        className="sticky top-0 z-30 border-b border-white/10 backdrop-blur px-3 pb-3"
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-3xl mx-auto flex items-center gap-2">
@@ -1313,6 +1337,36 @@ export default function SpriteLab({ skinId }) {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
+          <div
+            className="inline-flex rounded-full border border-cyan-500/40 bg-black/30 p-0.5"
+            role="group"
+            aria-label="Top preview mode"
+          >
+            <button
+              type="button"
+              onClick={() => setTopPreviewMode("single")}
+              className={cn(
+                "h-7 px-2.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-colors",
+                !topPreviewAll
+                  ? "bg-cyan-500 text-white"
+                  : "text-cyan-200/80 hover:text-cyan-100"
+              )}
+            >
+              Single die
+            </button>
+            <button
+              type="button"
+              onClick={() => setTopPreviewMode("all")}
+              className={cn(
+                "h-7 px-2.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-colors",
+                topPreviewAll
+                  ? "bg-cyan-500 text-white"
+                  : "text-cyan-200/80 hover:text-cyan-100"
+              )}
+            >
+              All dice
+            </button>
+          </div>
           <Button
             size="sm"
             variant={freezeOverlayPreview ? "default" : "outline"}
@@ -1365,7 +1419,7 @@ export default function SpriteLab({ skinId }) {
             <input
               type="range"
               min={48}
-              max={120}
+              max={140}
               value={size}
               onChange={(e) => setSize(Number(e.target.value))}
               className="w-28 accent-cyan-400"
@@ -1373,36 +1427,98 @@ export default function SpriteLab({ skinId }) {
           </label>
         </div>
 
-        <div className="grid lg:grid-cols-[minmax(160px,auto),1fr] gap-4 items-start">
-          <FeltTrayFrame
-            felt={felt}
-            allowDieOverflow={
-              iceFreezeOn || (previewSkinLevel > 1 && skinLevelVisual?.effect === "frost")
-            }
-            className="sticky top-2 z-20 self-start"
-            innerClassName="p-4 sm:p-5 flex flex-col items-center gap-2"
+        {/* Sticky preview: stretch grid (no items-start); sticky on overflow-visible wrapper. */}
+        <div
+          className={cn(
+            "flex flex-col gap-4 lg:grid",
+            topPreviewAll
+              ? "lg:grid-cols-[minmax(220px,1fr),minmax(240px,1fr)]"
+              : "lg:grid-cols-[minmax(160px,auto),1fr]"
+          )}
+        >
+          <div
+            className={cn(
+              "sticky z-20 self-start w-full",
+              "top-[4.75rem] sm:top-20"
+            )}
           >
-            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Live preview</p>
-            <Die
-              value={selectedFace}
-              size={Math.max(size, 120)}
-              skinId={skinId}
-              dieSeed={selectedFace}
-              powerMode={hasPowerPreview && powerMode}
-              iceFrozenOverlay={iceFreezeOn}
-              labForceFreezeOverlay={iceFreezeOn}
-              skinLevel={previewSkinLevel}
-              snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
-              devSkin={labPreviewSkin}
-              includeJellyfish={skinId === "blue_gel" && selectedFace >= 2}
-              {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(selectedFace - 1) : {})}
-            />
-            <p className="text-xs text-cyan-200 tabular-nums">
-              Face {selectedFace} · x {activeNudge.x.toFixed(1)} · y {activeNudge.y.toFixed(1)}
-            </p>
-          </FeltTrayFrame>
+            <FeltTrayFrame
+              felt={felt}
+              allowDieOverflow={
+                iceFreezeOn || (previewSkinLevel > 1 && skinLevelVisual?.effect === "frost")
+              }
+              className={cn(topPreviewAll && "w-full")}
+              innerClassName={cn(
+                "flex flex-col items-center gap-2 p-4 sm:p-5",
+                topPreviewAll && "w-full overflow-visible"
+              )}
+            >
+              <div className="w-full flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+                  Live preview · {topPreviewAll ? "all faces" : "single die"}
+                </p>
+                {topPreviewAll ? (
+                  <p className="text-[9px] text-slate-500">Tap a face to edit</p>
+                ) : null}
+              </div>
+              {topPreviewAll ? (
+                <>
+                  <div
+                    className="grid grid-cols-3 gap-3 sm:gap-4 justify-items-center w-full py-1"
+                    style={{ overflow: "visible" }}
+                  >
+                    {FACES.map((face) => (
+                      <button
+                        key={face}
+                        type="button"
+                        onClick={() => setSelectedFace(face)}
+                        className={cn(
+                          "text-center rounded-xl p-1.5 transition-all overflow-visible",
+                          selectedFace === face
+                            ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-transparent bg-cyan-500/10"
+                            : "hover:bg-white/5"
+                        )}
+                      >
+                        <div
+                          className="relative mx-auto overflow-visible"
+                          style={{ width: allPreviewSize, height: allPreviewSize }}
+                        >
+                          {renderLabDie(face, allPreviewSize)}
+                        </div>
+                        <p
+                          className={cn(
+                            "text-[10px] mt-1 tabular-nums",
+                            selectedFace === face ? "text-cyan-300 font-bold" : "text-slate-500"
+                          )}
+                        >
+                          {face}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-cyan-200 tabular-nums">
+                    Editing face {selectedFace} · x {activeNudge.x.toFixed(1)} · y{" "}
+                    {activeNudge.y.toFixed(1)}
+                  </p>
+                </>
+              ) : (
+                <>
+                  {renderLabDie(selectedFace, singlePreviewSize)}
+                  <p className="text-xs text-cyan-200 tabular-nums">
+                    Face {selectedFace} · x {activeNudge.x.toFixed(1)} · y {activeNudge.y.toFixed(1)}
+                  </p>
+                </>
+              )}
+            </FeltTrayFrame>
+          </div>
 
-          <div className="space-y-3 min-w-0">
+          {/* lg: tools column scrolls so open freeze panel does not inflate page height */}
+          <div
+            className={cn(
+              "space-y-3 min-w-0",
+              "lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
+            )}
+          >
             <SpriteLabFreezeOverlayTools
               skinId={skinId}
               editFace={selectedFace}
@@ -1411,6 +1527,7 @@ export default function SpriteLab({ skinId }) {
               onFreezeOnChange={setFreezeOverlayPreview}
             />
 
+            {!topPreviewAll ? (
             <div className="flex flex-wrap gap-1.5">
               {FACES.map((face) => (
                 <button
@@ -1428,6 +1545,7 @@ export default function SpriteLab({ skinId }) {
                 </button>
               ))}
             </div>
+            ) : null}
 
             {(!lockConfig?.noSpriteTuning || skinId === "snow_globe") && (
             <FaceNudgePanel
@@ -1748,6 +1866,7 @@ export default function SpriteLab({ skinId }) {
           ) : null}
         </div>
 
+        {!topPreviewAll ? (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">All faces</p>
           <FeltTrayFrame
@@ -1770,20 +1889,7 @@ export default function SpriteLab({ skinId }) {
                       : "hover:bg-white/5"
                   )}
                 >
-                  <Die
-                    value={face}
-                    size={size}
-                    skinId={skinId}
-                    dieSeed={face}
-                    powerMode={hasPowerPreview && powerMode}
-                    iceFrozenOverlay={iceFreezeOn}
-                    labForceFreezeOverlay={iceFreezeOn}
-                    skinLevel={previewSkinLevel}
-                    snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
-                    devSkin={labPreviewSkin}
-                    includeJellyfish={skinId === "blue_gel" && face >= 2}
-                    {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(face - 1) : {})}
-                  />
+                  {renderLabDie(face, size)}
                   <p className={cn(
                     "text-[10px] mt-1 tabular-nums",
                     selectedFace === face ? "text-cyan-300 font-bold" : "text-slate-500"
@@ -1795,6 +1901,7 @@ export default function SpriteLab({ skinId }) {
             </div>
           </FeltTrayFrame>
         </div>
+        ) : null}
 
         {hasSpriteSheet && (
           <div className={cn("grid gap-3", hasPowerSprite ? "sm:grid-cols-2" : "")}>

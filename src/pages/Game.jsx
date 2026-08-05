@@ -88,6 +88,7 @@ import { useOnlineGameView } from "@/hooks/useOnlineGameView";
 import { redactDiceForOpponent } from "@/lib/onlineGameState";
 import { xrayRevealsVisible } from "@/lib/xrayScan";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import {
   clearLocalGame,
   isFreshUnstartedGame,
@@ -517,7 +518,7 @@ export default function Game() {
 
     if (skinPower.id === "plasma_cut") {
       if (!canUsePlasmaCut(state)) {
-        setPopup({ word: "NO DICE TO CUT", variant: "warning" });
+        toast.warning("No dice to cut");
         return;
       }
       setPlasmaCutOpen(true);
@@ -527,9 +528,7 @@ export default function Game() {
     const casterIndex = state.currentIndex;
     const result = applySkinPower(state, skinPower.id);
     if (result.variant === "warning") {
-      if (result.message) {
-        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
-      }
+      if (result.message) toast.warning(result.message);
       return;
     }
     // Cast never advances the turn — keep the caster's seat even if a power
@@ -544,7 +543,7 @@ export default function Game() {
     // swap the tray skin to the opponent (see diceTraySkinId below).
     setBloodWaterLocked(false);
     if (result.message) {
-      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+      toast.success(result.message);
     }
   };
 
@@ -552,7 +551,7 @@ export default function Game() {
     if (!state || state.winner) return;
     setPracticePowerPreview(false);
     setState((s) => (s ? grantDevPowerCharge(s, s.currentIndex) : s));
-    setPopup({ word: "POWER CHARGED", variant: "success" });
+    toast.success("Power charged");
   };
 
   const onConfirmPlasmaCut = (dieId, newValue) => {
@@ -560,15 +559,13 @@ export default function Game() {
     if (!state) return;
     const result = applyPlasmaCut(state, dieId, newValue);
     if (result.variant === "warning") {
-      if (result.message) {
-        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
-      }
+      if (result.message) toast.warning(result.message);
       return;
     }
     setState(consumeSkinPower(result.state));
     setBloodWaterLocked(false);
     if (result.message) {
-      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+      toast.success(result.message);
     }
   };
 

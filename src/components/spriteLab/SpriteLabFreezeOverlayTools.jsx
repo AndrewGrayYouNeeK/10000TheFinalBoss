@@ -103,7 +103,10 @@ export default function SpriteLabFreezeOverlayTools({
     <section
       className={cn(
         "rounded-xl border border-sky-500/35 bg-sky-950/25 p-3 sm:p-4 space-y-2.5",
-        open && "max-h-[min(72vh,640px)] overflow-y-auto overscroll-contain",
+        // Mobile: keep open tools from blowing up page height. On lg the Sprite Lab
+        // tools column already scrolls, so drop the nested max-height there.
+        open &&
+          "max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain lg:max-h-none lg:overflow-visible",
         className
       )}
     >
