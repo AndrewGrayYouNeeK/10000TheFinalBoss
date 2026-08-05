@@ -1684,10 +1684,10 @@ export function SharkTankFishSkeleton({
         initial={{ opacity: 0, y: 4, x: 0, rotate: -12, scale: 0.75 }}
         animate={{
           opacity: [0, 0.95, 0.8, 0],
-          y: [4, -size * 0.22, -size * 0.48],
-          x: [0, driftX * 0.45, driftX],
+          y: [4, -size * 0.22, -size * 0.48, -size * 0.55],
+          x: [0, driftX * 0.45, driftX, driftX],
           rotate: [-12, 8, -6, 14],
-          scale: [0.75, 1, 0.92],
+          scale: [0.75, 1, 0.92, 0.85],
         }}
         exit={{ opacity: 0 }}
         transition={{

@@ -775,17 +775,6 @@ function Die({
             </>
         )}
 
-        {/* Default power move for skins without dedicated power visuals — bloody water */}
-        {showBloodPowerFx ? (
-          <BloodPowerFx
-            size={size}
-            radius={radius}
-            count={value}
-            locked={bloodWaterLocked}
-            onSettled={onBloodWaterSettled}
-          />
-        ) : null}
-
         {/* Shark Tank — separate dark aquarium skin; Blue Gel/Angelfish stays untouched. */}
         {isSharkTank && (
           <>
