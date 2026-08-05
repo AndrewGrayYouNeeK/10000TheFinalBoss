@@ -83,21 +83,48 @@ import { xrayRevealsVisible } from "@/lib/xrayScan";
 import { Link } from "react-router-dom";
 import {
   clearLocalGame,
+  isFreshUnstartedGame,
   loadLocalGame,
   namesMatch,
   saveLocalGame,
 } from "@/lib/localGameSave";
 
+/** Sync boot from localStorage so HMR remounts keep mid-match scores. */
+function readBootLocalSnapshot(previewSharkBite) {
+  if (typeof window === "undefined" || previewSharkBite) return null;
+  try {
+    if (readOnlineMockSession()) return null;
+    const stored = sessionStorage.getItem("dice10k_players");
+    if (!stored) return null;
+    const names = JSON.parse(stored);
+    if (!Array.isArray(names) || names.length === 0) return null;
+    const saved = loadLocalGame();
+    if (saved && namesMatch(saved.playerNames, names)) return saved;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export default function Game() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewSharkBite = searchParams.get("previewSharkBite") === "1";
-  const [state, setState] = useState(null);
-  const [rollOffSetup, setRollOffSetup] = useState(null);
+  const bootSave = React.useMemo(
+    () => readBootLocalSnapshot(previewSharkBite),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot boot for this mount / HMR remount
+    [previewSharkBite]
+  );
+  const [state, setState] = useState(() => bootSave?.game ?? null);
+  const [rollOffSetup, setRollOffSetup] = useState(() =>
+    bootSave?.game ? null : bootSave?.rollOffSetup ?? null
+  );
   const [rollAnim, setRollAnim] = useState(false);
   const [popup, setPopup] = useState(null); // { word, variant }
   const [plasmaCutOpen, setPlasmaCutOpen] = useState(false);
-  const [bloodWaterLocked, setBloodWaterLocked] = useState(false);
+  const [bloodWaterLocked, setBloodWaterLocked] = useState(
+    () => bootSave?.bloodWaterLocked ?? false
+  );
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
 
   useEffect(() => {
@@ -126,11 +153,15 @@ export default function Game() {
   const onlineSession = readOnlineMockSession();
   const onlineMockActive = !!onlineSession;
   /** Turn index the active player has acknowledged via handoff overlay (pass-and-play). */
-  const [revealedTurnKey, setRevealedTurnKey] = useState(null);
+  const [revealedTurnKey, setRevealedTurnKey] = useState(
+    () => bootSave?.revealedTurnKey ?? null
+  );
   const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
   const playDiceSound = useDiceSound();
-  const prevBustRef = React.useRef(0);
-  const winnerAwardedRef = React.useRef(false);
+  const prevBustRef = React.useRef(bootSave?.game?.bustCount || 0);
+  const winnerAwardedRef = React.useRef(
+    !!(bootSave?.winnerAwarded || bootSave?.game?.winner)
+  );
   const previewBiteFiredRef = React.useRef(false);
   const gameInitRef = React.useRef(false);
   const gameSnapshotRef = React.useRef(null);
@@ -214,7 +245,18 @@ export default function Game() {
       previewBiteFiredRef.current = false;
       return;
     }
-    if (saved && !namesMatch(saved.playerNames, names)) {
+    // Never wipe a mid-match save just because boot already restored scores into state.
+    if (saved?.game && !isFreshUnstartedGame(saved.game)) {
+      prevBustRef.current = saved.game.bustCount || 0;
+      winnerAwardedRef.current = saved.winnerAwarded || !!saved.game.winner;
+      setBloodWaterLocked(saved.bloodWaterLocked);
+      setRevealedTurnKey(saved.revealedTurnKey);
+      setRollOffSetup(null);
+      setState(saved.game);
+      previewBiteFiredRef.current = false;
+      return;
+    }
+    if (saved && !namesMatch(saved.playerNames, names) && isFreshUnstartedGame(saved.game)) {
       clearLocalGame();
     }
     if (previewSharkBite || names.length < 2 || onlineMock) {
