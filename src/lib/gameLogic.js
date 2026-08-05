@@ -2,7 +2,7 @@
 import { scoreSelection, hasAnyScore, isSixOfAKind, heldSelectionPoints } from "./scoring";
 import { getPowerChargeHotDiceThreshold } from "./skinPowers";
 import { trackPrisonSixes, clearPrisonFromCaster } from "./prisonDice";
-import { applyMatrixGlitchToDice } from "./matrixGlitch";
+import { applyMatrixGlitchSabotageToDice } from "./matrixGlitch";
 
 export const TARGET_SCORE = 10000;
 export const ENTRY_THRESHOLD = 1000;
@@ -35,14 +35,27 @@ function turnPowerReset() {
   };
 }
 
+/** Total ready charges: 1 if powerCharge + any stacked extras in powerCharges. */
+export function playerPowerChargeCount(player) {
+  if (!player?.powerCharge) return 0;
+  return 1 + (Math.max(0, Number(player.powerCharges) || 0));
+}
+
 /** End a player's turn on bank — debuffs on them clear; power charge is kept. */
 function finishBankedTurn(players, playerIndex, { skinPowerUsedThisTurn = false } = {}) {
   const p = players[playerIndex];
   if (!p) return players;
   const next = [...players];
-  // Charge survives banking. Only firing consumes it (consumeSkinPower).
-  const keepCharge = !!p.powerCharge && !skinPowerUsedThisTurn;
-  next[playerIndex] = { ...p, debuffs: [], powerCharge: keepCharge };
+  // Charge/queue survives banking. Only firing consumes via consumeSkinPower.
+  // If they already fired this turn, keep whatever consumeSkinPower left on the player.
+  const keepCharge = !!p.powerCharge;
+  const keepQueued = keepCharge ? Math.max(0, Number(p.powerCharges) || 0) : 0;
+  next[playerIndex] = {
+    ...p,
+    debuffs: [],
+    powerCharge: keepCharge,
+    powerCharges: keepQueued,
+  };
   return next;
 }
 /** Remove sabotage debuffs cast by a player (e.g. they bust after firing). */
@@ -126,6 +139,7 @@ export function createInitialState(playerNames, options = {}) {
         onBoard: startScore >= ENTRY_THRESHOLD,
         debuffs: [],
         powerCharge: false,
+        powerCharges: 0,
         skinId: skin.skinId || "classic_white",
         ...(skin.trueSkinId ? { trueSkinId: skin.trueSkinId } : {}),
         ...(skin.ghostBare ? { ghostBare: true } : {}),
@@ -221,9 +235,12 @@ export function applyStoryIceFreeze(state, casterIdx = 0) {
     ...clearStoryIceFreeze(state),
     storyIceFreeze: { casterIdx, targetIdx },
     skinPowerUsedThisTurn: state.currentIndex === casterIdx ? true : state.skinPowerUsedThisTurn,
-    players: state.players.map((p, i) =>
-      i === casterIdx ? { ...p, powerCharge: false } : p
-    ),
+    players: state.players.map((p, i) => {
+      if (i !== casterIdx) return p;
+      const queued = Math.max(0, Number(p.powerCharges) || 0);
+      if (queued > 0) return { ...p, powerCharge: true, powerCharges: queued - 1 };
+      return { ...p, powerCharge: false, powerCharges: 0 };
+    }),
     message: `❄️ ${targetName} is frozen!`,
     messageVariant: "success",
   };
@@ -341,40 +358,61 @@ export function rollDice(state) {
   return next;
 }
 
-function tryMatrixGlitchRescue(state, dice) {
-  const diceCount = state.matrixGlitchArmed?.diceCount;
-  if (!diceCount) return null;
+function getPlayerDebuff(player, debuffId) {
+  return (player?.debuffs || []).find((d) => (typeof d === "string" ? d : d.id) === debuffId);
+}
 
-  const activeValues = dice.filter((d) => !d.used).map((d) => d.value);
-  if (hasAnyScore(activeValues)) return null;
+/** Sabotage: scramble the glitched player's just-rolled dice + play glitch FX. */
+function tryApplyMatrixGlitchSabotage(state) {
+  const idx = state.currentIndex;
+  const player = state.players?.[idx];
+  const debuff = getPlayerDebuff(player, "matrix_glitch");
+  if (!debuff) return null;
 
-  const { dice: glitchedDice, glitchedIds } = applyMatrixGlitchToDice(dice, diceCount);
-  const afterValues = glitchedDice.filter((d) => !d.used).map((d) => d.value);
-  if (!hasAnyScore(afterValues)) return null;
+  const diceCount = Math.max(1, Math.floor(Number(debuff.diceCount) || 1));
+  const { dice: glitchedDice, glitchedIds } = applyMatrixGlitchSabotageToDice(
+    state.dice,
+    diceCount
+  );
 
-  const currentName = state.players[state.currentIndex]?.name || "Player";
+  const players = state.players.map((p, i) => {
+    if (i !== idx) return p;
+    return {
+      ...p,
+      debuffs: (p.debuffs || []).filter(
+        (d) => (typeof d === "string" ? d : d.id) !== "matrix_glitch"
+      ),
+    };
+  });
+
+  const name = player?.name || "Player";
   const n = glitchedIds.length;
   return {
     ...state,
     dice: glitchedDice,
-    farkle: false,
+    players,
     matrixGlitchArmed: null,
-    matrixGlitchFx: true,
+    matrixGlitchFx: n > 0,
     matrixGlitchDieIds: glitchedIds,
     pendingPrisonRelease: null,
-    message: `⚡ Matrix Glitch — ${currentName} rewrote ${n} die${n === 1 ? "" : "s"}!`,
-    messageVariant: "success",
+    message:
+      n > 0
+        ? `⚡ Matrix Glitch scrambled ${n} of ${name}'s dice!`
+        : `⚡ Matrix Glitch hit ${name} — no active dice to scramble.`,
+    messageVariant: "danger",
   };
 }
 
 // Evaluate the roll after it lands → farkle / continue
 export function evaluateRoll(state) {
-  const active = state.dice.filter(d => !d.used).map(d => d.value);
+  const sabotaged = tryApplyMatrixGlitchSabotage(state);
+  const next = sabotaged || state;
+  const active = next.dice.filter(d => !d.used).map(d => d.value);
   if (!hasAnyScore(active)) {
-    if (state.powerShield) {
-      const currentName = state.players[state.currentIndex].name;
+    if (next.powerShield) {
+      const currentName = next.players[next.currentIndex].name;
       return {
-        ...state,
+        ...next,
         farkle: false,
         powerShield: false,
         pendingPrisonRelease: null,
@@ -382,48 +420,49 @@ export function evaluateRoll(state) {
         messageVariant: "success",
       };
     }
-    const glitchRescue = tryMatrixGlitchRescue(state, state.dice);
-    if (glitchRescue) return glitchRescue;
-    const currentName = state.players[state.currentIndex].name;
-    const word = bustWord(state.bustCount || 0);
-    const lostScore = state.doubleOrNothing ? state.turnScore * 2 : state.turnScore;
+    const currentName = next.players[next.currentIndex].name;
+    const word = bustWord(next.bustCount || 0);
+    const lostScore = next.doubleOrNothing ? next.turnScore * 2 : next.turnScore;
     return {
-      ...state,
+      ...next,
       farkle: true,
-      farkleTurnScore: state.turnScore,
+      farkleTurnScore: next.turnScore,
       turnScore: 0,
-      bustCount: (state.bustCount || 0) + 1,
+      bustCount: (next.bustCount || 0) + 1,
       lastBustWord: word,
       doubleOrNothing: false,
       turnScoreMultiplier: 1,
       perfectTenKPending: false,
       pendingPrisonRelease: null,
-      message: state.doubleOrNothing
+      message: next.doubleOrNothing
         ? `💥 ${word} Double or Nothing — ${currentName} loses ${lostScore}.`
         : `💥 ${word} ${currentName} loses turn score.`,
       messageVariant: "danger",
     };
   }
 
-  const sixWin = checkActiveSixOfAKindWin(state);
+  const sixWin = checkActiveSixOfAKindWin(next);
   if (sixWin) return sixWin;
 
   // Keep prison-release banner from rollDice when the roll still scores.
-  if (state.pendingPrisonRelease) {
+  if (next.pendingPrisonRelease) {
     return {
-      ...state,
+      ...next,
       farkleTurnScore: null,
       pendingPrisonRelease: null,
-      message: state.pendingPrisonRelease,
+      message: next.pendingPrisonRelease,
       messageVariant: "success",
     };
   }
 
   return {
-    ...state,
+    ...next,
     farkleTurnScore: null,
-    message: "Select scoring dice, then bank or roll again.",
-    messageVariant: "info",
+    message:
+      sabotaged && next.matrixGlitchFx
+        ? next.message
+        : "Select scoring dice, then bank or roll again.",
+    messageVariant: sabotaged && next.matrixGlitchFx ? next.messageVariant : "info",
   };
 }
 
@@ -499,13 +538,6 @@ export function confirmAndReroll(state, options = {}) {
   const farkled = !hasAnyScore(activeVals);
 
   if (farkled) {
-    const glitchRescue = tryMatrixGlitchRescue(
-      { ...state, turnScore: newTurnScore, hasRolled: true },
-      newDice
-    );
-    if (glitchRescue) {
-      return { state: glitchRescue };
-    }
     const word = bustWord(state.bustCount || 0);
     return {
       state: {
@@ -549,15 +581,23 @@ export function confirmAndReroll(state, options = {}) {
     getPowerChargeHotDiceThreshold(state.players[idx]);
   const earnedCharge = allUsed && newHotCount >= hotDiceNeeded;
   const hadCharge = !!state.players[idx]?.powerCharge;
-  const players = earnedCharge && !hadCharge
-    ? state.players.map((p, i) => (i === idx ? { ...p, powerCharge: true } : p))
+  // Stack extras when already charged — do not drop the second hot-dice charge.
+  const players = earnedCharge
+    ? state.players.map((p, i) => {
+        if (i !== idx) return p;
+        if (!p.powerCharge) return { ...p, powerCharge: true, powerCharges: 0 };
+        return { ...p, powerCharges: (Math.max(0, Number(p.powerCharges) || 0) + 1) };
+      })
     : state.players;
   const chargeJustEarned = earnedCharge && !hadCharge;
+  const chargeStacked = earnedCharge && hadCharge;
 
   const rollMessage = prison.releaseMessage
     ? prison.releaseMessage
     : chargeJustEarned
       ? "🔥 HOT DICE! Power charge earned — use it now or bank it for later!"
+      : chargeStacked
+        ? "🔥 HOT DICE! Extra power charge stacked — use your ready charge first!"
       : allUsed
         ? "🔥 HOT DICE! All 6 re-rolled."
         : "Select scoring dice, then bank or roll again.";
@@ -573,7 +613,10 @@ export function confirmAndReroll(state, options = {}) {
       perfectTenKPending: perfectTenK || false,
       hotDiceCount: newHotCount,
       message: rollMessage,
-      messageVariant: prison.releaseMessage || allUsed || chargeJustEarned ? "success" : "info",
+      messageVariant:
+        prison.releaseMessage || allUsed || chargeJustEarned || chargeStacked
+          ? "success"
+          : "info",
     },
   };
 }
@@ -589,15 +632,18 @@ export function isPlayerPowerModeActive(state, playerIndex = state?.currentIndex
   return playerHasPowerCharge(state, playerIndex);
 }
 
-/** Mark skin secret power as spent — consumes the player's power charge. */
+/** Mark skin secret power as spent — consumes one charge; keeps stack if queued. */
 export function consumeSkinPower(state) {
   const idx = state.currentIndex;
   return {
     ...state,
     skinPowerUsedThisTurn: true,
-    players: state.players.map((p, i) =>
-      i === idx ? { ...p, powerCharge: false } : p
-    ),
+    players: state.players.map((p, i) => {
+      if (i !== idx) return p;
+      const queued = Math.max(0, Number(p.powerCharges) || 0);
+      if (queued > 0) return { ...p, powerCharge: true, powerCharges: queued - 1 };
+      return { ...p, powerCharge: false, powerCharges: 0 };
+    }),
   };
 }
 

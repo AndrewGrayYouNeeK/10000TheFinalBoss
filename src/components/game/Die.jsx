@@ -330,7 +330,7 @@ function Die({
     effectiveSkinId === "snow_globe"
       ? snowGlobeShellSettingsProp ?? liveSnowGlobeSettings
       : null;
-  // Convex squircle on the inner visual stack — never on the button (that hid sprites).
+  // Convex squircle silhouette — clip-path only (overflow:hidden on the same box squares the bulge).
   const dieShapeStyle = getDieSquircleClipStyle(size);
 
   const showSpriteLayer =
@@ -480,6 +480,11 @@ function Die({
         width: size,
         height: size,
         isolation: isPortfolioFx || skin.experimental ? "isolate" : undefined,
+        // Drop-shadow follows the squircle alpha; box-shadow on the button stayed square.
+        filter:
+          skin.id === "matrix" && powerMode && !reducePowerPresentation && !icePowerActive
+            ? `drop-shadow(0 0 ${Math.round(size * 0.14)}px rgba(34,197,94,0.55))`
+            : undefined,
       }}
       initial={false}
       animate={
@@ -527,13 +532,15 @@ function Die({
         className={`relative w-full h-full ${used ? "opacity-20 grayscale cursor-not-allowed" : ""}`}
         style={{
           boxShadow: icePowerActive ? "none" : buildShadow(),
-          // Ice drips must paint outside the squircle — don't clip the button.
+          // Ice drips overhang the silhouette — don't clip the button while frozen.
+          // Otherwise match the bowed squircle (not the square layout box).
           overflow: iceOverlayActive ? "visible" : "hidden",
           background: "transparent",
+          ...(iceOverlayActive ? null : dieShapeStyle),
         }}>
-        {/* Visual stack — squircle clip-path on skin layers only (not ice overlay). */}
+        {/* Visual stack — squircle clip only (no overflow:hidden; that squared the silhouette). */}
         <div
-          className="absolute inset-0 overflow-hidden"
+          className="absolute inset-0"
           style={dieShapeStyle}
         >
         {!isClearBody && !skin.experimental && !showSpriteLayer && (
@@ -889,7 +896,8 @@ function Die({
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                boxShadow: `inset 0 0 ${Math.round(size * 0.22)}px rgba(34,197,94,0.55), 0 0 ${Math.round(size * 0.18)}px rgba(34,197,94,0.65)`,
+                // Inset only — outer box-shadow followed the square layout box.
+                boxShadow: `inset 0 0 ${Math.round(size * 0.22)}px rgba(34,197,94,0.55)`,
               }}
             />
             <div

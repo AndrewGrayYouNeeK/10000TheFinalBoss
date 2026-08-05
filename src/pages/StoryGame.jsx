@@ -493,7 +493,7 @@ export default function StoryGame() {
 
     if (storyIce) {
       if (!canFireStoryIceNow) {
-        setPopup({ word: "CAN'T FREEZE RIGHT NOW", variant: "warning" });
+        toast.warning("Can't freeze right now");
         return;
       }
     } else if (!isMyTurn() || !player?.powerCharge) {
@@ -506,7 +506,7 @@ export default function StoryGame() {
 
     if (skinPower.id === "plasma_cut") {
       if (!canUsePlasmaCut(game)) {
-        setPopup({ word: "NO DICE TO CUT", variant: "warning" });
+        toast.warning("No dice to cut");
         return;
       }
       setPlasmaCutOpen(true);
@@ -516,28 +516,21 @@ export default function StoryGame() {
     if (storyIce) {
       const result = fireStoryIcePower(game, STORY_PLAYER_INDEX, bossId);
       if (result.variant === "warning") {
-        if (result.message) {
-          setPopup({ word: result.message.toUpperCase(), variant: "warning" });
-        }
+        if (result.message) toast.warning(result.message);
         return;
       }
       setGame(result.state);
       setBloodWaterLocked(false);
       // Show their dice with ice cubes on top (opponent skin under the freeze sheet).
       startFrozenDiceReveal();
-      setPopup({
-        word: (result.message || "ENEMY FROZEN").toUpperCase(),
-        variant: "success",
-      });
+      toast.success(result.message || "Enemy frozen");
       return;
     }
 
     const casterIndex = game.currentIndex;
     const result = applySkinPower(game, skinPower.id);
     if (result.variant === "warning") {
-      if (result.message) {
-        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
-      }
+      if (result.message) toast.warning(result.message);
       return;
     }
     // Cast must not advance/swap whose turn the tray belongs to.
@@ -545,7 +538,7 @@ export default function StoryGame() {
     setGame({ ...spent, currentIndex: casterIndex });
     setBloodWaterLocked(false);
     if (result.message) {
-      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+      toast.success(result.message);
     }
   };
 
@@ -553,7 +546,7 @@ export default function StoryGame() {
     if (!game || game.winner) return;
     setPracticePowerPreview(false);
     setGame((g) => (g ? grantDevPowerCharge(g, STORY_PLAYER_INDEX) : g));
-    setPopup({ word: "POWER CHARGED", variant: "success" });
+    toast.success("Power charged");
   };
 
   const onConfirmPlasmaCut = (dieId, newValue) => {
@@ -561,15 +554,13 @@ export default function StoryGame() {
     if (!game) return;
     const result = applyPlasmaCut(game, dieId, newValue);
     if (result.variant === "warning") {
-      if (result.message) {
-        setPopup({ word: result.message.toUpperCase(), variant: "warning" });
-      }
+      if (result.message) toast.warning(result.message);
       return;
     }
     setGame(consumeSkinPower(result.state));
     setBloodWaterLocked(false);
     if (result.message) {
-      setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
+      toast.success(result.message);
     }
   };
 

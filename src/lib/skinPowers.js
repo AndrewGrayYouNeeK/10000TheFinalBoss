@@ -7,12 +7,12 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  * ─────────────────────
  * Edit SKIN_POWER_MAP to assign any power id from src/lib/powers.js to a dice skin.
  *
- * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | plasma_cut | matrix_glitch
- * Sabo powers:  freeze | freeze_score | frosty_ice | lockout | blackout | static | xray | overtime | prison_dice | shark_bite
+ * Self powers:  reroll | shield | double_or_nothing | lucky_seven | hot_streak | plasma_cut
+ * Sabo powers:  freeze | freeze_score | frosty_ice | lockout | blackout | static | xray | overtime | prison_dice | shark_bite | matrix_glitch
  *
  * Example:
  *   ghost: (bare — mimics opponent; disguised — uses disguise skin power)
- *   matrix: "static",    // blinds opponent's own score until they bust
+ *   matrix: "matrix_glitch", // cuts opponent score + scrambles their next roll
  *   blue_gel: "shark_bite", // shark eats opponent's next bank
  *
  * Skins not listed here get a stable random power from BASE_POWERS + local sabo powers.
