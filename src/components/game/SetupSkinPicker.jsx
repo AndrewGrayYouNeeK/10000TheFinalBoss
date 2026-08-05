@@ -5,6 +5,8 @@ import {
   getSetupDisguiseOptions,
   getSetupSkinOptions,
 } from "@/lib/ghostDisguise";
+import { getLocalSkinPowerLevel } from "@/lib/progression";
+import { getSkinLevelVisual } from "@/lib/skinLevelVisuals";
 import {
   Select,
   SelectContent,
@@ -33,11 +35,14 @@ export default function SetupSkinPicker({
   selectedDisguiseId,
   onDisguiseSelect,
   disguiseLocked = false,
+  /** Local profile — used to show earned frost levels on owned skins. */
+  profile = null,
 }) {
   const options = getSetupSkinOptions(ownedSkins);
   if (!options.length) return null;
 
   const value = options.includes(selectedId) ? selectedId : options[0];
+  const selectedLevel = getLocalSkinPowerLevel(value, profile);
   const isGhost = value === GHOST_SKIN_ID;
   const disguiseOptions = getSetupDisguiseOptions(ownedSkins);
   const disguiseValue =
@@ -53,7 +58,13 @@ export default function SetupSkinPicker({
     <div className="flex items-start gap-2 min-w-0">
       <div className="shrink-0 scale-[0.72] origin-left -mr-2 mt-0.5">
         {/* Ghost look stays spectral; do not resolve to disguise (avoids Blue Gel leak). */}
-        <DicePreview skinId={value} size={40} compact resolveGhost={false} />
+        <DicePreview
+          skinId={value}
+          size={40}
+          compact
+          resolveGhost={false}
+          skinLevel={selectedLevel}
+        />
       </div>
       <div className="flex-1 min-w-0 space-y-1.5">
         <Select value={value} onValueChange={onSelect}>
@@ -71,13 +82,20 @@ export default function SetupSkinPicker({
           >
             {options.map((id) => {
               const skin = getSkin(id);
+              const level = getLocalSkinPowerLevel(id, profile);
+              const hasFrost = getSkinLevelVisual(id)?.effect === "frost";
               return (
                 <SelectItem
                   key={id}
                   value={id}
                   className="cursor-pointer text-slate-200 focus:bg-cyan-500/15 focus:text-white data-[state=checked]:text-cyan-200"
                 >
-                  {skin?.name || id.replace(/_/g, " ")}
+                  <span className="inline-flex items-center gap-2">
+                    <span>{skin?.name || id.replace(/_/g, " ")}</span>
+                    {hasFrost && level > 1 ? (
+                      <span className="text-[10px] text-cyan-300/80">Lv {level}</span>
+                    ) : null}
+                  </span>
                 </SelectItem>
               );
             })}
