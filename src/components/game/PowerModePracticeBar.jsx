@@ -143,7 +143,8 @@ export function storyBossPracticeVariant(bossId) {
 
 /** Local play equipped skin → practice bar variant, or null. */
 export function skinPracticeVariant(skinId) {
-  if (skinId === "blue_gel") return "marlin";
+  // Angelfish (blue_gel) + Shark Tank (shark_gel) both use Shark Bite.
+  if (skinId === "blue_gel" || skinId === "shark_gel") return "marlin";
   // GQ Diamond Cut + its Diamond Ruby upgrade share Double or Nothing practice.
   if (skinId === "crystal_cut" || skinId === "diamond_ruby") return "gq";
   if (skinId === "ice") return "ice";

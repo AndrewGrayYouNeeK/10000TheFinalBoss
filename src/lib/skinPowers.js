@@ -14,6 +14,7 @@ import { EXPERIMENTAL_DICE_IDS } from "@/lib/experimentalDice";
  *   ghost: (bare — mimics opponent; disguised — uses disguise skin power)
  *   matrix: "matrix_glitch", // cuts opponent score + scrambles their next roll
  *   blue_gel: "shark_bite", // shark eats opponent's next bank
+ *   shark_gel: "shark_bite", // Shark Tank shares Shark Bite with Blue Gel
  *
  * Skins not listed here get a stable random power from BASE_POWERS + local sabo powers.
  * Exception: NO_POWER_SKIN_IDS (classic_white, cyber_neon) intentionally have no secret power.
@@ -60,6 +61,7 @@ const SKIN_POWER_MAP = {
   pf_score_meter: "overtime",
   snow_globe: "shield",
   blue_gel: "shark_bite",
+  shark_gel: "shark_bite", // Shark Tank — same Shark Bite as Blue Gel / Angelfish
   amber_wasp: "lucky_seven",
   circuit_board: "reroll",
   neon_grid: "hot_streak",
