@@ -1,5 +1,5 @@
 /**
- * Verifies Blue Gel dice on the real /game route — face sprites + fish tank, no pip fallback.
+ * Verifies Blue Gel dice on the real /game route — live fish overlays + tank, no pip fallback.
  * Run: npm run build && node scripts/verify-blue-gel-gameplay.mjs
  */
 import { chromium } from "playwright";
@@ -13,7 +13,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(ROOT, "dist");
 const PORT = Number(process.env.VERIFY_PORT || 4192);
 const BASE = `http://127.0.0.1:${PORT}`;
-const SPRITE_FRAGMENT = "999d8760b_generated_image";
 const PROFILE_KEY = "dice10k_profile";
 const PLAYERS_KEY = "dice10k_players";
 const SKINS_KEY = "dice10k_player_skins";
@@ -82,31 +81,23 @@ async function seedStorage(page) {
 }
 
 async function auditTray(page) {
-  return page.evaluate((fragment) => {
+  return page.evaluate(() => {
     const tray = document.querySelector("#gameplay-dice-tray");
     if (!tray) {
       return { ok: false, error: "missing #gameplay-dice-tray" };
     }
-    const faceImgs = [...tray.querySelectorAll("img")].filter((img) =>
-      (img.getAttribute("src") || "").includes(fragment)
-    );
-    const loadedFaces = faceImgs.filter((img) => img.complete && img.naturalWidth > 0);
-    const badRelative = faceImgs.filter((img) => {
-      const src = img.getAttribute("src") || "";
-      return src.startsWith("./") || src.startsWith("../");
-    });
+    const overlays = tray.querySelectorAll("[data-fish-overlay='aquarium']");
+    const overlaySvgCounts = [...overlays].map((el) => el.querySelectorAll("svg").length);
     const pipGrids = tray.querySelectorAll("button .grid.grid-cols-3.grid-rows-3");
     const dieButtons = tray.querySelectorAll("button");
     return {
       ok: true,
       dieCount: dieButtons.length,
-      faceImgCount: faceImgs.length,
-      loadedFaceCount: loadedFaces.length,
-      badRelative: badRelative.length,
+      overlayCount: overlays.length,
+      overlaySvgCounts,
       pipGridCount: pipGrids.length,
-      sampleSrc: faceImgs[0]?.getAttribute("src") || null,
     };
-  }, SPRITE_FRAGMENT);
+  });
 }
 
 async function main() {
@@ -126,14 +117,12 @@ async function main() {
     if (audit.dieCount !== 6) {
       throw new Error(`expected 6 dice, got ${audit.dieCount}`);
     }
-    if (audit.faceImgCount !== 6) {
-      throw new Error(`expected 6 face sprites, got ${audit.faceImgCount}`);
+    if (audit.overlayCount !== 6) {
+      throw new Error(`expected 6 fish overlays, got ${audit.overlayCount}`);
     }
-    if (audit.loadedFaceCount !== 6) {
-      throw new Error(`expected 6 loaded face sprites, got ${audit.loadedFaceCount} — src=${audit.sampleSrc}`);
-    }
-    if (audit.badRelative > 0) {
-      throw new Error("face img uses relative asset URL (breaks on /game route)");
+    const emptyOverlays = audit.overlaySvgCounts.filter((n) => n < 1).length;
+    if (emptyOverlays > 0) {
+      throw new Error(`expected fish SVG in every overlay, ${emptyOverlays} overlays empty`);
     }
     if (audit.pipGridCount > 0) {
       throw new Error(`expected 0 pip fallback grids, got ${audit.pipGridCount}`);
@@ -150,10 +139,12 @@ async function main() {
       await sleep(1200);
       audit = await auditTray(page);
       if (!audit.ok) throw new Error(audit.error);
-      if (audit.faceImgCount !== 6 || audit.loadedFaceCount !== 6) {
-        throw new Error(
-          `after roll: expected 6 loaded faces, got ${audit.loadedFaceCount}/${audit.faceImgCount}`
-        );
+      if (audit.overlayCount !== 6) {
+        throw new Error(`after roll: expected 6 fish overlays, got ${audit.overlayCount}`);
+      }
+      const emptyAfterRoll = audit.overlaySvgCounts.filter((n) => n < 1).length;
+      if (emptyAfterRoll > 0) {
+        throw new Error(`after roll: ${emptyAfterRoll} overlays missing fish SVG`);
       }
       if (audit.pipGridCount > 0) {
         throw new Error(`after roll: pip fallback appeared (${audit.pipGridCount} grids)`);
@@ -163,7 +154,7 @@ async function main() {
       });
     }
 
-    console.log(`OK: ${audit.loadedFaceCount} Blue Gel face sprites on /game, 0 pip grids`);
+    console.log(`OK: ${audit.overlayCount} Blue Gel fish overlays on /game, 0 pip grids`);
     console.log("Screenshots: artifacts/blue-gel-gameplay-verify.png");
   } finally {
     await browser.close();
