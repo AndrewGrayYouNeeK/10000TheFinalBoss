@@ -15,12 +15,41 @@ If you use Cursor agents to edit code, run `npm run dev` yourself in a normal Te
 
 Optional: copy `.env.example` to `.env.local` for local overrides (not required).
 
+## Web hosting (Cloudflare Pages)
+
+Production site: **https://www.roll10000.com** · preview: **https://roll10000.pages.dev**
+
+| Setting | Value |
+|---------|-------|
+| Pages project | `roll10000` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Node | 20 |
+| SPA fallback | `public/_redirects` → `/* /index.html 200` |
+
+Publish a production build (requires `npx wrangler login` once):
+
+```bash
+npm run deploy:web
+```
+
+Optional: in the Cloudflare dashboard, connect GitHub repo `AndrewGrayYouNeeK/10000TheFinalBoss` so pushes to `main` auto-deploy.
+
+**Apex `roll10000.com`:** already added on the Pages project but DNS for `@` is missing (zone nameservers are Cloudflare, but not on the same account as this Pages project). In the Cloudflare account that owns the `roll10000.com` zone → **DNS → Records**, add a proxied **CNAME**:
+
+| Type | Name | Target |
+|------|------|--------|
+| CNAME | `@` | `roll10000.pages.dev` |
+
+Then (same zone) add a **Redirect Rule**: `http(s)://roll10000.com/*` → `https://www.roll10000.com/$1` (301), so bare domain goes to `www`.
+
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Development server |
 | `npm run build` | Production build → `dist/` |
+| `npm run deploy:web` | Build + deploy to Cloudflare Pages (`roll10000`) |
 | `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
 | `npm run ios:sync` | Build web app + sync to iOS (Capacitor) |

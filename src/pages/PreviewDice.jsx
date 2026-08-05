@@ -10,10 +10,11 @@ import {
 } from "@/lib/experimentalDice";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { enterShopPreviewSession } from "@/lib/gameAudioSettings";
+import { getLocalSkinPowerLevel } from "@/lib/progression";
 import { toast } from "sonner";
 
 export default function PreviewDice() {
-  const { equipItem, equippedSkinId, equippedFeltId } = useCosmetics();
+  const { equipItem, equippedSkinId, equippedFeltId, user } = useCosmetics();
   const felt = getFelt(equippedFeltId);
   const [category, setCategory] = useState("all");
   const [face, setFace] = useState(5);
@@ -104,6 +105,7 @@ export default function PreviewDice() {
         {skins.map((skin) => {
           const equipped = equippedSkinId === skin.id;
           const expanded = expandedId === skin.id;
+          const skinLevel = getLocalSkinPowerLevel(skin.id, user);
           return (
             <div
               key={skin.id}
@@ -127,6 +129,7 @@ export default function PreviewDice() {
                     skinId={skin.id}
                     size={expanded ? 96 : 72}
                     scoreFill={demoScore}
+                    skinLevel={skinLevel}
                     dieSeed={[...skin.id].reduce((a, c) => a + c.charCodeAt(0), 0)}
                   />
                 </FeltTrayFrame>
@@ -147,7 +150,14 @@ export default function PreviewDice() {
               {expanded && (
                 <div className="flex justify-center gap-1 mt-2 pt-2 border-t border-white/10">
                   {[1, 2, 3, 4, 5, 6].map((v) => (
-                    <Die key={v} value={v} skinId={skin.id} size={28} scoreFill={demoScore} />
+                    <Die
+                      key={v}
+                      value={v}
+                      skinId={skin.id}
+                      size={28}
+                      scoreFill={demoScore}
+                      skinLevel={skinLevel}
+                    />
                   ))}
                 </div>
               )}

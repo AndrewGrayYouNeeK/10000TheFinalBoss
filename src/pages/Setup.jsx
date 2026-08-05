@@ -28,7 +28,7 @@ export default function Setup() {
   const [disguiseLocked, setDisguiseLocked] = useState([]);
   const [privacySettings, setPrivacySettings] = useState(() => loadPassPlayPrivacy());
   const navigate = useNavigate();
-  const { equippedSkinId, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
+  const { user, equippedSkinId, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
 
   useEffect(() => {
     if (isLoading) return;
@@ -238,6 +238,7 @@ export default function Setup() {
                           selectedDisguiseId={playerDisguises[i]}
                           onDisguiseSelect={(disguiseId) => updateDisguise(i, disguiseId)}
                           disguiseLocked={!!disguiseLocked[i]}
+                          profile={user}
                         />
                       </div>
                     )}

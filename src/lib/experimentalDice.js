@@ -44,7 +44,12 @@ const fx = (id, name, desc, effectId, pipEffect, opts = {}) =>
 
 export const EXPERIMENTAL_DICE = [
   // —— SPECTRAL (kept) ——
-  spectral("ghost", "Ghost", "Spectral tray + private faces. Pick a disguise for its power only — opponents never see your rolls.", "ghostPip", { phantomPulse: true }),
+  spectral("ghost", "Ghost", "Spectral tray + private faces. Pick a disguise for its power only — opponents never see your rolls.", "ghostPip", {
+    phantomPulse: true,
+    edgeWidth: 0,
+    edge: "transparent",
+    fill: "linear-gradient(135deg, rgba(165,243,252,0.05) 0%, transparent 85%)",
+  }),
   spectral("clear_void", "Ultra Clear", "All clear. Body vanishes — pips float alone.", "whitePip", {
     fill: null,
     edge: "rgba(255,255,255,0.08)",

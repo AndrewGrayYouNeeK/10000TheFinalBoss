@@ -1039,7 +1039,7 @@ export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = t
 function applyLockedSpritePaths(skin, draft, locked) {
   if (!locked || !draft) return skin;
   // Old lock snapshots may still carry sprite paths — aquarium skins never use them.
-  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
+  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id) || skin?.id === "blue_gel") return skin;
   const next = { ...skin };
   // Regular + power sprite sheets always follow catalog — lock stores crop/face tuning only.
   // (Stale locks once pointed cyber_neon / ragnarok power at the wrong gameplay PNG.)
@@ -1069,7 +1069,17 @@ export function getSkin(id) {
   const skin = withoutBlueGelRuntimeSprite(
     withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked)),
   );
-  if (!draft) return skin;
+  if (!draft) {
+    if (skin.id === "blue_gel") {
+      return {
+        ...skin,
+        spriteSheetSize: BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
+        spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
+        spriteFaceOffsets: BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
+      };
+    }
+    return skin;
+  }
   const mergeRegular = (offsetsBase) => {
     if (!draft?.regularFaces) return offsetsBase;
     return mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: true });

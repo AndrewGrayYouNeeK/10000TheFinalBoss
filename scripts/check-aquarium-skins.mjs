@@ -14,7 +14,10 @@ const source = readFileSync(catalogPath, "utf8");
 
 const errors = [];
 
-for (const skinId of ["blue_gel", "snow_globe"]) {
+/** Skins whose faces are owned by live aquarium overlays (not baked sheets). */
+const AQUARIUM_SKINS = ["blue_gel", "shark_gel", "snow_globe"];
+
+for (const skinId of AQUARIUM_SKINS) {
   const blockRe = new RegExp(
     `id:\\s*"${skinId}"[\\s\\S]*?(?=\\n\\s*\\{|\\n\\s*\\];)`,
     "m",
@@ -24,19 +27,29 @@ for (const skinId of ["blue_gel", "snow_globe"]) {
     errors.push(`${skinId}: catalog entry not found`);
     continue;
   }
-  if (skinId === "snow_globe" && /spriteUrl\s*:/.test(block)) {
+  // Only Angelfish keeps a legacy spriteUrl as catalog metadata.
+  if (skinId === "blue_gel") {
+    if (!/spriteUrl\s*:/.test(block)) {
+      errors.push(`${skinId}: Angelfish catalog metadata is missing spriteUrl`);
+    }
+  } else if (/spriteUrl\s*:/.test(block)) {
     errors.push(`${skinId}: must not define spriteUrl in PRODUCTION_DICE_SKINS`);
-  }
-  if (skinId === "blue_gel" && !/spriteUrl\s*:/.test(block)) {
-    errors.push(`${skinId}: Angelfish catalog metadata is missing spriteUrl`);
   }
 }
 
 if (!source.includes("AQUARIUM_OVERLAY_SKIN_IDS")) {
   errors.push("AQUARIUM_OVERLAY_SKIN_IDS guard missing from shopCatalog.js");
 }
-if (!source.includes('"blue_gel"')) {
-  errors.push("blue_gel is missing from AQUARIUM_OVERLAY_SKIN_IDS");
+
+for (const skinId of AQUARIUM_SKINS) {
+  // Confirm membership in the Set constructor args, not just any string literal.
+  const setMatch = source.match(
+    /AQUARIUM_OVERLAY_SKIN_IDS\s*=\s*new Set\(\[([^\]]*)\]\)/,
+  );
+  const setBody = setMatch?.[1] ?? "";
+  if (!setBody.includes(`"${skinId}"`)) {
+    errors.push(`${skinId}: missing from AQUARIUM_OVERLAY_SKIN_IDS`);
+  }
 }
 
 if (errors.length) {
@@ -45,4 +58,6 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Aquarium skins OK (runtime overlays own blue_gel / snow_globe faces).");
+console.log(
+  "Aquarium skins OK (runtime overlays own blue_gel / shark_gel / snow_globe faces).",
+);

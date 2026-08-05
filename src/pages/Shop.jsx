@@ -291,7 +291,11 @@ export default function Shop() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {EXPERIMENTAL_DICE.map((skin) => (
+                {EXPERIMENTAL_DICE.map((skin) => {
+                  const ownedSkinLevel = ownedSkins.includes(skin.id)
+                    ? getLocalSkinPowerLevel(skin.id, user)
+                    : 1;
+                  return (
                   <ShopItemCard
                     key={skin.id}
                     item={{ ...skin, price: 0 }}
@@ -300,17 +304,22 @@ export default function Shop() {
                     canAfford={false}
                     onBuy={() => handleBuy("skin", skin)}
                     onEquip={() => handleEquip("skin", skin)}
-                    preview={<DicePreview skinId={skin.id} resolveGhost={false} />}
+                    preview={
+                      <DicePreview
+                        skinId={skin.id}
+                        skinLevel={ownedSkinLevel}
+                        resolveGhost={false}
+                      />
+                    }
                     achievementOnly={!ownedSkins.includes(skin.id)}
                     hideLockedAction={ownedSkins.includes(skin.id)}
                     effectivePrice={0}
                     skinLevel={
-                      ownedSkins.includes(skin.id)
-                        ? getLocalSkinPowerLevel(skin.id, user)
-                        : undefined
+                      ownedSkins.includes(skin.id) ? ownedSkinLevel : undefined
                     }
                   />
-                ))}
+                  );
+                })}
               </div>
             </section>
           </TabsContent>
