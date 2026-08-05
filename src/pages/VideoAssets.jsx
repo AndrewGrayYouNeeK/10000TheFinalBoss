@@ -277,8 +277,9 @@ export default function VideoAssets() {
           </Link>
           . Neo story videos (intro, win, avatar loop) are there too and under <b>Neo</b> above.
           Other power dice uploads are on each dice&apos;s Sprite Lab (Diamond Cut, etc.). Story
-          before/after videos for Glacia, GQ, Sir Scalewyrm, and Neo are on matching dice labs.
-          Frosty and all other bosses upload above. Blue Gel / shark power video and{" "}
+          before/after videos for Frosty the Evil Snowman, GQ, Sir Scalewyrm, and Neo are on
+          matching dice labs (Frosty → Ice Sprite Lab). Other bosses upload above. Blue Gel / shark
+          power video and{" "}
           <Link to="/fish-showcase" className="text-cyan-400 underline">
             Preview shark attack
           </Link>{" "}

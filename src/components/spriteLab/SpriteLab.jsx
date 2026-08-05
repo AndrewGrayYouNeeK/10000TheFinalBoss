@@ -5,6 +5,11 @@ import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
 import FeltTrayFrame from "@/components/shop/FeltTrayFrame";
 import { getFelt, getSkin, skinHasPowerSprite, DICE_SKINS } from "@/lib/shopCatalog";
+import { getSkinPowerMeta } from "@/lib/skinPowers";
+import {
+  getStoryBossesForSkin,
+  isStoryLadderBoss,
+} from "@/lib/storyBosses";
 import { getBlueGelTrayFishProps } from "@/lib/fishDice";
 import {
   DEFAULT_SNOW_GLOBE_SETTINGS,
@@ -13,6 +18,8 @@ import {
   resetSnowGlobeSettings,
   saveSnowGlobeSettings,
 } from "@/lib/snowGlobeSettings";
+import { isFreezeOverlayImmuneSkin } from "@/lib/icePowerSettings";
+import SpriteLabFreezeOverlayTools from "@/components/spriteLab/SpriteLabFreezeOverlayTools";
 import {
   buildCatalogSnippet,
   buildLabPreviewSkin,
@@ -20,6 +27,7 @@ import {
   DEFAULT_SPRITE_CROP,
   emptyFaceMap,
   FACES,
+  isSpriteTuningLocked,
   readSpriteLabPersistedState,
   persistTuningLockFlag,
   persistSpriteLabTuning,
@@ -52,6 +60,9 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Lock, Play, Save, Unlock } from "lucide-react";
+import { loadProfile } from "@/lib/localProfile";
+import { getLocalSkinPowerLevel, LOCAL_SKIN_MAX_LEVEL } from "@/lib/progression";
+import { getSkinLevelVisual } from "@/lib/skinLevelVisuals";
 import VideoUploadCard from "@/components/video/VideoUploadCard";
 import VideoPreviewDialog from "@/components/video/VideoPreviewDialog";
 import { VIDEO_KEYS, VIDEO_LABELS, VIDEO_DESCRIPTIONS } from "@/lib/localVideoStore";
@@ -477,9 +488,9 @@ const POWER_VIDEO_SKIN_CONFIG = {
 };
 
 const GQ_BOSS_ID = "gq";
-const FISHERMAN_BOSS_ID = "fisherman";
 const NEO_BOSS_ID = "neo";
-const ICE_WITCH_BOSS_ID = "ice_witch";
+/** Frosty the Evil Snowman — story ladder / video key id (not dormant ice_witch). */
+const FROSTY_BOSS_ID = "snowman";
 const DRAGON_KNIGHT_BOSS_ID = "dragon_knight";
 
 function skinUsesTuningLock(skinId) {
@@ -493,10 +504,10 @@ function CropSliders({ label, crop, onChange, accent = "amber", disabled = false
     <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3 space-y-3">
       <p className="text-xs font-bold uppercase tracking-wider text-amber-200">{label}</p>
       {[
-        { key: "zoom", min: 0.45, max: 1.85, step: 0.005, label: "Zoom" },
+        { key: "zoom", min: 0.7, max: 3.0, step: 0.005, label: "Zoom" },
         { key: "offsetY", min: -0.1, max: 0.15, step: 0.005, label: "Offset Y" },
         { key: "offsetX", min: -0.2, max: 0.2, step: 0.005, label: "Offset X" },
-        { key: "stretch", min: -0.15, max: 0.35, step: 0.005, label: "Stretch (taller +)" },
+        { key: "stretch", min: -0.3, max: 0.6, step: 0.005, label: "Stretch (taller +)" },
       ].map(({ key, min, max, step, label: sliderLabel }) => (
         <label key={key} className="block text-[10px] text-slate-400">
           {sliderLabel}: <span className="text-white tabular-nums">{crop[key]?.toFixed(3)}</span>
@@ -571,6 +582,11 @@ export default function SpriteLab({ skinId }) {
   const spriteLabSkins = useMemo(() => getSpriteLabSkins(), []);
   const felt = getFelt(SPRITE_LAB_PREVIEW_FELT_ID);
   const catalogSkin = getSkin(skinId);
+  const profile = useMemo(() => loadProfile(), []);
+  const skinPowerMeta = useMemo(() => getSkinPowerMeta(skinId), [skinId]);
+  const storyBossesForSkin = useMemo(() => getStoryBossesForSkin(skinId), [skinId]);
+  const currentSkinLevel = getLocalSkinPowerLevel(skinId, profile);
+  const skinLevelVisual = getSkinLevelVisual(skinId);
   const hasSpriteSheet = !!catalogSkin.spriteUrl;
   const hasPowerSheet = skinHasPowerSprite(catalogSkin);
   const hasPowerVideo = !!catalogSkin.powerVideoUrl;
@@ -603,18 +619,21 @@ export default function SpriteLab({ skinId }) {
     () => readSpriteLabPersistedState(skinId).powerFaces
   );
   const [powerMode, setPowerMode] = useState(false);
-  /** Frozen Ice — optional preview of Score Freeze cube overlay (tuned in Ice Lab). Off by default. */
+  const [previewSkinLevel, setPreviewSkinLevel] = useState(currentSkinLevel);
+  /** Frozen Ice — Score Freeze cube overlay preview + tools (same saves as Ice Lab). */
   const [freezeOverlayPreview, setFreezeOverlayPreview] = useState(false);
-  const iceFreezeOn = skinId === "ice" && freezeOverlayPreview;
+  // Lab always allows freeze preview (incl. fire skins) so you can tune cubes here.
+  // In-game Die still blocks immune skins unless labForceFreezeOverlay is set.
+  const iceFreezeOn = freezeOverlayPreview;
+  const freezeImmuneInGame = isFreezeOverlayImmuneSkin(skinId);
+  const [dossierOpen, setDossierOpen] = useState(false);
+  const [howToOpen, setHowToOpen] = useState(false);
+  const [levelPreviewOpen, setLevelPreviewOpen] = useState(false);
   const [snowGlobeShell, setSnowGlobeShell] = useState(() =>
     skinId === "snow_globe" ? loadSnowGlobeSettings() : null
   );
-  // Prevent the autosave effect from writing the previous skin's state into a
-  // newly selected skin before that skin's persisted snapshot has loaded.
-  const [hydratedSkinId, setHydratedSkinId] = useState(null);
 
   useEffect(() => {
-    setHydratedSkinId(null);
     const persisted = readSpriteLabPersistedState(skinId);
     setRegularCrop(persisted.regularCrop);
     setPowerCrop(persisted.powerCrop);
@@ -622,10 +641,10 @@ export default function SpriteLab({ skinId }) {
     setPowerFaces(persisted.powerFaces);
     setPowerVideoZoom(persisted.powerVideoZoom);
     setPowerVideoCrop(persisted.powerVideoCrop);
+    setPreviewSkinLevel(getLocalSkinPowerLevel(skinId, profile));
     if (skinId === "snow_globe") setSnowGlobeShell(loadSnowGlobeSettings());
     setFreezeOverlayPreview(false);
-    setHydratedSkinId(skinId);
-  }, [skinId]);
+  }, [skinId, profile]);
   const [selectedFace, setSelectedFace] = useState(1);
   const [size, setSize] = useState(100);
   const [powerVideoLoaded, setPowerVideoLoaded] = useState(false);
@@ -676,6 +695,7 @@ export default function SpriteLab({ skinId }) {
           powerVideoZoom,
           powerVideoCrop,
         },
+        { locked: isSpriteTuningLocked(skinId) }
       ),
     [
       skinId,
@@ -787,7 +807,7 @@ export default function SpriteLab({ skinId }) {
   });
 
   const handleSaveTuning = () => {
-    if (tuningLocked || hydratedSkinId !== skinId) return;
+    if (tuningLocked) return;
     persistSpriteLabTuning(skinId, buildTuningPayload(), { locked: false });
     toast.success(`${catalogSkin.name} saved on this device`);
   };
@@ -867,20 +887,9 @@ export default function SpriteLab({ skinId }) {
   }, [skinId, catalogSkin.name]);
 
   useEffect(() => {
-    if (tuningLocked || hydratedSkinId !== skinId) return;
+    if (tuningLocked) return;
     persistSpriteLabTuning(skinId, buildTuningPayload(), { locked: false });
-  }, [
-    skinId,
-    regularCrop,
-    powerCrop,
-    regularFaces,
-    powerFaces,
-    powerVideoZoom,
-    powerVideoCrop,
-    tuningLocked,
-    snowGlobeShell,
-    hydratedSkinId,
-  ]);
+  }, [skinId, regularCrop, powerCrop, regularFaces, powerFaces, powerVideoZoom, powerVideoCrop, tuningLocked, snowGlobeShell]);
 
   useEffect(() => {
     if (!powerVideoConfig) return undefined;
@@ -1130,190 +1139,197 @@ export default function SpriteLab({ skinId }) {
       </div>
 
       <div className="max-w-3xl mx-auto p-4 space-y-4">
-        {skinId === "blue_gel" && (
-          <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 text-xs text-cyan-100 space-y-2">
-            <p>
-              Blue Gel uses its own <b>face sprite sheet</b> (<code className="text-cyan-200">999d8760b_generated_image.png</code>)
-              with <b>baked-in dark pips</b> painted above the fish tank. Use crop + nudge below to align each face.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to="/shark-bite-lab"
-                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white"
-              >
-                Shark Bite Lab
-              </Link>
-              <Link
-                to="/fish-showcase"
-                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
-              >
-                Fish Showcase
-              </Link>
+        <div className="rounded-xl border border-fuchsia-500/35 bg-fuchsia-950/20 p-3 space-y-3">
+          <button
+            type="button"
+            onClick={() => setDossierOpen((v) => !v)}
+            className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
+          >
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-200">
+                Dice dossier
+              </p>
+              <p className="text-base font-black text-white leading-tight">{catalogSkin.name}</p>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-fuchsia-200/80 shrink-0">
+              {dossierOpen ? "Hide details ▲" : "Show power / story ▼"}
+            </span>
+          </button>
+
+          {dossierOpen ? (
+            <>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-[10px] text-slate-500 font-mono">id: {skinId}</p>
+            <div className="flex flex-wrap gap-1.5 justify-end">
+              {catalogSkin.powerDice ? (
+                <span className="rounded-full border border-orange-400/50 bg-orange-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-orange-200">
+                  Power dice
+                </span>
+              ) : null}
+              {catalogSkin.realistic ? (
+                <span className="rounded-full border border-slate-400/40 bg-slate-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-300">
+                  Realistic
+                </span>
+              ) : null}
+              {catalogSkin.preview ? (
+                <span className="rounded-full border border-violet-400/40 bg-violet-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-200">
+                  Preview
+                </span>
+              ) : null}
+              <span className="rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-100 tabular-nums">
+                {catalogSkin.price === 0 ? "Free" : `${catalogSkin.price} coins`}
+              </span>
             </div>
           </div>
-        )}
-        {skinId === "blue_gel" && (
-          <div className="rounded-xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-rose-200">
-              Shark Bite power videos
+
+          {catalogSkin.description ? (
+            <p className="text-xs text-slate-300 leading-relaxed">{catalogSkin.description}</p>
+          ) : null}
+
+          <div className="rounded-lg border border-white/10 bg-black/25 p-3 space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-orange-200">
+              Secret power
             </p>
-            <p className="text-[10px] text-slate-400">
-              Uploads auto-save on this device in multiple backups. Tap <b>Restore uploads</b> above
-              if a clip looks missing after a refresh.
+            {skinPowerMeta.power ? (
+              <>
+                <p className="text-sm font-black text-white">
+                  {skinPowerMeta.power.name}
+                  {skinPowerMeta.power.tagline ? (
+                    <span className="ml-2 text-[10px] font-semibold text-slate-400 normal-case tracking-normal">
+                      — {skinPowerMeta.power.tagline}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  {skinPowerMeta.power.description}
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  Kind:{" "}
+                  <span className="text-slate-300 font-semibold">
+                    {skinPowerMeta.power.kind === "sabo" ? "sabotage" : "self"}
+                  </span>
+                  {" · "}
+                  Source:{" "}
+                  <span className="text-slate-300 font-semibold">
+                    {skinPowerMeta.source === "mapped"
+                      ? "skin map"
+                      : skinPowerMeta.source === "random"
+                        ? "stable hash (unmapped skin)"
+                        : "none"}
+                  </span>
+                  {" · "}
+                  <span className="font-mono text-slate-400">{skinPowerMeta.powerId}</span>
+                </p>
+              </>
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                No secret power on this skin (vanilla / intentionally unpowered).
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-black/25 p-3 space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-sky-200">
+              Story mode character
             </p>
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO}
-              label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]}
-              description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]}
-            />
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={VIDEO_KEYS.BLUE_GEL_POWER}
-              label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_POWER]}
-              description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_POWER]}
-            />
+            {storyBossesForSkin.length > 0 ? (
+              <ul className="space-y-2">
+                {storyBossesForSkin.map((boss) => (
+                  <li
+                    key={boss.id}
+                    className="rounded-md border border-sky-500/20 bg-sky-950/30 px-2.5 py-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-base leading-none" aria-hidden>
+                        {boss.avatar}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-white leading-tight">
+                          {boss.name}
+                        </p>
+                        {boss.title ? (
+                          <p className="text-[10px] text-sky-200/80">{boss.title}</p>
+                        ) : null}
+                      </div>
+                      {isStoryLadderBoss(boss.id) ? (
+                        <span className="ml-auto rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-200">
+                          On ladder
+                        </span>
+                      ) : (
+                        <span className="ml-auto rounded-full border border-slate-500/40 bg-slate-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                          Roster only
+                        </span>
+                      )}
+                    </div>
+                    {boss.gimmick?.name ? (
+                      <p className="mt-1.5 text-[10px] text-slate-400">
+                        Gimmick:{" "}
+                        <span className="text-slate-200 font-semibold">{boss.gimmick.name}</span>
+                        {boss.gimmick.description ? ` — ${boss.gimmick.description}` : ""}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-[10px] text-slate-500 font-mono">boss id: {boss.id}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                No Story mode boss uses this skin as their fight dice / unlock reward.
+              </p>
+            )}
           </div>
-        )}
-        {skinId === "blue_gel" && (
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
-              Story mode — Marlin Joe videos
+
+          <div className="grid sm:grid-cols-2 gap-2 text-[10px] text-slate-400">
+            <p>
+              Regular sheet:{" "}
+              <span className="font-mono text-slate-300">
+                {catalogSkin.spriteUrl || "— (overlay / procedural)"}
+              </span>
             </p>
-            <p className="text-[10px] text-slate-400">
-              Upload Marlin Joe&apos;s <b>Before match</b> intro, <b>After victory</b> cutscene, and
-              <b> Avatar loop</b> used during the fight.
+            <p>
+              Power sheet:{" "}
+              <span className="font-mono text-slate-300">
+                {catalogSkin.powerSpriteUrl || "—"}
+              </span>
             </p>
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={storyBossIntroKey(FISHERMAN_BOSS_ID)}
-              label={getStoryBossVideoLabel(FISHERMAN_BOSS_ID, "intro")}
-              description={getStoryBossVideoDescription(FISHERMAN_BOSS_ID, "intro")}
-            />
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={storyBossWinKey(FISHERMAN_BOSS_ID)}
-              label={getStoryBossVideoLabel(FISHERMAN_BOSS_ID, "win")}
-              description={getStoryBossVideoDescription(FISHERMAN_BOSS_ID, "win")}
-            />
-            <VideoUploadCard
-              lockRemovesOnly={tuningLocked}
-              videoKey={storyBossAvatarKey(FISHERMAN_BOSS_ID)}
-              label={getStoryBossVideoLabel(FISHERMAN_BOSS_ID, "avatar")}
-              description={getStoryBossVideoDescription(FISHERMAN_BOSS_ID, "avatar")}
-            />
-          </div>
-        )}
-        {skinId === "ice" && (
-          <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-sky-100">
-            <span>
-              <b>Glacier sprite sheet</b> — crop + nudge below.{" "}
-              <b>Score Freeze cube overlay</b> (blue frost on enemy dice) tunes separately in Ice Lab.
-            </span>
-            <Link
-              to="/ice-lab"
-              className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white shrink-0"
-            >
-              Open Ice Lab
-            </Link>
-          </div>
-        )}
-        {skinId === "snow_globe" && (
-          <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 text-xs text-sky-100">
-            Snow Globe has <b>no dice sheet of its own</b> — face + pips come from the borrowed{" "}
-            <b>Aquamarine glass shell</b> (3×2 sprite). Use shell shift below to align; tune the shell
-            crop on{" "}
-            <Link to="/sprite-lab/aquamarine" className="text-sky-200 underline font-bold">
-              Aquamarine Sprite Lab
-            </Link>
-            .
-          </div>
-        )}
-        {tuningLocked && lockConfig && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2.5 flex items-center gap-2 text-xs text-amber-100">
-            <Lock className="w-4 h-4 shrink-0 text-amber-300" />
-            <span>
-              {lockConfig.noSpriteTuning ? (
-                <>
-                  {catalogSkin.name} Sprite Lab is <b>locked</b>. Unlock if you need to change anything
-                  here.
-                </>
-              ) : (
-                <>
-                  {catalogSkin.name} tuning and video uploads are <b>locked</b> and{" "}
-                  <b>saved on this device</b>. Sliders and video uploads are read-only until you tap{" "}
-                  <b>Unlock</b>.
-                </>
-              )}
-            </span>
-          </div>
-        )}
-        <div className={cn("rounded-xl border px-3 py-3 text-xs space-y-2", accentBorder)}>
-          <p className={cn("font-bold", accentText)}>How to tune</p>
-          {skinId === "snow_globe" ? (
-            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
-              <li>Pick a face with the <b>1–6 buttons</b></li>
-              <li>Shift the borrowed <b>Aquamarine glass shell</b> until pips read clearly</li>
-              <li>Tune global shell zoom/offset, then fine-tune each face</li>
-              <li>Settings autosave in this browser — apply in-game immediately</li>
-            </ol>
-          ) : skinId === "blue_gel" ? (
-            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
-              <li>Pick a face with the <b>1–6 buttons</b></li>
-              <li>Drag <b>Nudge X / Y</b> until the dark pips/digits read clearly over the fish</li>
-              <li>Tune global crop, then fine-tune each face</li>
-              <li>Settings autosave in this browser — apply in-game immediately</li>
-              <li>
-                Shark Bite videos upload below (swim forward + chomp) — also on{" "}
-                <Link to="/shark-bite-lab" className="text-rose-300 underline">
-                  Shark Bite Lab
-                </Link>
-              </li>
-            </ol>
-          ) : (
-            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
-              <li>Pick a face with the <b>1–6 buttons</b></li>
-              <li>Drag <b>Nudge X / Y</b> — live preview updates instantly</li>
-              <li>Tune global crop, then fine-tune each face</li>
-              <li>
-                Tap <b>Lock</b> to save tuning and video uploads on this device — use <b>Copy JSON</b> only if you
-                want to bake values into the repo
-              </li>
-            </ol>
-          )}
-          {hasPowerVideo && (
-            <p className="text-slate-400 pt-1 border-t border-white/10">
-              <b className="text-orange-200">Power video:</b>{" "}
-              {supportsPowerVideoUpload ? (
-                <>
-                  tap <b>{powerVideoConfig.uploadLabel}</b> below — no Finder needed. 3×2 face grid.
-                </>
-              ) : (
-                <>
-                  drag your animated MP4 to{" "}
-                  <code className="text-cyan-200">public{catalogSkin.powerVideoUrl}</code> (3×2 face grid).
-                </>
-              )}
-              {" "}Toggle <b>Power mode</b> below to preview on the live die.
+            <p>
+              Power video:{" "}
+              <span className="font-mono text-slate-300">
+                {catalogSkin.powerVideoUrl || "—"}
+              </span>
             </p>
-          )}
+            <p>
+              Skin level:{" "}
+              <span className="tabular-nums text-slate-300 font-semibold">
+                Lv {currentSkinLevel} / {LOCAL_SKIN_MAX_LEVEL}
+              </span>
+              {skinLevelVisual?.effect ? (
+                <span className="text-slate-500"> · effect {skinLevelVisual.effect}</span>
+              ) : null}
+            </p>
+          </div>
+            </>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          {skinId === "ice" && (
-            <Button
-              size="sm"
-              variant={freezeOverlayPreview ? "default" : "outline"}
-              onClick={() => setFreezeOverlayPreview((v) => !v)}
-              className={
-                freezeOverlayPreview
-                  ? "bg-sky-600 hover:bg-sky-500"
-                  : "border-sky-500/50 text-sky-200"
-              }
-            >
-              {freezeOverlayPreview ? "Freeze overlay on" : "Freeze overlay off"}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant={freezeOverlayPreview ? "default" : "outline"}
+            onClick={() => setFreezeOverlayPreview((v) => !v)}
+            className={
+              freezeOverlayPreview
+                ? "bg-sky-600 hover:bg-sky-500"
+                : "border-sky-500/50 text-sky-200"
+            }
+          >
+            {freezeOverlayPreview ? "Freeze overlay on" : "Freeze overlay off"}
+          </Button>
+          {freezeImmuneInGame ? (
+            <span className="rounded-md border border-orange-500/40 bg-orange-500/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-200">
+              Lab preview only · fire skin (no in-game freeze)
+            </span>
+          ) : null}
           {hasPowerPreview && (
             <Button
               size="sm"
@@ -1357,8 +1373,15 @@ export default function SpriteLab({ skinId }) {
           </label>
         </div>
 
-        <div className="grid sm:grid-cols-[auto,1fr] gap-4 items-start">
-          <FeltTrayFrame felt={felt} innerClassName="p-5 flex flex-col items-center gap-2">
+        <div className="grid lg:grid-cols-[minmax(160px,auto),1fr] gap-4 items-start">
+          <FeltTrayFrame
+            felt={felt}
+            allowDieOverflow={
+              iceFreezeOn || (previewSkinLevel > 1 && skinLevelVisual?.effect === "frost")
+            }
+            className="sticky top-2 z-20 self-start"
+            innerClassName="p-4 sm:p-5 flex flex-col items-center gap-2"
+          >
             <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Live preview</p>
             <Die
               value={selectedFace}
@@ -1367,6 +1390,8 @@ export default function SpriteLab({ skinId }) {
               dieSeed={selectedFace}
               powerMode={hasPowerPreview && powerMode}
               iceFrozenOverlay={iceFreezeOn}
+              labForceFreezeOverlay={iceFreezeOn}
+              skinLevel={previewSkinLevel}
               snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
               devSkin={labPreviewSkin}
               includeJellyfish={skinId === "blue_gel" && selectedFace >= 2}
@@ -1377,7 +1402,15 @@ export default function SpriteLab({ skinId }) {
             </p>
           </FeltTrayFrame>
 
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
+            <SpriteLabFreezeOverlayTools
+              skinId={skinId}
+              editFace={selectedFace}
+              onEditFaceChange={setSelectedFace}
+              freezeOn={freezeOverlayPreview}
+              onFreezeOnChange={setFreezeOverlayPreview}
+            />
+
             <div className="flex flex-wrap gap-1.5">
               {FACES.map((face) => (
                 <button
@@ -1518,9 +1551,212 @@ export default function SpriteLab({ skinId }) {
           </div>
         </div>
 
+
+        {skinId === "blue_gel" && (
+          <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 text-xs text-cyan-100 space-y-2">
+            <p>
+              Blue Gel uses its own <b>face sprite sheet</b> (<code className="text-cyan-200">999d8760b_generated_image.png</code>)
+              with <b>baked-in dark pips</b> painted above the fish tank. Use crop + nudge below to align each face.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/shark-bite-lab"
+                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white"
+              >
+                Shark Bite Lab
+              </Link>
+              <Link
+                to="/fish-showcase"
+                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
+              >
+                Fish Showcase
+              </Link>
+            </div>
+          </div>
+        )}
+        {skinId === "blue_gel" && (
+          <div className="rounded-xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-rose-200">
+              Shark Bite power videos
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Uploads auto-save on this device in multiple backups. Tap <b>Restore uploads</b> above
+              if a clip looks missing after a refresh.
+            </p>
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO}
+              label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]}
+              description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={VIDEO_KEYS.BLUE_GEL_POWER}
+              label={VIDEO_LABELS[VIDEO_KEYS.BLUE_GEL_POWER]}
+              description={VIDEO_DESCRIPTIONS[VIDEO_KEYS.BLUE_GEL_POWER]}
+            />
+          </div>
+        )}
+        {skinId === "ice" && (
+          <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-sky-100">
+            <span>
+              <b>Glacier sprite sheet</b> — crop + nudge below.{" "}
+              <b>Score Freeze cube overlay</b> tunes in the Freeze overlay tools on this page (same
+              device save as Ice Lab).
+            </span>
+            <Link
+              to="/ice-lab"
+              className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white shrink-0"
+            >
+              Full Ice Lab
+            </Link>
+          </div>
+        )}
+        {skinId === "snow_globe" && (
+          <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2.5 text-xs text-sky-100">
+            Snow Globe has <b>no dice sheet of its own</b> — face + pips come from the borrowed{" "}
+            <b>Aquamarine glass shell</b> (3×2 sprite). Use shell shift below to align; tune the shell
+            crop on{" "}
+            <Link to="/sprite-lab/aquamarine" className="text-sky-200 underline font-bold">
+              Aquamarine Sprite Lab
+            </Link>
+            .
+          </div>
+        )}
+        {tuningLocked && lockConfig && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2.5 flex items-center gap-2 text-xs text-amber-100">
+            <Lock className="w-4 h-4 shrink-0 text-amber-300" />
+            <span>
+              {lockConfig.noSpriteTuning ? (
+                <>
+                  {catalogSkin.name} Sprite Lab is <b>locked</b>. Unlock if you need to change anything
+                  here.
+                </>
+              ) : (
+                <>
+                  {catalogSkin.name} tuning and video uploads are <b>locked</b> and{" "}
+                  <b>saved on this device</b>. Sliders and video uploads are read-only until you tap{" "}
+                  <b>Unlock</b>.
+                </>
+              )}
+            </span>
+          </div>
+        )}
+        <div className={cn("rounded-xl border px-3 py-2.5 text-xs space-y-2", accentBorder)}>
+          <button
+            type="button"
+            onClick={() => setHowToOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 text-left"
+          >
+            <p className={cn("font-bold", accentText)}>How to tune</p>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              {howToOpen ? "Hide ▲" : "Show ▼"}
+            </span>
+          </button>
+          {howToOpen ? (
+            <>
+          {skinId === "snow_globe" ? (
+            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
+              <li>Pick a face with the <b>1–6 buttons</b></li>
+              <li>Shift the borrowed <b>Aquamarine glass shell</b> until pips read clearly</li>
+              <li>Tune global shell zoom/offset, then fine-tune each face</li>
+              <li>Settings autosave in this browser — apply in-game immediately</li>
+            </ol>
+          ) : skinId === "blue_gel" ? (
+            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
+              <li>Pick a face with the <b>1–6 buttons</b></li>
+              <li>Drag <b>Nudge X / Y</b> until the dark pips/digits read clearly over the fish</li>
+              <li>Tune global crop, then fine-tune each face</li>
+              <li>Settings autosave in this browser — apply in-game immediately</li>
+              <li>
+                Shark Bite videos upload below (swim forward + chomp) — also on{" "}
+                <Link to="/shark-bite-lab" className="text-rose-300 underline">
+                  Shark Bite Lab
+                </Link>
+              </li>
+            </ol>
+          ) : (
+            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
+              <li>Pick a face with the <b>1–6 buttons</b></li>
+              <li>Drag <b>Nudge X / Y</b> — live preview updates instantly</li>
+              <li>Tune global crop, then fine-tune each face</li>
+              <li>
+                Tap <b>Lock</b> to save tuning and video uploads on this device — use <b>Copy JSON</b> only if you
+                want to bake values into the repo
+              </li>
+            </ol>
+          )}
+          {hasPowerVideo && (
+            <p className="text-slate-400 pt-1 border-t border-white/10">
+              <b className="text-orange-200">Power video:</b>{" "}
+              {supportsPowerVideoUpload ? (
+                <>
+                  tap <b>{powerVideoConfig.uploadLabel}</b> below — no Finder needed. 3×2 face grid.
+                </>
+              ) : (
+                <>
+                  drag your animated MP4 to{" "}
+                  <code className="text-cyan-200">public{catalogSkin.powerVideoUrl}</code> (3×2 face grid).
+                </>
+              )}
+              {" "}Toggle <b>Power mode</b> below to preview on the live die.
+            </p>
+          )}
+            </>
+          ) : null}
+        </div>
+
+        <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-3 space-y-2">
+          <button
+            type="button"
+            onClick={() => setLevelPreviewOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 text-left"
+          >
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
+                Sprite Lab level preview
+              </p>
+              <p className="text-[10px] text-slate-500">
+                Saved Lv {currentSkinLevel} · preview Lv {previewSkinLevel}/{LOCAL_SKIN_MAX_LEVEL}
+              </p>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
+              {levelPreviewOpen ? "Hide ▲" : "Show ▼"}
+            </span>
+          </button>
+          {levelPreviewOpen ? (
+            <>
+          <input
+            aria-label="Preview skin level"
+            type="range"
+            min={1}
+            max={LOCAL_SKIN_MAX_LEVEL}
+            step={1}
+            value={previewSkinLevel}
+            onChange={(e) => setPreviewSkinLevel(Number(e.target.value))}
+            className="w-full accent-cyan-400"
+          />
+          <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500">
+            <span>Lv 1 · {skinLevelVisual?.levelOneLabel || "Base look"}</span>
+            <span>Lv {LOCAL_SKIN_MAX_LEVEL} · {skinLevelVisual?.maxLevelLabel || "Max look"}</span>
+          </div>
+          <p className="text-[10px] text-cyan-100/80">
+            {skinLevelVisual?.description ||
+              "This skin has level tracking ready for a future Sprite Lab effect."}
+          </p>
+            </>
+          ) : null}
+        </div>
+
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">All faces</p>
-          <FeltTrayFrame felt={felt} innerClassName="p-4">
+          <FeltTrayFrame
+            felt={felt}
+            allowDieOverflow={
+              iceFreezeOn || (previewSkinLevel > 1 && skinLevelVisual?.effect === "frost")
+            }
+            innerClassName="p-4"
+          >
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 justify-items-center">
               {FACES.map((face) => (
                 <button
@@ -1541,6 +1777,8 @@ export default function SpriteLab({ skinId }) {
                     dieSeed={face}
                     powerMode={hasPowerPreview && powerMode}
                     iceFrozenOverlay={iceFreezeOn}
+                    labForceFreezeOverlay={iceFreezeOn}
+                    skinLevel={previewSkinLevel}
                     snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
                     devSkin={labPreviewSkin}
                     includeJellyfish={skinId === "blue_gel" && face >= 2}
@@ -1851,32 +2089,33 @@ export default function SpriteLab({ skinId }) {
         {skinId === "ice" && (
           <div className="rounded-xl border border-sky-500/30 bg-sky-950/15 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-sky-200">
-              Story mode — before &amp; after (Glacia)
+              Story mode — before &amp; after (Frosty)
             </p>
             <p className="text-[10px] text-slate-400">
-              Only plays in <b>Story mode</b> fights against Glacia. <b>Before match</b> fullscreen
-              intro when the fight starts. <b>After victory</b> when you win.
+              Only plays in <b>Story mode</b> fights against Frosty the Evil Snowman.{" "}
+              <b>Before match</b> fullscreen intro when the fight starts. <b>After victory</b> when
+              you win.
             </p>
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
-              videoKey={storyBossIntroKey(ICE_WITCH_BOSS_ID)}
-              label={getStoryBossVideoLabel(ICE_WITCH_BOSS_ID, "intro")}
-              description={getStoryBossVideoDescription(ICE_WITCH_BOSS_ID, "intro")}
+              videoKey={storyBossIntroKey(FROSTY_BOSS_ID)}
+              label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "intro")}
+              description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "intro")}
             />
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
-              videoKey={storyBossWinKey(ICE_WITCH_BOSS_ID)}
-              label={getStoryBossVideoLabel(ICE_WITCH_BOSS_ID, "win")}
-              description={getStoryBossVideoDescription(ICE_WITCH_BOSS_ID, "win")}
+              videoKey={storyBossWinKey(FROSTY_BOSS_ID)}
+              label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "win")}
+              description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "win")}
             />
             <VideoUploadCard
               lockRemovesOnly={tuningLocked}
-              videoKey={storyBossAvatarKey(ICE_WITCH_BOSS_ID)}
-              label={getStoryBossVideoLabel(ICE_WITCH_BOSS_ID, "avatar")}
-              description={getStoryBossVideoDescription(ICE_WITCH_BOSS_ID, "avatar")}
+              videoKey={storyBossAvatarKey(FROSTY_BOSS_ID)}
+              label={getStoryBossVideoLabel(FROSTY_BOSS_ID, "avatar")}
+              description={getStoryBossVideoDescription(FROSTY_BOSS_ID, "avatar")}
             />
             <p className="text-[10px] text-slate-500 pt-1">
-              Same slots are under <b>Glacia</b> in{" "}
+              Same slots are under <b>Frosty the Evil Snowman</b> in{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
                 Video Assets → Story mode
               </Link>

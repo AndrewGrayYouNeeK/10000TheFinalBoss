@@ -10,6 +10,8 @@ export default function SkinPowerPanel({
   power,
   skinPower,
   powerMode = false,
+  /** Total stacked charges (1 = ready, >1 shows ×N). */
+  chargeCount = 1,
   used = false,
   locked = false,
   disabled = false,
@@ -23,6 +25,7 @@ export default function SkinPowerPanel({
   subtle = false,
 }) {
   if (!skinPower) return null;
+  const stacked = Math.max(1, Number(chargeCount) || 1);
 
   const accent = skinPower.kind === "sabo" ? "#ff6b9d" : "#ffb347";
   const borderColor = skinPower.kind === "sabo"
@@ -59,6 +62,7 @@ export default function SkinPowerPanel({
               style={subtle ? {} : { color: accent, textShadow: `0 0 8px ${accent}` }}
             >
               {isGhostMimic ? "👻 Mimic" : subtle ? "⚡ Charged" : "⚡ Power"}
+              {stacked > 1 ? ` ×${stacked}` : ""}
             </span>
             <PowerSlot
               power={skinPower}

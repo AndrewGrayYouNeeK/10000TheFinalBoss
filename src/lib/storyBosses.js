@@ -89,7 +89,8 @@ const ALL_BOSSES = [
     coins: 300, xp: 380, skin: "wood",
   }),
   fight({
-    id: "snowman", name: "Frosty", title: "Winter Wanderer",
+    // Display: Frosty the Evil Snowman. Id `snowman` is the save/video key — keep stable.
+    id: "snowman", name: "Frosty the Evil Snowman", title: "The Evil Snowman",
     avatar: "⛄", color: "from-sky-200 to-blue-400",
     difficulty: { bankThreshold: 600, greed: 0.2, holdGreedy: true },
     intro: "Come closer. The cold won't bite. ...much.",
@@ -133,7 +134,9 @@ const ALL_BOSSES = [
     coins: 400, xp: 500, skin: "pride",
   }),
   fight({
-    id: "ice_witch", name: "Glacia", title: "Frostbite Queen",
+    // Formerly labeled "Glacia" — same Frosty character. Dormant (not on STORY_LADDER_IDS);
+    // active story fight + ice Sprite Lab videos use id `snowman`. Keep `ice_witch` id stable.
+    id: "ice_witch", name: "Frosty the Evil Snowman", title: "The Evil Snowman",
     avatar: "❄️", color: "from-cyan-200 to-sky-500",
     difficulty: { bankThreshold: 750, greed: 0.25, holdGreedy: true },
     intro: "Your hands will be cold before this is over.",
@@ -431,7 +434,7 @@ const ALL_BOSSES = [
 
 /** Active story ladder — add boss IDs here one at a time as they're ready. */
 export const STORY_LADDER_IDS = [
-  "snowman",       // Frosty
+  "snowman",       // Frosty the Evil Snowman
   "dragon_knight", // Sir Scalewyrm (Sir Scale) — unlocks Dragon Scale
   "ghost",         // The Ghost
   "lavadragon",    // Ragnarok
@@ -454,6 +457,27 @@ export function getStoryBossFeltId(bossId) {
 /** Full roster lookup (includes bosses not yet on the active ladder). */
 export function getBossDefinition(id) {
   return ALL_BOSSES.find((b) => b.id === id) ?? null;
+}
+
+/**
+ * Story characters that use / unlock a dice skin (full roster).
+ * Prefer ladder entries first; dormant duplicates (e.g. ice_witch vs snowman) still listed.
+ */
+export function getStoryBossesForSkin(skinId) {
+  const id = typeof skinId === "string" ? skinId : "";
+  if (!id) return [];
+  const matches = ALL_BOSSES.filter(
+    (b) => b.bossSkinId === id || b.rewards?.skin === id
+  );
+  const ladderRank = (bossId) => {
+    const i = STORY_LADDER_IDS.indexOf(bossId);
+    return i === -1 ? 1000 : i;
+  };
+  return [...matches].sort((a, b) => ladderRank(a.id) - ladderRank(b.id));
+}
+
+export function isStoryLadderBoss(bossId) {
+  return STORY_LADDER_IDS.includes(bossId);
 }
 
 /** Story fights: player slot 0 = you, slot 1 = boss. */

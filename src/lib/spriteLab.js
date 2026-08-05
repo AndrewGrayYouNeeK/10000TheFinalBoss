@@ -653,16 +653,16 @@ export function hydrateSpriteLabPersistence() {
 }
 
 /** Featured skins — shop category headers link to these labs first */
-export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe", "blue_gel"];
+export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe", "blue_gel", "shark_gel"];
 
 export const DEFAULT_SPRITE_LAB_SKIN_ID = "matrix";
 
-/** All dice skins with a sprite sheet or video grid — featured first, then A–Z */
+/** Every shop die — featured first, then A–Z (sprite sheet, overlay, or procedural). */
 export function getSpriteLabSkins() {
   const featured = new Set(SPRITE_LAB_SKIN_IDS);
   const priority = SPRITE_LAB_SKIN_IDS.map((id) => DICE_SKINS.find((s) => s.id === id)).filter(Boolean);
   const rest = DICE_SKINS
-    .filter((s) => s.spriteUrl && !featured.has(s.id))
+    .filter((s) => !featured.has(s.id))
     .sort((a, b) => a.name.localeCompare(b.name));
   return [...priority, ...rest];
 }
