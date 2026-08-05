@@ -2,6 +2,14 @@
  * Frosty / Frozen Ice power overlay tuning.
  * Per-face zoom/offset + global opacity/blend/tint — saved per device in localStorage.
  */
+
+/** Fire / magma skins never show Score Freeze cubes — ice can't coat Ragnarok. */
+const FREEZE_OVERLAY_IMMUNE_SKIN_IDS = new Set(["ragnarok", "lava", "ragnarok_regular"]);
+
+/** True when this skin should never paint IcePowerOverlay from freeze / Score Freeze. */
+export function isFreezeOverlayImmuneSkin(skinId) {
+  return FREEZE_OVERLAY_IMMUNE_SKIN_IDS.has(typeof skinId === "string" ? skinId : "");
+}
 /** v2 — transparent ice sheet (real alpha); prefer blend "normal" over screen keying. */
 const STORAGE_KEY = "dice10k_ice_power_settings_v2";
 const LEGACY_STORAGE_KEYS = ["dice10k_ice_power_settings_v1"];

@@ -7,7 +7,7 @@ const practiceBtnBase =
 
 /**
  * Mid-game toggles to preview power-mode visuals without earning Hot Dice.
- * variant: marlin (Shark Bite / Blue Gel) | gq (Diamond Cut / Siphon) | ice (Frosty / Score Freeze)
+ * variant: marlin (Shark Bite / Blue Gel) | gq (Diamond Cut / Double or Nothing) | ice (Frosty / Score Freeze)
  */
 export default function PowerModePracticeBar({
   variant,

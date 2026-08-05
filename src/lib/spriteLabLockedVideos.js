@@ -28,7 +28,8 @@ import {
 const SKIN_STORY_BOSS = {
   matrix: "neo",
   crystal_cut: "gq",
-  ice: "ice_witch",
+  // Frosty the Evil Snowman — story ladder id (not dormant ice_witch / old "Glacia" label)
+  ice: "snowman",
   dragon_scale: "dragon_knight",
   blue_gel: "fisherman",
 };
@@ -46,6 +47,10 @@ const LEGACY_VIDEO_KEY_MIGRATIONS = [
   [storyBossIntroKey("diamond_cut"), storyBossIntroKey("gq")],
   [storyBossWinKey("diamond_cut"), storyBossWinKey("gq")],
   [storyBossAvatarKey("diamond_cut"), storyBossAvatarKey("gq")],
+  // Ice Sprite Lab used to label Frosty as "Glacia" and stored under ice_witch
+  [storyBossIntroKey("ice_witch"), storyBossIntroKey("snowman")],
+  [storyBossWinKey("ice_witch"), storyBossWinKey("snowman")],
+  [storyBossAvatarKey("ice_witch"), storyBossAvatarKey("snowman")],
 ];
 
 function lockedVideoStorageKey(skinId, videoKey) {

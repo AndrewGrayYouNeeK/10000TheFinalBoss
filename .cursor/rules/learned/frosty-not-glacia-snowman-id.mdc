@@ -1,0 +1,13 @@
+---
+description: "Keep Frosty story videos on snowman id, not ice_witch/Glacia"
+alwaysApply: false
+---
+
+# Frosty is snowman, not Glacia
+
+Story Frosty the Evil Snowman uses id `snowman` (video keys `story_boss_*_snowman`). Ice Sprite Lab must wire to `snowman`, not dormant `ice_witch`. `ice_witch` was formerly display-named Glacia — same character, not on STORY_LADDER_IDS. Legacy ice_witch video keys migrate to snowman via LEGACY_VIDEO_KEY_MIGRATIONS.
+
+## Verification
+- Verified: eslint quiet on storyBosses.js spriteLabLockedVideos.js SpriteLab.jsx VideoAssets.jsx exit 0; STORY_LADDER_IDS includes snowman not ice_witch
+- Failure pattern avoided: Wiring ice Sprite Lab to ice_witch left uploads on unused keys while story fights use snowman
+- Dead-end ruled out: Renaming Glacia copy alone without re-pointing SKIN_STORY_BOSS ice to snowman still breaks fight video slots

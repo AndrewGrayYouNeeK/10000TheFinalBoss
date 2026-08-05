@@ -15,6 +15,7 @@ import {
   icePowerOutlineFaceUrl,
 } from "@/lib/icePowerFaceAssets";
 import { assetUrl } from "@/lib/assetUrl";
+import { getSkinLevelProgress } from "@/lib/skinLevelVisuals";
 
 /** @deprecated Use icePowerFrozenFaceUrl(face) — sheet kept for lab reference. */
 export const ICE_POWER_FROZEN_URL = ICE_POWER_FROZEN_SHEET_URL;
@@ -116,6 +117,46 @@ export function getIceCenterClearMask(
 }
 
 /**
+ * Scale the tuned freeze look for a skin's earned level.
+ *
+ * Level 1 stays clear. Higher levels increase the ice layer and shrink the
+ * clear center so the pips become progressively harder to read.
+ */
+export function getLevelFrostSettings(settings, level) {
+  const progress = getSkinLevelProgress(level);
+  if (progress <= 0) return settings;
+
+  const opacity = Number(settings?.frozenOpacity);
+  const centerClear = Number(settings?.frozenCenterClear);
+  const centerRadius = Number(settings?.frozenCenterRadius);
+  const tintStrength = Number(settings?.frozenTintStrength);
+  const tintSaturate = Number(settings?.frozenTintSaturate);
+
+  return {
+    ...settings,
+    // Skin-level frosting is independent of Ice Lab's freeze-power toggle.
+    frozenEnabled: true,
+    frozenOpacity: Math.min(1, (Number.isFinite(opacity) ? opacity : 0.74) * (0.32 + progress * 0.88)),
+    frozenCenterClear: Math.max(
+      0.02,
+      (Number.isFinite(centerClear) ? centerClear : 0.9) * (1 - progress * 0.92)
+    ),
+    frozenCenterRadius: Math.max(
+      0.14,
+      (Number.isFinite(centerRadius) ? centerRadius : 0.62) * (1 - progress * 0.55)
+    ),
+    frozenTintStrength: Math.min(
+      1,
+      (Number.isFinite(tintStrength) ? tintStrength : 0.58) + progress * 0.18
+    ),
+    frozenTintSaturate: Math.min(
+      3,
+      (Number.isFinite(tintSaturate) ? tintSaturate : 1.45) + progress * 0.25
+    ),
+  };
+}
+
+/**
  * Frosty / Frozen Ice power VFX — frozen ice sprite on top of the die.
  * Uses per-face PNGs (no shared-sheet bleed from neighboring cubes).
  */
@@ -127,13 +168,22 @@ export default function IcePowerOverlay({
   settings: settingsProp,
   /** Allow ice silhouette drips outside the die face box. */
   allowOverflow = true,
+  /** Earned skin level that should intensify the frost independently of power mode. */
+  levelFrost = null,
+  /**
+   * In-game freeze / Score Freeze / Frozen Ice — always paint the cube overlay.
+   * Lab `frozenEnabled: false` only gates Ice Lab / Sprite Lab preview toggles.
+   * Callers must not pass freeze for fire-immune skins (see isFreezeOverlayImmuneSkin).
+   */
+  forceEnabled = false,
 }) {
   void radius;
   const liveSettings = useIcePowerSettings();
   const base = settingsProp || liveSettings;
-  const s = resolveIcePowerSettingsForSkin(base, skinId);
+  const resolved = resolveIcePowerSettingsForSkin(base, skinId);
+  const s = levelFrost ? getLevelFrostSettings(resolved, levelFrost) : resolved;
 
-  if (s.frozenEnabled === false) return null;
+  if (!forceEnabled && s.frozenEnabled === false) return null;
 
   const face = getFrozenFaceSettings(s, value);
   const frozenOx = iceOffsetPx(face.offsetX, size);

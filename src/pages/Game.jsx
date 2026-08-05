@@ -5,6 +5,10 @@ import { Dices, PiggyBank, Film, Sparkles, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { hasSharkBiteChompVideoSync } from "@/lib/blueGelPowerVideo";
 import {
+  captureSharkBiteTrayFreeze,
+  playerHasSharkBiteMark,
+} from "@/lib/sharkBiteTrayFreeze";
+import {
   createInitialState,
   rollDice,
   evaluateRoll,
@@ -19,6 +23,7 @@ import {
   getObscuredScoreIndices,
   consumeSkinPower,
   isPlayerPowerModeActive,
+  playerPowerChargeCount,
 } from "@/lib/gameLogic";
 import { heldSelectionLabel, heldSelectionPoints } from "@/lib/scoring";
 import DiceTray from "@/components/game/DiceTray";
@@ -32,8 +37,9 @@ import BigPopup from "@/components/game/BigPopup";
 import CyberBackground from "@/components/game/CyberBackground";
 import GameplayBillboard from "@/components/game/GameplayBillboard";
 import { useCosmetics } from "@/hooks/useCosmetics";
-import { XP_REWARDS } from "@/lib/progression";
-import { getHotDicePowerConfirmOptions } from "@/lib/devConfig";
+import { getLocalSkinPowerLevel, XP_REWARDS } from "@/lib/progression";
+import { getHotDicePowerConfirmOptions, grantDevPowerCharge, isDevPowerToolsEnabled } from "@/lib/devConfig";
+import DevGrantPowerButton from "@/components/game/DevGrantPowerButton";
 import { useDiceSound } from "@/lib/useDiceSound";
 import GameAudioControls from "@/components/game/GameAudioControls";
 import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
@@ -55,6 +61,7 @@ import {
 } from "@/lib/ghostDisguise";
 import { applySkinPower } from "@/lib/powerEffects";
 import { canAfford, getPower } from "@/lib/powers";
+import { getSkinPower } from "@/lib/skinPowers";
 import { applyPlasmaCut, canUsePlasmaCut } from "@/lib/plasmaCut";
 import PlasmaCutModal from "@/components/game/PlasmaCutModal";
 import {
@@ -126,12 +133,29 @@ export default function Game() {
     () => bootSave?.bloodWaterLocked ?? false
   );
   const lockBloodWater = useCallback(() => setBloodWaterLocked(true), []);
+  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
+  const practiceSharkBiteRef = useRef(false);
+  /** Victim tray snapshot while Shark Bite FX plays (bank advances turn before FX ends). */
+  const biteTrayFreezeRef = useRef(null);
+  const [biteTrayFreeze, setBiteTrayFreeze] = useState(null);
 
   useEffect(() => {
     if (state?.sharkFishFeast && hasSharkBiteChompVideoSync() && state?.sharkBiteFx) {
       lockBloodWater();
     }
   }, [state?.sharkFishFeast, state?.sharkBiteFx, lockBloodWater]);
+
+  // Promote pre-bank victim tray freeze once sharkBiteFx flips on; clear when FX ends.
+  useLayoutEffect(() => {
+    if (state?.sharkBiteFx && biteTrayFreezeRef.current) {
+      setBiteTrayFreeze(biteTrayFreezeRef.current);
+      return;
+    }
+    if (!state?.sharkBiteFx) {
+      biteTrayFreezeRef.current = null;
+      setBiteTrayFreeze((prev) => (prev ? null : prev));
+    }
+  }, [state?.sharkBiteFx]);
 
   useEffect(() => {
     if (!state?.matrixGlitchFx) return undefined;
@@ -142,9 +166,6 @@ export default function Game() {
     }, 800);
     return () => clearTimeout(t);
   }, [state?.matrixGlitchFx]);
-
-  const [practicePowerPreview, setPracticePowerPreview] = useState(false);
-  const practiceSharkBiteRef = useRef(false);
   const [shakeTriggered, setShakeTriggered] = useState(0);
   const [privacySettings, setPrivacySettings] = useState(() => loadPassPlayPrivacy());
   const [onlineVisibilitySettings, setOnlineVisibilitySettings] = useState(() =>
@@ -453,9 +474,22 @@ export default function Game() {
         setPopup({ word: "PERFECT 10,000! 🎯 BADGE + MYTHIC DICE UNLOCKED", variant: "success" });
       }
 
-      recordGameResult({ won: true, xpGain });
+      const localIdx = onlineSession?.viewerPlayerIndex ?? 0;
+      const playedSkinId =
+        state.players?.[localIdx]?.skinId || equippedSkinId || user?.equipped_skin;
+      recordGameResult({ won: true, xpGain, skinId: playedSkinId });
     }
-  }, [state?.winner, state?.perfectTenK, addCoins, recordGameResult, user, state?.bustCount]);
+  }, [
+    state?.winner,
+    state?.perfectTenK,
+    state?.players,
+    state?.bustCount,
+    addCoins,
+    recordGameResult,
+    user,
+    equippedSkinId,
+    onlineSession?.viewerPlayerIndex,
+  ]);
 
   // Hot dice XP — award once per hot-dice event (tracked in game state)
   const prevHotDiceRef = React.useRef(0);
@@ -475,6 +509,7 @@ export default function Game() {
   }, [state?.hotDiceCount, state?.farkle, addXp, state]);
 
   const onFireSkinPower = () => {
+    // PowerSlot may pass the power object as arg — ignore it; caster is always currentIndex.
     if (!state || !skinPower || !state.players[state.currentIndex]?.powerCharge) return;
     if (!canAfford(MAX_POWER, skinPower.id)) return;
     const debuffs = state.players[state.currentIndex]?.debuffs || [];
@@ -489,6 +524,7 @@ export default function Game() {
       return;
     }
 
+    const casterIndex = state.currentIndex;
     const result = applySkinPower(state, skinPower.id);
     if (result.variant === "warning") {
       if (result.message) {
@@ -496,12 +532,27 @@ export default function Game() {
       }
       return;
     }
-    setState(consumeSkinPower(result.state));
-    // Power was spent — drop feast / bloody lock so dice return to normal.
+    // Cast never advances the turn — keep the caster's seat even if a power
+    // effect wiped the opponent (Feeding Frenzy) or set FX flags.
+    const spent = consumeSkinPower(result.state);
+    setState({
+      ...spent,
+      currentIndex: casterIndex,
+    });
+    // Power was spent — drop bloody lock so dice return to normal after FX.
+    // Keep sharkFishFeast flag from the power result for feast VFX; do not
+    // swap the tray skin to the opponent (see diceTraySkinId below).
     setBloodWaterLocked(false);
     if (result.message) {
       setPopup({ word: result.message.toUpperCase(), variant: result.variant || "success" });
     }
+  };
+
+  const onDevGrantPower = () => {
+    if (!state || state.winner) return;
+    setPracticePowerPreview(false);
+    setState((s) => (s ? grantDevPowerCharge(s, s.currentIndex) : s));
+    setPopup({ word: "POWER CHARGED", variant: "success" });
   };
 
   const onConfirmPlasmaCut = (dieId, newValue) => {
@@ -693,7 +744,26 @@ export default function Game() {
       if (!allowed) return s;
       const prevScore = player.score;
       const prevName = player.name;
+      // Freeze victim tray before bankAndPass advances currentIndex / refreshes dice.
+      if (playerHasSharkBiteMark(player)) {
+        const localIdx = onlineMockActive ? onlineSession?.viewerPlayerIndex ?? 0 : 0;
+        const victimSkinId = getPrisonTraySkinId(
+          s,
+          s.currentIndex,
+          getDisplaySkinId(player, ghostOptions)
+        );
+        biteTrayFreezeRef.current = captureSharkBiteTrayFreeze({
+          dice: s.dice,
+          playerIndex: s.currentIndex,
+          skinId: victimSkinId,
+          skinLevel:
+            s.currentIndex === localIdx ? getLocalSkinPowerLevel(victimSkinId, user) : 1,
+        });
+      } else {
+        biteTrayFreezeRef.current = null;
+      }
       const next = bankAndPass(s);
+      if (!next.sharkBiteFx) biteTrayFreezeRef.current = null;
       const after = next.players.find((p) => p.name === prevName);
       const gained = (after?.score ?? prevScore) - prevScore;
       if (gained > 0) addCoins(Math.floor(gained / 1000));
@@ -779,30 +849,24 @@ export default function Game() {
     practiceVariant === "marlin"
       ? getPower("shark_bite")
       : practiceVariant === "gq"
-        ? getPower("siphon")
+        ? getSkinPower("crystal_cut")
         : practiceVariant === "ice"
-          ? getPower("freeze_score")
+          ? getPower("frosty_ice")
           : null;
   // Dice tray power VFX when charged (or practice preview). Shark Bite stays turn-local.
   const trayPowerMode =
     powerModeActive ||
     (practicePowerPreview && !!practiceVariant);
-  const trayIceFrozen = (currentPlayer.debuffs || []).some(
-    (d) => (typeof d === "string" ? d : d.id) === "freeze_score"
-  );
+  // Water / freeze sabo paints ice cubes on the tray (Die skips fire-immune skins).
+  const trayIceFrozen = (currentPlayer.debuffs || []).some((d) => {
+    const id = typeof d === "string" ? d : d.id;
+    return id === "freeze_score" || id === "freeze";
+  });
   const panelPowerMode = powerModeActive || practicePowerPreview;
   const panelSkinPower = practicePowerPreview ? practiceSkinPower : skinPower;
-  // Feeding Frenzy — only when fish dice were targeted (separate from Shark Bite charge).
+  // Feeding Frenzy VFX flag — must NOT swap tray ownership to the opponent.
+  // (Previously feastTraySkinId made casting feel like the turn flipped.)
   const fishFeastOnTray = !!state.sharkFishFeast;
-  const feastTargetIdx = state.sharkFishFeastTargetIdx;
-  const feastTraySkinId =
-    fishFeastOnTray && typeof feastTargetIdx === "number" && state.players[feastTargetIdx]
-      ? getPrisonTraySkinId(
-          state,
-          feastTargetIdx,
-          getDisplaySkinId(state.players[feastTargetIdx], ghostOptions)
-        )
-      : null;
   // Ghost privacy is dice-only — never force-hide turn score / power panel / charge badge.
   const hidePowerPanelNow = onlineActive
     ? onlineUi.hidePowerPanel
@@ -821,13 +885,26 @@ export default function Game() {
     : shieldUp && (privacySettings.hideDice || currentGhostPrivacy);
   // Ghost tray is always spectral (getDisplaySkinId → player.skinId).
   // Never pass disguise/trueSkinId into the tray — privacy redacts faces only.
+  // Shark Bite bank-steal: keep the marked banker's tray frozen through the eat FX.
+  // Never use Feeding Frenzy target skin here — that swapped the tray to the opponent on cast.
   const diceTraySkinId =
-    feastTraySkinId ||
+    biteTrayFreeze?.skinId ||
     (currentGhostPrivacy && hideDiceNow ? getGhostHiddenTraySkinId() : practiceTraySkinId);
+  // Only the local player's own tray should show earned frost progression.
+  const localPlayerIndex = onlineActive
+    ? onlineSession?.viewerPlayerIndex ?? 0
+    : 0;
+  const trayOwnerIndex = biteTrayFreeze?.playerIndex ?? displayState.currentIndex;
+  const diceTraySkinLevel = biteTrayFreeze
+    ? biteTrayFreeze.skinLevel
+    : trayOwnerIndex === localPlayerIndex
+      ? getLocalSkinPowerLevel(diceTraySkinId, user)
+      : 1;
   const trayDice =
-    hideDiceNow && !onlineActive
+    biteTrayFreeze?.dice ??
+    (hideDiceNow && !onlineActive
       ? redactDiceForOpponent(displayState.dice)
-      : displayState.dice;
+      : displayState.dice);
   const trayPowerVisible =
     trayPowerMode &&
     !(onlineActive
@@ -852,13 +929,12 @@ export default function Game() {
   const diceInputBlocked = shieldUp || (onlineActive && onlineUi.diceInteractionDisabled);
   // Never loop the bite clip during power charge — one-shot only via SharkBiteScreenFX.
   // Charged Shark Bite uses in-die BlueGelSharkBiteCharge + panel, not a repeating fullscreen bite.
-  const trayBloodWater =
-    bloodWaterLocked && (fishFeastOnTray || !!feastTraySkinId);
+  const trayBloodWater = bloodWaterLocked && fishFeastOnTray;
 
   return (
-    <div className="min-h-screen text-white flex flex-col pb-6 relative">
+    <div className="min-h-screen min-h-[100dvh] min-w-0 text-white flex flex-col pb-6 relative">
       <CyberBackground lite={lowPower} />
-      <div className="relative z-10 flex flex-col flex-1">
+      <div className="relative z-10 flex flex-col flex-1 min-w-0 min-h-0">
       {/* Header */}
       <div
         className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
@@ -982,6 +1058,7 @@ export default function Game() {
           power={MAX_POWER}
           skinPower={panelSkinPower}
           powerMode={showPowerPanel}
+          chargeCount={playerPowerChargeCount(currentPlayer)}
           used={false}
           locked={powerLocked}
           disabled={powerFrozen || practicePowerPreview}
@@ -1071,13 +1148,27 @@ export default function Game() {
       )}
 
       {/* Dice tray */}
-      <div className="px-3 flex-[0.85] flex items-center justify-center">
-        <div className="w-full rounded-2xl p-2 space-y-2" style={{
+      <div className="px-3 flex-[0.85] flex items-center justify-center min-w-0">
+        <div className="w-full min-w-0 rounded-2xl p-2 space-y-2" style={{
             border: "2px solid #ff00ea",
             boxShadow:
               "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6), inset 0 0 0 1px rgba(255,255,255,0.06)",
             background: "rgba(8,2,20,0.45)",
           }}>
+          {isDevPowerToolsEnabled() && (
+            <div className="flex flex-wrap items-center gap-2">
+              <DevGrantPowerButton
+                onGrant={onDevGrantPower}
+                disabled={!!state.winner || rollAnim || !skinPower}
+                charged={!!currentPlayer?.powerCharge}
+              />
+              {!skinPower ? (
+                <span className="text-[9px] text-slate-500">
+                  Equip a power skin to test
+                </span>
+              ) : null}
+            </div>
+          )}
           {practiceVariant && (
             <PowerModePracticeBar
               variant={practiceVariant}
@@ -1096,6 +1187,7 @@ export default function Game() {
             onToggle={onToggleDie}
             disabled={!displayState.hasRolled || displayState.farkle || !!displayState.winner || diceInputBlocked}
             skinId={diceTraySkinId}
+            skinLevel={diceTraySkinLevel}
             feltId={equippedFeltId}
             scoreFill={scoreFill}
             heldStyleId={heldDiceStyleId}
@@ -1242,6 +1334,8 @@ export default function Game() {
           // Bite finished — always restore tray dice + skins.
           setBloodWaterLocked(false);
           practiceSharkBiteRef.current = false;
+          biteTrayFreezeRef.current = null;
+          setBiteTrayFreeze(null);
           setState((s) => restoreSharkDice(clearSharkBiteFx(s)));
         }}
       />
