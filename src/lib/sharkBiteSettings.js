@@ -154,24 +154,20 @@ function applyTimingMigration(parsed) {
   return next;
 }
 
-/** One-time reset for saved crops that matched broken or aggressive defaults. */
+/** One-time reset for saved crops that matched broken legacy presets. */
 function applySourceCropMigration(parsed) {
   if (!parsed || typeof parsed !== "object") return parsed;
-  const px = Number(parsed.sourcePanX);
-  const py = Number(parsed.sourcePanY);
-  const zoom = Number(parsed.sourceZoom);
-  const wrongSign = (Number.isFinite(px) && px > 0) || (Number.isFinite(py) && py > 0);
+  if (parsed._sourceCropMigrated) return parsed;
+  const next = { ...parsed, _sourceCropMigrated: true };
   const matchesLegacy = LEGACY_BAD_SOURCE_CROPS.some(
     (crop) =>
       near(parsed.sourceZoom, crop.sourceZoom) &&
       near(parsed.sourcePanX, crop.sourcePanX) &&
       near(parsed.sourcePanY, crop.sourcePanY)
   );
-  const aggressiveCrop =
-    Number.isFinite(zoom) && zoom > 1.05 && (px <= -0.5 || py <= -0.5);
-  if (!wrongSign && !matchesLegacy && !aggressiveCrop) return parsed;
+  if (!matchesLegacy) return next;
   return {
-    ...parsed,
+    ...next,
     sourceZoom: DEFAULT_SHARK_BITE_SETTINGS.sourceZoom,
     sourcePanX: DEFAULT_SHARK_BITE_SETTINGS.sourcePanX,
     sourcePanY: DEFAULT_SHARK_BITE_SETTINGS.sourcePanY,
@@ -347,6 +343,7 @@ export function loadSharkBiteSettings() {
       try {
         const parsed = JSON.parse(raw);
         if (
+          !parsed._sourceCropMigrated ||
           !parsed._sharkLayoutPassV3 ||
           !parsed._sharkLayoutPassV4 ||
           !parsed._sharkLayoutPassV5 ||
