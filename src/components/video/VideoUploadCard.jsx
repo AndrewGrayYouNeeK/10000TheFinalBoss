@@ -16,6 +16,7 @@ import VideoPreviewDialog from "@/components/video/VideoPreviewDialog";
 import { toast } from "sonner";
 import {
   getFishermanAvatarLoopVideoStyle,
+  getFishermanAvatarLoopTrimBounds,
   useFishermanAvatarLoopSettings,
 } from "@/lib/fishermanAvatarLoopSettings";
 import MarlinLoopPositionTool from "@/components/story/MarlinLoopPositionTool";
@@ -113,6 +114,21 @@ export default function VideoUploadCard({
   const fishermanTuning = useFishermanAvatarLoopSettings();
   const avatarBossId = getStoryBossIdForAvatarKey(videoKey);
   const isFishermanAvatar = avatarBossId === "fisherman";
+  const keepFishermanVideoTrim = (video) => {
+    if (!isFishermanAvatar) return;
+    const { startSeconds, endSeconds } = getFishermanAvatarLoopTrimBounds(
+      video.duration,
+      fishermanTuning
+    );
+    if (video.currentTime < startSeconds || video.currentTime >= endSeconds - 0.05) {
+      video.currentTime = startSeconds;
+      if (video.paused) video.play().catch(() => {});
+    }
+  };
+  const handlePreviewMetadata = (video) => {
+    if (isSharkBiteSlot) syncPreviewVideoSize(video);
+    keepFishermanVideoTrim(video);
+  };
   const storyAvatarPreviewStyle = avatarBossId
     ? isFishermanAvatar
       ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
@@ -348,7 +364,8 @@ export default function VideoUploadCard({
             playsInline
             className={`${inlinePreviewVideoClassName} bg-black`}
             style={inlinePreviewStyle}
-            onLoadedMetadata={(e) => syncPreviewVideoSize(e.currentTarget)}
+            onLoadedMetadata={(e) => handlePreviewMetadata(e.currentTarget)}
+            onTimeUpdate={(e) => keepFishermanVideoTrim(e.currentTarget)}
             onError={(e) => {
               if (!previewUrl) e.currentTarget.style.display = "none";
             }}
@@ -366,7 +383,10 @@ export default function VideoUploadCard({
         videoStyle={inlinePreviewStyle}
         videoClassName={dialogVideoClassName}
         videoContainerClassName={dialogVideoContainerClassName}
-        onVideoMetadata={isSharkBiteSlot ? syncPreviewVideoSize : undefined}
+        onVideoMetadata={
+          isSharkBiteSlot || isFishermanAvatar ? handlePreviewMetadata : undefined
+        }
+        onVideoTimeUpdate={isFishermanAvatar ? keepFishermanVideoTrim : undefined}
         contentClassName={
           avatarBossId ? "max-w-md" : isSharkBiteSlot ? "max-w-3xl" : undefined
         }

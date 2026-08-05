@@ -89,6 +89,7 @@ import { redactDiceForOpponent } from "@/lib/onlineGameState";
 import { xrayRevealsVisible } from "@/lib/xrayScan";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+
 import {
   clearLocalGame,
   isFreshUnstartedGame,
@@ -427,7 +428,13 @@ export default function Game() {
     const n = state.bustCount || 0;
     if (n <= prevBustRef.current) return;
     prevBustRef.current = n;
-    setPopup({ word: state.lastBustWord, variant: "bust", burstKey: n });
+    const overshootBust = state.message?.includes("Overshoot");
+    setPopup({
+      word: overshootBust ? "OVERSHOOT!" : state.lastBustWord,
+      detail: overshootBust ? state.message : undefined,
+      variant: "bust",
+      burstKey: n,
+    });
   }, [state?.farkle, state?.lastBustWord, state?.bustCount]);
 
   // Shark Bite FX cleared via SharkBiteScreenFX onComplete (video or SVG)
@@ -440,7 +447,8 @@ export default function Game() {
       skinPower?.id === "plasma_cut" &&
       !!state.players[state.currentIndex]?.powerCharge &&
       canUsePlasmaCut(state);
-    const delay = canRescue ? 5000 : 1650;
+    const overshootBust = state.message?.includes("Overshoot");
+    const delay = canRescue ? 5000 : overshootBust ? 3400 : 1650;
     const timer = setTimeout(() => {
       setState((s) => (s?.farkle ? passAfterFarkle(s) : s));
     }, delay);
@@ -1333,6 +1341,7 @@ export default function Game() {
       <BigPopup
         open={!!popup}
         word={popup?.word}
+        detail={popup?.detail}
         variant={popup?.variant}
         burstKey={popup?.burstKey}
         onClose={() => setPopup(null)}

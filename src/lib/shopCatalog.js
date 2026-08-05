@@ -34,7 +34,7 @@ import { RUBY_SPRITE_TUNING } from "./rubySpriteTuning";
 import { DIAMOND_RUBY_SPRITE_TUNING } from "./diamondRubySpriteTuning";
 import { AMBER_WASP_SPRITE_TUNING } from "./amberWaspSpriteTuning";
 import { AMETHYST_SPRITE_TUNING } from "./amethystSpriteTuning";
-import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, sanitizeSpriteCrop, catalogSkinById, DEFAULT_SPRITE_CROP, hasUserFaceTuning } from "./spriteLab";
+import { loadSpriteLabDraft, mergeSpriteLabFaceOffsets, isSpriteTuningLocked, sanitizeSpriteCrop, catalogSkinById, DEFAULT_SPRITE_CROP } from "./spriteLab";
 
 export const PRODUCTION_DICE_SKINS = [
   {
@@ -970,7 +970,7 @@ export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe", "blue_gel", "sha
 
 export const BLUE_GEL_SPRITE_URL = "/assets/999d8760b_generated_image.png";
 
-/** Blue Gel face is rendered in Die.jsx — never expose catalog sprite/video URLs. */
+/** Blue Gel face is tank + CSS pips — never re-inject the fish-baked sheet. */
 function withoutBlueGelRuntimeSprite(skin) {
   if (skin?.id !== "blue_gel") return skin;
   const next = { ...skin };
@@ -1001,6 +1001,7 @@ export function isAquariumOverlaySkinId(skinId) {
 export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
+  // Blue Gel — no face sheet (old sheet baked a tropical fish over every face).
   if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return null;
   if (powerMode && skin.powerSpriteUrl) {
@@ -1028,7 +1029,7 @@ export function skinHasPowerSprite(skin) {
 export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
-  // Blue Gel — face is a sprite sheet above the fish tank; shark bite uses fullscreen video FX.
+  // Blue Gel — tank + CSS pips in Die.jsx; shark bite uses fullscreen video FX.
   if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return skin.powerVideoUrl;
   if (!powerMode && skin.videoUrl) return skin.videoUrl;
@@ -1080,12 +1081,12 @@ export function getSkin(id) {
     return skin;
   }
   const mergeRegular = (offsetsBase) => {
-    if (!draft?.regularFaces || !hasUserFaceTuning(draft.regularFaces)) return offsetsBase;
-    return mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: locked });
+    if (!draft?.regularFaces) return offsetsBase;
+    return mergeSpriteLabFaceOffsets(offsetsBase, draft.regularFaces, { fullReplace: true });
   };
   const mergePower = (offsetsBase) => {
-    if (!draft?.powerFaces || !hasUserFaceTuning(draft.powerFaces)) return offsetsBase;
-    return mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: locked });
+    if (!draft?.powerFaces) return offsetsBase;
+    return mergeSpriteLabFaceOffsets(offsetsBase, draft.powerFaces, { fullReplace: true });
   };
   const draftRegularCrop = draft?.regularCrop
     ? sanitizeSpriteCrop(draft.regularCrop, base.spriteCrop ?? DEFAULT_SPRITE_CROP)
@@ -1436,15 +1437,10 @@ export function getSkin(id) {
   }
 
   if (skin.id === "blue_gel") {
-    // Face crop must stay on the Blue Gel sheet — stale lab drafts used aquamarine shell crops.
-    const blueGelCrop = sanitizeSpriteCrop(
-      draftRegularCrop ?? skin.spriteCrop ?? BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      BLUE_GEL_SPRITE_TUNING.spriteCrop
-    );
-    const next = withoutBlueGelRuntimeSprite({
+    // Tank + CSS pips in Die.jsx — never reattach the fish-baked face sheet.
+    return withoutBlueGelRuntimeSprite({
       ...skin,
-      spriteSheetSize: BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-      spriteCrop: blueGelCrop,
+      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
       spriteFaceOffsets: {
         ...skin.spriteFaceOffsets,
         regular: mergeRegular(
@@ -1453,7 +1449,6 @@ export function getSkin(id) {
         power: mergePower(skin.spriteFaceOffsets?.power),
       },
     });
-    return next;
   }
 
   if (skin.spriteCrop) {

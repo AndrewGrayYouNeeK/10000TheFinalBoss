@@ -149,6 +149,7 @@ export default function Pip({
   pipCol = 1,
   pipRow = 1,
   scoreFill = 0,
+  pipTheme = null,
 }) {
   const s = size || 10;
 
@@ -159,6 +160,49 @@ export default function Pip({
     flexShrink: 0,
     position: "relative",
   };
+
+  // Blue Gel's pips sit over the aquarium instead of using a flat sprite.
+  // Give them a glassy, beveled surface so they remain readable without
+  // covering the fish beneath them.
+  if (pipTheme === "aquarium") {
+    return (
+      <motion.div
+        style={{
+          ...baseStyle,
+          overflow: "hidden",
+          background:
+            "radial-gradient(circle at 32% 25%, #ffffff 0%, #e0f2fe 28%, #93c5fd 70%, #3b82f6 100%)",
+          border: "1px solid rgba(255,255,255,0.92)",
+          boxShadow:
+            "inset 0 1px 2px rgba(255,255,255,0.9), inset 0 -2px 3px rgba(30,64,175,0.5), 0 1px 2px rgba(2,6,23,0.45), 0 0 6px rgba(186,230,253,0.55)",
+        }}
+        animate={{
+          filter: ["brightness(0.96)", "brightness(1.08)", "brightness(0.96)"],
+        }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <span
+          className="absolute pointer-events-none rounded-full"
+          style={{
+            width: "42%",
+            height: "24%",
+            top: "13%",
+            left: "20%",
+            background: "rgba(255,255,255,0.62)",
+            filter: "blur(0.7px)",
+            transform: "rotate(-18deg)",
+          }}
+        />
+        <span
+          className="absolute pointer-events-none rounded-full"
+          style={{
+            inset: "13%",
+            border: "1px solid rgba(125,211,252,0.2)",
+          }}
+        />
+      </motion.div>
+    );
+  }
 
   // --- WHITE PIP: minimal soft white orb ---
   if (animationEffect === "whitePip") {

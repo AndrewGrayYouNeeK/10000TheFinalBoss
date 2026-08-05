@@ -31,7 +31,7 @@ const SKIN_STORY_BOSS = {
   // Frosty the Evil Snowman — story ladder id (not dormant ice_witch / old "Glacia" label)
   ice: "snowman",
   dragon_scale: "dragon_knight",
-  blue_gel: null, // power video only — no story boss slots
+  blue_gel: "fisherman",
 };
 
 /** @deprecated Wrong slot — migrated to Neo story intro/win keys. */

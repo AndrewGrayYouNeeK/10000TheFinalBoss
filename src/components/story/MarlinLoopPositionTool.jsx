@@ -52,15 +52,15 @@ function SavedBadge({ visible }) {
   );
 }
 
-function SliderRow({ label, hint, value, onChange }) {
+function SliderRow({ label, hint, value, onChange, min = MIN, max = MAX }) {
   return (
     <label className="block text-[11px] text-slate-400">
       {label}: <span className="text-sky-100 tabular-nums">{value}%</span>
       {hint ? <span className="block text-[10px] text-slate-500 mt-0.5">{hint}</span> : null}
       <input
         type="range"
-        min={MIN}
-        max={MAX}
+        min={min}
+        max={max}
         step={1}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -129,6 +129,30 @@ function LoopPositionControls({ settings, compact = false, onClose }) {
         hint="50% centers vertically."
         value={settings.objectPositionYPercent}
         onChange={(objectPositionYPercent) => update({ objectPositionYPercent })}
+      />
+      <SliderRow
+        label="Trim loop start"
+        hint="Skip this percentage from the beginning of the upload."
+        value={settings.trimStartPercent}
+        min={0}
+        max={95}
+        onChange={(trimStartPercent) =>
+          update({
+            trimStartPercent: Math.min(trimStartPercent, settings.trimEndPercent - 1),
+          })
+        }
+      />
+      <SliderRow
+        label="Trim loop end"
+        hint="Stop here and jump back to the trim start."
+        value={settings.trimEndPercent}
+        min={5}
+        max={100}
+        onChange={(trimEndPercent) =>
+          update({
+            trimEndPercent: Math.max(trimEndPercent, settings.trimStartPercent + 1),
+          })
+        }
       />
 
       <details className="text-[10px] text-slate-500">

@@ -241,6 +241,7 @@ function buildCatalogLockSnapshot(skin) {
     powerCrop: skin.powerSpriteCrop ?? { ...DEFAULT_SPRITE_CROP },
     regularFaces: emptyFaceMap(skin.spriteFaceOffsets?.regular),
     powerFaces: emptyFaceMap(skin.spriteFaceOffsets?.power),
+    faceOffsetsAreAbsolute: true,
     powerVideoZoom: skin.powerVideoZoom,
     powerVideoCrop: skin.powerVideoCrop ?? { offsetX: 0, offsetY: 0 },
     ...(shellSettings ? { shellSettings } : {}),
@@ -277,8 +278,8 @@ function snapshotTuningScore(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return 0;
   let score = 0;
   if (snapshotHasSpritePaths(snapshot)) score += 20;
-  if (hasUserFaceTuning(snapshot.regularFaces)) score += 50;
-  if (hasUserFaceTuning(snapshot.powerFaces)) score += 25;
+  if (snapshot.regularFaces) score += 50;
+  if (snapshot.powerFaces) score += 25;
   if (snapshot.shellSettings) score += 20;
   if (snapshot.regularCrop) score += 5;
   if (snapshot.powerCrop) score += 3;
@@ -319,13 +320,23 @@ function preferRicherSnapshot(skinId, a, b) {
   if (!usableA && !usableB) return null;
   if (!usableA) return usableB;
   if (!usableB) return usableA;
+  const savedAtA = Number(usableA.savedAt);
+  const savedAtB = Number(usableB.savedAt);
+  const hasSavedAtA = Number.isFinite(savedAtA) && savedAtA > 0;
+  const hasSavedAtB = Number.isFinite(savedAtB) && savedAtB > 0;
+  // A newer valid save is authoritative. Richness is only a fallback for
+  // legacy snapshots that do not carry timestamps.
+  if (hasSavedAtA && hasSavedAtB && savedAtA !== savedAtB) {
+    return savedAtA > savedAtB ? usableA : usableB;
+  }
+  if (hasSavedAtA !== hasSavedAtB) return hasSavedAtA ? usableA : usableB;
   const sa = snapshotTuningScore(usableA);
   const sb = snapshotTuningScore(usableB);
   if (sa !== sb) return sa > sb ? usableA : usableB;
-  return (usableA.savedAt ?? 0) >= (usableB.savedAt ?? 0) ? usableA : usableB;
+  return savedAtA >= savedAtB ? usableA : usableB;
 }
 
-/** Merge lock snapshot, profile backup, and live draft — keep the richest usable save. */
+/** Merge lock snapshot, profile backup, and live draft — keep the newest usable save. */
 function pickBestSpriteLabSnapshot(skinId, ...candidates) {
   let best = null;
   for (const candidate of candidates) {
@@ -360,14 +371,15 @@ function loadAquariumShellSettingsForSnapshot(skinId) {
 /** Build the skin object Sprite Lab preview should use — mirrors getSkin(), without double-applying saves. */
 export function buildLabPreviewSkin(
   skinId,
-  labState,
-  { locked = isSpriteTuningLocked(skinId) } = {}
+  labState
 ) {
   const catalog = catalogSkinById(skinId) ?? DICE_SKINS[0];
   const mergeFaces = (catalogRegular, labFaces) => {
     if (!labFaces) return emptyFaceMap(catalogRegular);
-    if (locked) return emptyFaceMap(labFaces);
-    return emptyFaceMap({ ...(catalogRegular ?? {}), ...labFaces });
+    // Face maps are saved as absolute offsets, including intentional zeros.
+    // Replacing the catalog map prevents a reset-to-zero from being undone
+    // when the gameplay skin is reconstructed after reload.
+    return emptyFaceMap(labFaces);
   };
   return {
     ...catalog,
@@ -671,8 +683,11 @@ export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
   if (!crop || typeof crop !== "object") return { ...fb };
   const fbZoom = Number(fb.zoom ?? 1);
   const zoom = Number(crop.zoom);
-  // Galaxy tops catalog at ~1.63 — values above ~1.85 are corrupt lab saves.
-  const safeZoom = Number.isFinite(zoom) && zoom >= 0.45 && zoom <= 1.85 ? zoom : fbZoom;
+  // Keep the same bounds exposed by Sprite Lab instead of replacing a
+  // user's out-of-range value with the catalog crop.
+  const clamp = (value, min, max, fallbackValue) =>
+    Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallbackValue;
+  const safeZoom = clamp(zoom, 0.45, 1.85, clamp(fbZoom, 0.45, 1.85, 1));
   const clampOff = (value, defaultValue = 0) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return defaultValue;
@@ -680,8 +695,7 @@ export function sanitizeSpriteCrop(crop, fallback = DEFAULT_SPRITE_CROP) {
   };
   const fbStretch = Number(fb.stretch ?? 0);
   const stretch = Number(crop.stretch);
-  const safeStretch =
-    Number.isFinite(stretch) && stretch >= -0.15 && stretch <= 0.35 ? stretch : fbStretch;
+  const safeStretch = clamp(stretch, -0.15, 0.35, clamp(fbStretch, -0.15, 0.35, 0));
   return {
     zoom: safeZoom,
     offsetX: clampOff(crop.offsetX, fb.offsetX ?? 0),
@@ -785,6 +799,7 @@ export function persistSpriteLabTuning(skinId, payload, { locked = isSpriteTunin
   const withMeta = sanitizeSpriteLabSnapshot(skinId, {
     ...payload,
     savedAt: Date.now(),
+    faceOffsetsAreAbsolute: true,
     ...(payload.regularCrop
       ? { regularCrop: sanitizeSpriteCrop(payload.regularCrop, catalog?.spriteCrop ?? DEFAULT_SPRITE_CROP) }
       : {}),

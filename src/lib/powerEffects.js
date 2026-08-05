@@ -91,17 +91,55 @@ export function applySkinPower(state, powerId) {
         variant: "success",
       };
 
-    case "double_or_nothing":
+    case "double_or_nothing": {
+      const profile = loadProfile();
+      const casterIdx = state.currentIndex;
+      const { mimicSkinId } = resolvePlayerPower(state, casterIdx, {
+        ghostDisguiseId: profile.ghost_disguise,
+        ownedSkins: profile.owned_skins ?? [],
+      });
+      const skinId =
+        mimicSkinId || state.players[casterIdx]?.skinId || "classic_white";
+      const level = getLocalSkinPowerLevel(skinId, profile);
+      /** Level 10+: curse the opponent (boss-killer path for Prison Dice). */
+      const saboLevel = 10;
+
+      if (level >= saboLevel && targetIdx >= 0 && targetIdx !== casterIdx) {
+        const players = addDebuff(
+          state.players,
+          targetIdx,
+          "double_or_nothing_curse",
+          casterIdx
+        );
+        return {
+          state: {
+            ...state,
+            players,
+            message: `✨ Double or Nothing cursed ${targetName} — their turn scores ×2, but a bust wipes them to 0! (Lv ${level})`,
+            messageVariant: "warning",
+          },
+          message: `Cursed ${targetName}!`,
+          variant: "success",
+        };
+      }
+
+      const doubledTurn = (state.turnScore || 0) * 2;
       return {
         state: {
           ...state,
+          turnScore: doubledTurn,
           doubleOrNothing: true,
-          message: "✨ Double or Nothing — next farkle costs double!",
+          turnScoreMultiplier: Math.max(state.turnScoreMultiplier || 1, 2),
+          message:
+            doubledTurn > 0
+              ? `✨ Double or Nothing — turn score doubled to ${doubledTurn.toLocaleString()}! Bust and you go to 0.`
+              : "✨ Double or Nothing — scores this turn are doubled. Bust and your banked score goes to 0.",
           messageVariant: "warning",
         },
-        message: "Double or Nothing armed!",
+        message: "Double or Nothing!",
         variant: "success",
       };
+    }
 
     case "lucky_seven":
       return {

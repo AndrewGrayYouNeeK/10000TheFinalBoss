@@ -144,7 +144,10 @@ export default function StoryGame() {
   const initialSave = readSavedFight(bossId);
 
   const [dialogue, setDialogue] = useState(() => {
-    if (initialSave?.game) return initialSave.dialogue ?? null;
+    if (initialSave?.game) {
+      // Older saves can reopen on the removed post-loss taunt screen.
+      return initialSave.dialogue === "lose" ? null : initialSave.dialogue ?? null;
+    }
     return "intro";
   });
   const [game, setGame] = useState(() => initialSave?.game ?? null);
@@ -314,7 +317,8 @@ export default function StoryGame() {
       setBloodWaterLocked(saved.bloodWaterLocked);
       setPracticePowerPreview(false);
       practiceSharkBiteRef.current = false;
-      setDialogue(saved.dialogue ?? null);
+      // Do not restore the removed post-loss boss taunt modal.
+      setDialogue(saved.dialogue === "lose" ? null : saved.dialogue ?? null);
       // Repair Composer bug: player was wrongly given Marlin's shark_bite charge.
       let restored = saved.game;
       if (bossId === "fisherman" && restored?.players?.length >= 2) {
@@ -448,7 +452,13 @@ export default function StoryGame() {
     if (n <= prevBustRef.current) return;
     prevBustRef.current = n;
     if (game.players[game.currentIndex]?.name !== PLAYER_NAME) return;
-    setPopup({ word: game.lastBustWord, variant: "bust", burstKey: n });
+    const overshootBust = game.message?.includes("Overshoot");
+    setPopup({
+      word: overshootBust ? "OVERSHOOT!" : game.lastBustWord,
+      detail: overshootBust ? game.message : undefined,
+      variant: "bust",
+      burstKey: n,
+    });
   }, [game?.farkle, game?.lastBustWord, game?.bustCount, game?.currentIndex]);
 
   // Boss may not exist
@@ -473,7 +483,8 @@ export default function StoryGame() {
       skinPower?.id === "plasma_cut" &&
       !!game.players[game.currentIndex]?.powerCharge &&
       canUsePlasmaCut(game);
-    const delay = canRescue ? 5000 : 1650;
+    const overshootBust = game.message?.includes("Overshoot");
+    const delay = canRescue ? 5000 : overshootBust ? 3400 : 1650;
     const timer = setTimeout(() => {
       setGame((g) =>
         g?.farkle && g.players[g.currentIndex]?.name === PLAYER_NAME
@@ -575,9 +586,17 @@ export default function StoryGame() {
       }
       setDialogue("win");
     } else {
-      setDialogue("lose");
+      // Losses restart directly; do not show a boss taunt / Try Again modal.
+      abandonStoryFight(boss.id);
+      fightStartedRef.current = true;
+      farkleShieldUsedRef.current = false;
+      rewardsClaimedRef.current = false;
+      setRewardSummary(null);
+      setBloodWaterLocked(false);
+      setDialogue(null);
+      setGame(makeInitialGame(boss, storyPlayerSkin, ownedSkins, ghostDisguiseId));
     }
-  }, [game?.winner, dialogue]);
+  }, [game?.winner, dialogue, boss, storyPlayerSkin, ownedSkins, ghostDisguiseId]);
 
   // Apply boss "Crown of Sixes" gimmick — if AI is current player, mutate dice
   // so any 6 it rolls is "secretly" treated as if the boss rolled an extra 6
@@ -1427,13 +1446,14 @@ export default function StoryGame() {
       <BigPopup
         open={!!popup}
         word={popup?.word}
+        detail={popup?.detail}
         variant={popup?.variant}
         burstKey={popup?.burstKey}
         onClose={() => setPopup(null)}
       />
 
       {/* Boss dialogue overlays */}
-      {dialogue && dialogue !== "intro" && (
+      {dialogue && dialogue !== "intro" && dialogue !== "lose" && (
         <BossDialogue
           key={`${boss.id}-${dialogue}`}
           boss={boss}

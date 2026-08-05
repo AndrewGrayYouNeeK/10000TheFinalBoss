@@ -42,6 +42,7 @@ export const PLAYER_FACING_BASE_POWERS = BASE_POWERS.filter(
 
 const SKIN_POWER_MAP = {
   // ── Self buffs ──
+  paper: "double_or_nothing", // Prison Dice — Double or Nothing
   lava: "hot_streak",
   ragnarok: "hot_streak",
   matrix: "matrix_glitch",

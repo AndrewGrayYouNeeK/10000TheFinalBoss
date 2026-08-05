@@ -35,14 +35,12 @@ for (const skinId of AQUARIUM_SKINS) {
   } else if (/spriteUrl\s*:/.test(block)) {
     errors.push(`${skinId}: must not define spriteUrl in PRODUCTION_DICE_SKINS`);
   }
-  if (!source.includes(`"${skinId}"`)) {
-    errors.push(`${skinId}: missing string literal (expected in AQUARIUM_OVERLAY_SKIN_IDS)`);
-  }
 }
 
 if (!source.includes("AQUARIUM_OVERLAY_SKIN_IDS")) {
   errors.push("AQUARIUM_OVERLAY_SKIN_IDS guard missing from shopCatalog.js");
 }
+
 for (const skinId of AQUARIUM_SKINS) {
   // Confirm membership in the Set constructor args, not just any string literal.
   const setMatch = source.match(

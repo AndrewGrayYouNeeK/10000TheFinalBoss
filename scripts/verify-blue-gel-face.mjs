@@ -1,5 +1,6 @@
 /**
- * Verifies Blue Gel die renders the catalog face sprite (baked pips) above the fish tank.
+ * Verifies Angelfish renders the live fish overlay and Aquamarine shell above
+ * the tank instead of the retired baked face sprite.
  * Run: npm run build && node scripts/verify-blue-gel-face.mjs
  */
 import { chromium } from "playwright";
@@ -35,34 +36,38 @@ async function openSpriteLab(page) {
 
 async function verifyBlueGelFaces(page) {
   const result = await page.evaluate((fragment) => {
-    const imgs = [...document.querySelectorAll("img")].filter((img) =>
+    const oldSpriteImgs = [...document.querySelectorAll("img")].filter((img) =>
       (img.getAttribute("src") || "").includes(fragment)
     );
-    const badRelative = imgs.filter((img) => {
+    const badRelative = oldSpriteImgs.filter((img) => {
       const src = img.getAttribute("src") || "";
       return src.startsWith("./") || src.startsWith("../");
     });
-    const loaded = imgs.filter((img) => img.complete && img.naturalWidth > 0);
     return {
-      imgCount: imgs.length,
+      oldSpriteCount: oldSpriteImgs.length,
       badRelative: badRelative.length,
-      loadedCount: loaded.length,
-      sampleSrc: imgs[0]?.getAttribute("src") || null,
+      fishOverlayCount: document.querySelectorAll('[data-fish-overlay="aquarium"]').length,
+      angelfishBarCount: [...document.querySelectorAll("path")].filter(
+        (path) => path.getAttribute("d") === "M 25 9 L 29 9 L 29 31 L 25 31 Z"
+      ).length,
     };
   }, SPRITE_FRAGMENT);
 
-  if (result.imgCount < 1) {
-    throw new Error("no Blue Gel face <img> with catalog sheet");
+  if (result.oldSpriteCount > 0) {
+    throw new Error("retired baked Angelfish face sprite is still rendering");
   }
   if (result.badRelative > 0) {
     throw new Error("face img uses relative asset URL (breaks on nested routes)");
   }
-  if (result.loadedCount < 1) {
-    throw new Error(`face sprite image did not load — src=${result.sampleSrc}`);
+  if (result.fishOverlayCount < 1) {
+    throw new Error("no live Angelfish fish overlay rendered");
+  }
+  if (result.angelfishBarCount < 1) {
+    throw new Error("no angular Angelfish stripe bars rendered");
   }
 
   mkdirSync(join(ROOT, "artifacts"), { recursive: true });
-  const previewDie = page.locator("button").filter({ has: page.locator(`img[src*="${SPRITE_FRAGMENT}"]`) }).first();
+  const previewDie = page.locator('[data-fish-overlay="aquarium"]').first();
   await previewDie.screenshot({ path: join(ROOT, "artifacts/blue-gel-die-verify.png") });
 
   return result;
@@ -76,7 +81,9 @@ async function main() {
   try {
     await openSpriteLab(page);
     const result = await verifyBlueGelFaces(page);
-    console.log(`OK: ${result.loadedCount} loaded face sprite(s), src=${result.sampleSrc}`);
+    console.log(
+      `OK: ${result.fishOverlayCount} live fish overlay(s), ${result.angelfishBarCount} angular bar(s)`
+    );
     console.log("Screenshot: artifacts/blue-gel-die-verify.png");
   } finally {
     await browser.close();

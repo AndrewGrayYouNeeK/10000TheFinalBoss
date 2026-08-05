@@ -102,6 +102,25 @@ export function scoreSelection(dice) {
   return { score, valid };
 }
 
+/**
+ * Highest points from any valid scoring subset of the roll.
+ * Used for endgame overshoot checks.
+ */
+export function maxValidScore(dice) {
+  if (!dice || dice.length === 0) return 0;
+  const n = dice.length;
+  let best = 0;
+  for (let mask = 1; mask < 1 << n; mask++) {
+    const subset = [];
+    for (let i = 0; i < n; i++) {
+      if (mask & (1 << i)) subset.push(dice[i]);
+    }
+    const { score, valid } = scoreSelection(subset);
+    if (valid && score > best) best = score;
+  }
+  return best;
+}
+
 // Check if a roll has ANY possible scoring dice (otherwise = Farkle)
 export function hasAnyScore(dice) {
   if (!dice || dice.length === 0) return false;

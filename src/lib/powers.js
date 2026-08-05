@@ -60,8 +60,9 @@ export const POWERS = [
     cost: 60,
     icon: "✨",
     color: "#a855f7",
-    description: "Double your current turn score — but if you Farkle next roll, you lose double.",
-    tagline: "High risk, higher reward.",
+    description:
+      "Double your turn scores (×2). Bank the doubled haul — but if you Farkle or overshoot, your banked score resets to 0. At skin level 10+, cast this curse on your opponent instead.",
+    tagline: "Double the haul — or wipe to zero.",
   },
   {
     id: "lucky_seven",
