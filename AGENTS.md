@@ -68,3 +68,13 @@ npm run ios:open   # builds in Xcode, run on simulator or device
 ```
 
 Bundle ID: `com.yourneek.neon10000`
+
+## Cursor Cloud specific instructions
+
+Standard commands live in the `## Commands` section above and in `README.md`; this section only covers non-obvious cloud caveats.
+
+- **Dependencies** are refreshed automatically on VM startup by the environment update script (`npm ci`), so you normally don't need to install anything manually.
+- **Running the dev server here:** the "don't start `npm run dev`" rule targets *ephemeral* agent shells. In the cloud VM, when you need to run/test the app, start it inside a persistent `tmux` session so it survives, e.g. session `vite-dev-server` running `npm run dev`. It serves at `http://127.0.0.1:5173/` (IPv4-only, `--strictPort`); use `127.0.0.1`, not `localhost`.
+- **3D dice roll animation:** during a roll the Three.js dice render as a brief "black screen with a spinning white cube" (a die is a cube) before the board settles. This is the normal roll/loading transition, **not** a crash — the full board reliably returns once the roll settles. Screen recordings often catch this frame at the tail; prefer a settled-board screenshot for clean evidence.
+- **No backend / accounts:** the app is fully standalone. All progress (coins, XP, skins) is in `localStorage` via `src/lib/localProfile.js`; there is nothing to seed and no auth to configure.
+- **iOS / Capacitor** (`npm run ios:sync`, `ios:open`, `ios:run`) requires macOS + Xcode and cannot run in this Linux cloud VM. Web (`dev`/`build`/`lint`) is the only runnable target here.
