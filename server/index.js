@@ -296,6 +296,11 @@ export class MatchRoom extends DurableObject {
     room.matchState = result.state;
     room.seq = (room.seq || 0) + 1;
     if (room.matchState?.winner) room.status = "finished";
+
+    if (result.deferEvaluate) {
+      this.busy = true;
+    }
+
     await this.saveRoom(room);
     await this.broadcastState(room, {
       rollAnimMs: result.rollAnimMs || 0,
@@ -304,7 +309,6 @@ export class MatchRoom extends DurableObject {
     });
 
     if (result.deferEvaluate) {
-      this.busy = true;
       try {
         await scheduler.wait(ROLL_ANIM_MS);
         const latest = await this.loadRoom();

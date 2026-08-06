@@ -205,12 +205,18 @@ export default function Game() {
   const rollLockRef = React.useRef(false);
   const lastProcessedShakeRef = React.useRef(0);
 
+  const onlineTrueSkinId =
+    equippedSkinId === GHOST_SKIN_ID
+      ? ghostDisguiseId || pickTrueSkinForGhost(ownedSkins)
+      : null;
+
   const liveMatch = useOnlineMatch({
     enabled: onlineLiveActive,
     code: onlineLiveSession?.code,
     playerId: onlineLiveSession?.playerId,
     name: defaultOnlineDisplayName(),
     skinId: equippedSkinId || defaultOnlineSkinId(),
+    trueSkinId: onlineTrueSkinId,
     visibility: onlineVisibilitySettings,
     onToast: (msg, variant) => {
       if (variant === "warning") toast.warning(msg);
@@ -541,6 +547,23 @@ export default function Game() {
   useEffect(() => {
     if (state?.winner && !winnerAwardedRef.current) {
       winnerAwardedRef.current = true;
+
+      const isOnline = onlineMockActive || onlineLiveActive;
+      const viewerIndex = isOnline
+        ? (onlineLiveActive ? liveMatch.viewerPlayerIndex : onlineSession?.viewerPlayerIndex ?? 0)
+        : 0;
+      const viewerWon =
+        !isOnline || state.players?.[viewerIndex]?.name === state.winner?.name;
+      const playedSkinId =
+        state.players?.[viewerIndex]?.skinId || equippedSkinId || user?.equipped_skin;
+
+      if (!viewerWon) {
+        if (isOnline) {
+          recordGameResult({ won: false, xpGain: XP_REWARDS.finishGame, skinId: playedSkinId });
+        }
+        return;
+      }
+
       addCoins(40); // small win bonus — ~10 wins to afford a Starter Vault
 
       let xpGain = XP_REWARDS.finishGame + XP_REWARDS.winGame;
@@ -558,9 +581,6 @@ export default function Game() {
         setPopup({ word: "PERFECT 10,000! 🎯 BADGE + MYTHIC DICE UNLOCKED", variant: "success" });
       }
 
-      const localIdx = onlineSession?.viewerPlayerIndex ?? 0;
-      const playedSkinId =
-        state.players?.[localIdx]?.skinId || equippedSkinId || user?.equipped_skin;
       recordGameResult({ won: true, xpGain, skinId: playedSkinId });
     }
   }, [
@@ -572,7 +592,10 @@ export default function Game() {
     recordGameResult,
     user,
     equippedSkinId,
+    onlineMockActive,
+    onlineLiveActive,
     onlineSession?.viewerPlayerIndex,
+    liveMatch.viewerPlayerIndex,
   ]);
 
   // Hot dice XP — award once per hot-dice event (tracked in game state)
@@ -787,7 +810,9 @@ export default function Game() {
   const localHandoffActive = passPlayPrivacyActive || ghostLocalHandoff;
   // Same-device pass-and-play uses handoff overlay — not online opponent-view blocking.
   const onlineActive =
-    (onlineMockActive || onlineLiveActive) && !passPlayPrivacyActive && onlineView.active;
+    (onlineMockActive || onlineLiveActive) &&
+    (onlineLiveActive || !passPlayPrivacyActive) &&
+    onlineView.active;
   const shieldUp = onlineActive
     ? onlineUi.opponentTurnShield
     : localHandoffActive && revealedTurnKey !== state?.currentIndex;
