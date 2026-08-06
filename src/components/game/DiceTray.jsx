@@ -9,12 +9,14 @@ import { getBlueGelTrayFishProps } from "@/lib/fishDice";
 import { getSkinLevelVisual } from "@/lib/skinLevelVisuals";
 
 function getResponsiveTrayDieSize(width) {
-  if (!width) return 100;
+  if (!width) return 72;
   const wideTray = width >= 640;
   const columns = wideTray ? 6 : 3;
   // Reserve the FeltTrayFrame rail, responsive inner padding, and grid gap.
   const available = width - 20 - (wideTray ? 48 : 24) - (wideTray ? 24 : 12) * (columns - 1);
-  return Math.min(100, Math.max(1, Math.floor(available / columns)));
+  // Cap hard on phones so the felt tray doesn't shove Roll below the fold.
+  const maxDie = width < 380 ? 64 : width < 480 ? 72 : width < 640 ? 84 : 100;
+  return Math.min(maxDie, Math.max(1, Math.floor(available / columns)));
 }
 
 /**

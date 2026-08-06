@@ -930,12 +930,12 @@ export default function Game() {
   const trayBloodWater = bloodWaterLocked && fishFeastOnTray;
 
   return (
-    <div className="min-h-screen min-h-[100dvh] min-w-0 text-white flex flex-col pb-6 relative">
+    <div className="min-h-screen min-h-[100dvh] min-w-0 text-white flex flex-col relative">
       <CyberBackground lite={lowPower} />
       <div className="relative z-10 flex flex-col flex-1 min-w-0 min-h-0">
       {/* Header */}
       <div
-        className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b"
+        className="sticky top-0 z-20 flex items-center justify-between px-3 pb-3 border-b shrink-0"
         style={{
           ...PAGE_HEADER_SAFE_STYLE,
           borderColor: "rgba(0,255,200,0.25)",
@@ -1023,10 +1023,12 @@ export default function Game() {
         </div>
       </div>
 
-      {/* YouNeeK 10000 sign banner — static neon sign (no loop video) */}
-      <div className="px-3 pt-3">
+      {/* Scrollable playfield — keeps Roll/Bank pinned below on phones */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      {/* YouNeeK 10000 sign banner — compact on phones so the tray + Roll stay on screen */}
+      <div className="px-3 pt-2 sm:pt-3">
         <div
-          className="relative w-full h-28 sm:h-36 max-h-[22vh] rounded-2xl overflow-hidden border-2"
+          className="relative w-full h-14 sm:h-28 md:h-36 max-h-[10vh] sm:max-h-[18vh] md:max-h-[22vh] rounded-2xl overflow-hidden border-2"
           style={{
             borderColor: "#ff00ea",
             boxShadow: "0 0 18px #00ffff, 0 0 36px rgba(255,0,234,0.6)",
@@ -1037,7 +1039,7 @@ export default function Game() {
       </div>
 
       {/* Score panel */}
-      <div className="p-3 space-y-2">
+      <div className="p-2 sm:p-3 space-y-2">
         <ScorePanel
           players={state.players}
           currentIndex={state.currentIndex}
@@ -1070,7 +1072,7 @@ export default function Game() {
       </div>
 
       {/* Turn score */}
-      <div className="px-3 mb-3">
+      <div className="px-3 mb-2 sm:mb-3">
         <motion.div
           animate={{ scale: info.valid && heldPoints > 0 ? 1.02 : 1 }}
           className="rounded-2xl border p-3 flex items-center justify-between relative overflow-hidden"
@@ -1146,7 +1148,7 @@ export default function Game() {
       )}
 
       {/* Dice tray */}
-      <div className="px-3 flex-[0.85] flex items-center justify-center min-w-0">
+      <div className="px-3 pb-3 flex items-center justify-center min-w-0">
         <div className="w-full min-w-0 rounded-2xl p-2 space-y-2" style={{
             border: "2px solid #ff00ea",
             boxShadow:
@@ -1217,15 +1219,17 @@ export default function Game() {
           )}
         </div>
       </div>
+      </div>
 
-      {/* Actions */}
+      {/* Actions — always visible at the bottom of the viewport on phones */}
       <div
-        className="p-3 space-y-2 border-t"
+        className="shrink-0 sticky bottom-0 z-30 p-3 space-y-2 border-t"
         style={{
           borderColor: "rgba(0,255,200,0.25)",
-          background: "rgba(3,4,10,0.85)",
+          background: "rgba(3,4,10,0.92)",
           backdropFilter: "blur(8px)",
           boxShadow: "0 -1px 0 rgba(255,0,170,0.25), 0 -8px 24px rgba(0,255,200,0.08)",
+          paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
         }}
       >
         {state.winner ? (
