@@ -45,7 +45,7 @@ export default function ShopItemCard({
           Lv {skinLevel}
         </div>
       )}
-      <div className="flex items-center justify-center min-h-[120px] mb-3 relative w-full">
+      <div className="flex items-center justify-center min-h-[120px] max-h-[140px] mb-3 relative w-full overflow-hidden rounded-xl">
         {preview}
         {tierLocked && !owned && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">

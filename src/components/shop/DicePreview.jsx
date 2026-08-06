@@ -42,17 +42,18 @@ export default function DicePreview({
   }, []);
 
   const minHeight = size + (compact ? 28 : 44);
-  const sharkTankPreview = renderSkinId === "shark_gel";
+  // Shop cards are tight — keep the frame clipped. Shark/frost overflow belongs in-game.
+  const allowDieOverflow =
+    !compact &&
+    (renderSkinId === "shark_gel" ||
+      (Number(skinLevel) > 1 && getSkinLevelVisual(renderSkinId)?.effect === "frost"));
 
   return (
-    <div ref={ref} className="flex items-center justify-center shrink-0" style={{ minHeight }}>
+    <div ref={ref} className="flex items-center justify-center shrink-0 overflow-hidden" style={{ minHeight }}>
       <FeltTrayFrame
         felt={felt}
         compact={compact}
-        allowDieOverflow={
-          sharkTankPreview ||
-          (Number(skinLevel) > 1 && getSkinLevelVisual(renderSkinId)?.effect === "frost")
-        }
+        allowDieOverflow={allowDieOverflow}
         innerClassName="flex items-center justify-center px-2 py-1.5"
       >
         <div className="relative z-10 overflow-visible">

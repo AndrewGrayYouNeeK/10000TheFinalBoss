@@ -1334,13 +1334,14 @@ export default function StoryGame() {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Actions — pinned so Roll stays findable on phones */}
         <div
-          className="p-3 space-y-2 border-t"
+          className="shrink-0 sticky bottom-0 z-30 p-3 space-y-2 border-t"
           style={{
             borderColor: "rgba(0,255,234,0.35)",
-            background: "rgba(2,3,12,0.78)",
+            background: "rgba(2,3,12,0.92)",
             backdropFilter: "blur(8px)",
+            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
           }}
         >
           {game.winner ? (
