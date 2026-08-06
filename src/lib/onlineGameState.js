@@ -95,6 +95,8 @@ export function buildClientMatchPayload({
   }));
 
   return {
+    // Full renderable snapshot + per-viewer redactionsactions overrides.
+    ...matchState,
     viewerPlayerIndex,
     currentIndex,
     players,
@@ -104,7 +106,6 @@ export function buildClientMatchPayload({
     farkle: !!matchState.farkle,
     winner: matchState.winner ?? null,
     xrayReveals: visibleXrayReveals,
-    // Pass-through fields the UI may need (extend as online grows)
     sharkBiteFx: matchState.sharkBiteFx,
     sharkDiceHidden: matchState.sharkDiceHidden,
     sharkFishFeast: matchState.sharkFishFeast,
@@ -167,11 +168,16 @@ export function deriveOnlineUiFlags(payload) {
  * When online is live, prefer payload dice/turnScore over local inference.
  */
 export function applyClientPayloadToRenderState(localState, payload) {
-  if (!payload || !localState) return localState;
+  if (!payload) return localState;
+  const { uiHints: _uiHints, viewerPlayerIndex: _viewer, ...rest } = payload;
+  if (!localState) return rest;
   return {
     ...localState,
+    ...rest,
     dice: payload.dice ?? localState.dice,
-    turnScore: payload.turnScore ?? localState.turnScore,
+    turnScore: Object.prototype.hasOwnProperty.call(payload, "turnScore")
+      ? payload.turnScore
+      : localState.turnScore,
     xrayReveals: payload.xrayReveals ?? localState.xrayReveals,
   };
 }

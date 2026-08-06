@@ -16,6 +16,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.wrangler
+.dev.vars
 
 # Capacitor / iOS
 ios/App/App/public

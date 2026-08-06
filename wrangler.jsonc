@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "roll10000-online",
+  "main": "server/index.js",
+  "compatibility_date": "2025-07-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "alias": {
+    "@": "./src"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MATCH_ROOM",
+        "class_name": "MatchRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MatchRoom"]
+    }
+  ]
+}
