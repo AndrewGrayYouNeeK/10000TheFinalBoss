@@ -194,16 +194,29 @@ export class MatchRoom extends DurableObject {
     }
 
     if (msg.type === "action") {
-      const roomForBusy = await this.loadRoom();
-      if (this.busy || roomForBusy.rollPending) {
+      // Claim the in-memory lock before any await so concurrent WS messages cannot
+      // interleave past a stale busy/rollPending check.
+      if (this.busy) {
         this.send(ws, { type: "error", error: "Please wait" });
         return;
       }
-      if (roomForBusy.status !== "playing" || !roomForBusy.matchState) {
-        this.send(ws, { type: "error", error: "Match not in progress" });
-        return;
+      this.busy = true;
+      let handlerReleasedLock = false;
+      try {
+        const roomForBusy = await this.loadRoom();
+        if (roomForBusy.rollPending) {
+          this.send(ws, { type: "error", error: "Please wait" });
+          return;
+        }
+        if (roomForBusy.status !== "playing" || !roomForBusy.matchState) {
+          this.send(ws, { type: "error", error: "Match not in progress" });
+          return;
+        }
+        handlerReleasedLock = await this.handleAction(ws, meta, roomForBusy, msg);
+      } finally {
+        // Deferred rolls release busy themselves after evaluate — do not clobber a newer lock.
+        if (!handlerReleasedLock) this.busy = false;
       }
-      await this.handleAction(ws, meta, roomForBusy, msg);
       return;
     }
 
@@ -300,23 +313,25 @@ export class MatchRoom extends DurableObject {
     await this.broadcastState(room);
   }
 
+  /**
+   * @returns {Promise<boolean>} true if this handler already released `this.busy`
+   *   (deferred roll path); false if the caller should clear the lock.
+   */
   async handleAction(ws, meta, room, msg) {
     const action = msg.action;
     const payload = msg.payload || {};
     const result = applyMatchAction(room.matchState, meta.playerIndex, action, payload);
     if (!result.ok) {
       this.send(ws, { type: "error", error: result.error || "Action failed" });
-      return;
+      return false;
     }
 
     room.matchState = result.state;
     room.seq = (room.seq || 0) + 1;
     if (room.matchState?.winner) room.status = "finished";
 
-    // Lock before any await so deferred evaluate can't race with other actions
-    // (and survive Durable Object hibernation via persisted rollPending).
+    // Persist rollPending before any further await (hibernation-safe).
     if (result.deferEvaluate) {
-      this.busy = true;
       room.rollPending = true;
     }
 
@@ -347,7 +362,10 @@ export class MatchRoom extends DurableObject {
           await this.saveRoom(cleared);
         }
       }
+      return true;
     }
+
+    return false;
   }
 
   broadcastLobby(room) {

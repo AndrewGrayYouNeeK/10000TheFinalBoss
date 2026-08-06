@@ -556,11 +556,10 @@ export default function Game() {
         typeof state.winnerPlayerIndex === "number"
           ? state.winnerPlayerIndex
           : onlineView.payload?.winnerPlayerIndex;
+      // Online: require seat index match. Do not fall back to display name (duplicates).
       const viewerWon = !isOnline
         ? true
-        : typeof winnerPlayerIndex === "number"
-          ? winnerPlayerIndex === viewerIndex
-          : state.players?.[viewerIndex]?.name === state.winner?.name;
+        : typeof winnerPlayerIndex === "number" && winnerPlayerIndex === viewerIndex;
       const playedSkinId =
         state.players?.[viewerIndex]?.skinId || equippedSkinId || user?.equipped_skin;
 
