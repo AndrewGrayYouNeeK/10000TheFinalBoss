@@ -84,7 +84,9 @@ import {
   readProfileOnlineVisibility,
   saveProfileOnlineVisibility,
 } from "@/lib/onlineVisibility";
+import { readOnlineLiveSession } from "@/lib/onlineSession";
 import { useOnlineGameView } from "@/hooks/useOnlineGameView";
+import { useOnlineMatch } from "@/hooks/useOnlineMatch";
 import { redactDiceForOpponent } from "@/lib/onlineGameState";
 import { xrayRevealsVisible } from "@/lib/xrayScan";
 import { Link } from "react-router-dom";
@@ -102,7 +104,7 @@ import {
 function readBootLocalSnapshot(previewSharkBite) {
   if (typeof window === "undefined" || previewSharkBite) return null;
   try {
-    if (readOnlineMockSession()) return null;
+    if (readOnlineMockSession() || readOnlineLiveSession()) return null;
     const stored = sessionStorage.getItem("dice10k_players");
     if (!stored) return null;
     const names = JSON.parse(stored);
@@ -173,14 +175,30 @@ export default function Game() {
   const [onlineVisibilitySettings, setOnlineVisibilitySettings] = useState(() =>
     readProfileOnlineVisibility()
   );
-  const onlineSession = readOnlineMockSession();
-  const onlineMockActive = !!onlineSession;
+  const onlineLiveSession = readOnlineLiveSession();
+  const onlineMockSession = readOnlineMockSession();
+  const onlineMockActive = !!onlineMockSession && !onlineLiveSession;
+  const onlineLiveActive = !!onlineLiveSession;
+  const onlineAnyActive = onlineMockActive || onlineLiveActive;
+  const onlineViewerIndex =
+    onlineLiveSession?.viewerPlayerIndex ?? onlineMockSession?.viewerPlayerIndex ?? 0;
   /** Turn index the active player has acknowledged via handoff overlay (pass-and-play). */
   const [revealedTurnKey, setRevealedTurnKey] = useState(
     () => bootSave?.revealedTurnKey ?? null
   );
   const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
   const playDiceSound = useDiceSound();
+
+  const onlineMatch = useOnlineMatch({
+    enabled: onlineLiveActive,
+    mode: "reconnect",
+    roomCode: onlineLiveSession?.matchId ?? null,
+    playerId: onlineLiveSession?.playerId ?? null,
+    playerName: user?.display_name || "Player",
+    skinId: equippedSkinId,
+    disguiseSkinId:
+      equippedSkinId === GHOST_SKIN_ID && ghostDisguiseId ? ghostDisguiseId : null,
+  });
   const prevBustRef = React.useRef(bootSave?.game?.bustCount || 0);
   const winnerAwardedRef = React.useRef(
     !!(bootSave?.winnerAwarded || bootSave?.game?.winner)
@@ -216,11 +234,17 @@ export default function Game() {
   const skinPower = resolvedPower?.power ?? null;
 
   const onlineView = useOnlineGameView({
-    enabled: onlineMockActive,
+    enabled: onlineMockActive || onlineLiveActive,
     gameState: state,
-    viewerPlayerIndex: onlineSession?.viewerPlayerIndex ?? 0,
+    viewerPlayerIndex: onlineViewerIndex,
     visibilitySettings: onlineVisibilitySettings,
+    serverPayload: onlineLiveActive ? onlineMatch.matchPayload : null,
   });
+
+  useEffect(() => {
+    if (!onlineLiveActive || !onlineMatch.viewerState) return;
+    setState(onlineMatch.viewerState);
+  }, [onlineLiveActive, onlineMatch.viewerState, onlineMatch.seq]);
 
   useEffect(() => {
     if (isLoading || gameInitRef.current) return;
@@ -252,7 +276,8 @@ export default function Game() {
     }
     const playerSkins = buildSkins(names.length, syncedSkinIds, syncedDisguiseIds ?? disguiseIds);
     const onlineMock = readOnlineMockSession();
-    const saved = !previewSharkBite && !onlineMock ? loadLocalGame() : null;
+    const onlineLive = readOnlineLiveSession();
+    const saved = !previewSharkBite && !onlineMock && !onlineLive ? loadLocalGame() : null;
     if (saved && namesMatch(saved.playerNames, names)) {
       prevBustRef.current = saved.game?.bustCount || 0;
       winnerAwardedRef.current = saved.winnerAwarded || !!saved.game?.winner;
@@ -282,7 +307,11 @@ export default function Game() {
     if (saved && !namesMatch(saved.playerNames, names) && isFreshUnstartedGame(saved.game)) {
       clearLocalGame();
     }
-    if (previewSharkBite || names.length < 2 || onlineMock) {
+    if (previewSharkBite || names.length < 2 || onlineMock || onlineLive) {
+      if (onlineLive) {
+        setRollOffSetup(null);
+        return;
+      }
       setRollOffSetup(null);
       setState(createInitialState(names, { playerSkins }));
     } else {
@@ -295,7 +324,7 @@ export default function Game() {
   }, [navigate, buildSkins, isLoading, previewSharkBite, equippedSkinId, ghostDisguiseId, ownedSkins]);
 
   useLayoutEffect(() => {
-    if (previewSharkBite || onlineMockActive) return;
+    if (previewSharkBite || onlineAnyActive) return;
     const stored = sessionStorage.getItem("dice10k_players");
     if (!stored) return;
     let playerNames;
@@ -320,15 +349,15 @@ export default function Game() {
     bloodWaterLocked,
     revealedTurnKey,
     previewSharkBite,
-    onlineMockActive,
+    onlineAnyActive,
   ]);
 
   const persistGame = useCallback(() => {
-    if (previewSharkBite || onlineMockActive) return;
+    if (previewSharkBite || onlineAnyActive) return;
     if (gameSnapshotRef.current) {
       saveLocalGame(gameSnapshotRef.current);
     }
-  }, [previewSharkBite, onlineMockActive]);
+  }, [previewSharkBite, onlineAnyActive]);
 
   useEffect(() => {
     const flushOnLifecycle = () => persistGame();
@@ -450,10 +479,14 @@ export default function Game() {
     const overshootBust = state.message?.includes("Overshoot");
     const delay = canRescue ? 5000 : overshootBust ? 3400 : 1650;
     const timer = setTimeout(() => {
+      if (onlineLiveActive) {
+        onlineMatch.sendAction("pass_farkle");
+        return;
+      }
       setState((s) => (s?.farkle ? passAfterFarkle(s) : s));
     }, delay);
     return () => clearTimeout(timer);
-  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner, skinPower?.id, plasmaCutOpen, state]);
+  }, [state?.farkle, state?.bustCount, state?.currentIndex, state?.winner, skinPower?.id, plasmaCutOpen, state, onlineLiveActive, onlineMatch]);
 
   // Award coins + XP on game end (and record win / games_finished)
   useEffect(() => {
@@ -476,7 +509,7 @@ export default function Game() {
         setPopup({ word: "PERFECT 10,000! 🎯 BADGE + MYTHIC DICE UNLOCKED", variant: "success" });
       }
 
-      const localIdx = onlineSession?.viewerPlayerIndex ?? 0;
+      const localIdx = onlineViewerIndex;
       const playedSkinId =
         state.players?.[localIdx]?.skinId || equippedSkinId || user?.equipped_skin;
       recordGameResult({ won: true, xpGain, skinId: playedSkinId });
@@ -490,7 +523,7 @@ export default function Game() {
     recordGameResult,
     user,
     equippedSkinId,
-    onlineSession?.viewerPlayerIndex,
+    onlineViewerIndex,
   ]);
 
   // Hot dice XP — award once per hot-dice event (tracked in game state)
@@ -534,6 +567,12 @@ export default function Game() {
     }
     // Cast never advances the turn — keep the caster's seat even if a power
     // effect wiped the opponent (Feeding Frenzy) or set FX flags.
+    if (onlineLiveActive) {
+      onlineMatch.sendAction("apply_power", { powerId: skinPower.id });
+      setBloodWaterLocked(false);
+      if (result.message) toast.success(result.message);
+      return;
+    }
     const spent = consumeSkinPower(result.state);
     setState({
       ...spent,
@@ -561,6 +600,12 @@ export default function Game() {
     const result = applyPlasmaCut(state, dieId, newValue);
     if (result.variant === "warning") {
       if (result.message) toast.warning(result.message);
+      return;
+    }
+    if (onlineLiveActive) {
+      onlineMatch.sendAction("plasma_cut", { dieId, newValue });
+      setBloodWaterLocked(false);
+      if (result.message) toast.success(result.message);
       return;
     }
     setState(consumeSkinPower(result.state));
@@ -628,9 +673,18 @@ export default function Game() {
 
   const doRoll = useCallback(() => {
     if (!state || state.sharkBiteFx || rollAnim || rollLockRef.current) return;
+    if (onlineLiveActive && state.currentIndex !== onlineViewerIndex) return;
     rollLockRef.current = true;
     setRollAnim(true);
     playRollSound();
+    if (onlineLiveActive) {
+      onlineMatch.sendAction("roll");
+      setTimeout(() => {
+        setRollAnim(false);
+        rollLockRef.current = false;
+      }, 900);
+      return;
+    }
     const rolled = rollDice(state);
     setState(rolled);
     setTimeout(() => {
@@ -638,16 +692,32 @@ export default function Game() {
       setState(s => evaluateRoll(s));
       rollLockRef.current = false;
     }, 900);
-  }, [state, rollAnim, playRollSound]);
+  }, [state, rollAnim, playRollSound, onlineLiveActive, onlineViewerIndex, onlineMatch]);
 
   const onToggleDie = useCallback((dieId) => {
+    if (onlineLiveActive) {
+      onlineMatch.sendAction("toggle_hold", { dieId });
+      return;
+    }
     setState((s) => toggleHold(s, dieId));
-  }, []);
+  }, [onlineLiveActive, onlineMatch]);
 
   const onRollAgain = useCallback(() => {
     if (!state || rollAnim || rollLockRef.current) return;
     const info = getHeldInfo(state);
     if (!info.valid || heldSelectionPoints(info, state.perfectTenKPending) === 0) return;
+    if (onlineLiveActive) {
+      if (state.currentIndex !== onlineViewerIndex) return;
+      rollLockRef.current = true;
+      setRollAnim(true);
+      playRollSound();
+      onlineMatch.sendAction("confirm_reroll", { options: getHotDicePowerConfirmOptions() });
+      setTimeout(() => {
+        setRollAnim(false);
+        rollLockRef.current = false;
+      }, 900);
+      return;
+    }
     const { state: next, instantWin } = confirmAndReroll(state, getHotDicePowerConfirmOptions());
     if (instantWin) setPopup({ word: "SIX OF A KIND — YOU WIN!", variant: "success" });
     if (next.winner) {
@@ -662,7 +732,7 @@ export default function Game() {
       setRollAnim(false);
       rollLockRef.current = false;
     }, 900);
-  }, [state, rollAnim, playRollSound]);
+  }, [state, rollAnim, playRollSound, onlineLiveActive, onlineViewerIndex, onlineMatch]);
 
   useEffect(() => {
     rollLockRef.current = false;
@@ -675,10 +745,10 @@ export default function Game() {
   const currentGhostPrivacy = ghostDicePrivacyActive(currentPlayerForShield);
   // Local pass-and-play: handoff so others look away before Ghost sees dice.
   const passPlayPrivacyActive = privacySettings.enabled && multiPlayer;
-  const ghostLocalHandoff = multiPlayer && currentGhostPrivacy && !onlineMockActive;
+  const ghostLocalHandoff = multiPlayer && currentGhostPrivacy && !onlineAnyActive;
   const localHandoffActive = passPlayPrivacyActive || ghostLocalHandoff;
   // Same-device pass-and-play uses handoff overlay — not online opponent-view blocking.
-  const onlineActive = onlineMockActive && !passPlayPrivacyActive && onlineView.active;
+  const onlineActive = onlineAnyActive && !passPlayPrivacyActive && onlineView.active;
   const shieldUp = onlineActive
     ? onlineUi.opponentTurnShield
     : localHandoffActive && revealedTurnKey !== state?.currentIndex;
@@ -686,13 +756,13 @@ export default function Game() {
   useEffect(() => {
     if (!state) return;
     // Ghost + disguise must claim the device before dice appear — never auto-reveal.
-    if (multiPlayer && !onlineMockActive && ghostDicePrivacyActive(state.players[state.currentIndex])) {
+    if (multiPlayer && !onlineAnyActive && ghostDicePrivacyActive(state.players[state.currentIndex])) {
       return;
     }
     if (!passPlayPrivacyActive) {
       setRevealedTurnKey(state.currentIndex);
     }
-  }, [passPlayPrivacyActive, multiPlayer, onlineMockActive, state?.currentIndex, state]);
+  }, [passPlayPrivacyActive, multiPlayer, onlineAnyActive, state?.currentIndex, state]);
 
   const onPrivacySettingsChange = useCallback(
     (next) => {
@@ -706,7 +776,8 @@ export default function Game() {
   const onOnlineVisibilityChange = useCallback((next) => {
     const saved = saveProfileOnlineVisibility(next);
     setOnlineVisibilitySettings(saved);
-  }, []);
+    if (onlineLiveActive) onlineMatch.syncVisibility(saved);
+  }, [onlineLiveActive, onlineMatch]);
 
   const onTurnReady = useCallback(() => {
     setRevealedTurnKey(state?.currentIndex ?? 0);
@@ -727,28 +798,61 @@ export default function Game() {
 
   const onBank = () => {
     if (!state || rollAnim || state.sharkBiteFx) return;
+    const info = getHeldInfo(state);
+    const points = heldSelectionPoints(info, state.perfectTenKPending);
+    const player = state.players[state.currentIndex];
+    const potential = (state.turnScore || 0) + (info.valid ? points : 0);
+    const allowed =
+      state.hasRolled &&
+      !state.farkle &&
+      info.valid &&
+      points > 0 &&
+      (!!player.onBoard || potential >= ENTRY_THRESHOLD);
+    if (!allowed) return;
+
+    if (onlineLiveActive) {
+      if (state.currentIndex !== onlineViewerIndex) return;
+      if (playerHasSharkBiteMark(player)) {
+        const victimSkinId = getPrisonTraySkinId(
+          state,
+          state.currentIndex,
+          getDisplaySkinId(player, ghostOptions)
+        );
+        biteTrayFreezeRef.current = captureSharkBiteTrayFreeze({
+          dice: state.dice,
+          playerIndex: state.currentIndex,
+          skinId: victimSkinId,
+          skinLevel:
+            state.currentIndex === onlineViewerIndex
+              ? getLocalSkinPowerLevel(victimSkinId, user)
+              : 1,
+        });
+      }
+      onlineMatch.sendAction("bank");
+      return;
+    }
+
     setState((s) => {
       if (!s || s.sharkBiteFx || s.farkle || s.winner) return s;
-      const info = getHeldInfo(s);
-      const points = heldSelectionPoints(info, s.perfectTenKPending);
-      const player = s.players[s.currentIndex];
-      const potential = (s.turnScore || 0) + (info.valid ? points : 0);
-      const allowed =
+      const heldInfo = getHeldInfo(s);
+      const heldPts = heldSelectionPoints(heldInfo, s.perfectTenKPending);
+      const p = s.players[s.currentIndex];
+      const pot = (s.turnScore || 0) + (heldInfo.valid ? heldPts : 0);
+      const ok =
         s.hasRolled &&
         !s.farkle &&
-        info.valid &&
-        points > 0 &&
-        (!!player.onBoard || potential >= ENTRY_THRESHOLD);
-      if (!allowed) return s;
-      const prevScore = player.score;
-      const prevName = player.name;
-      // Freeze victim tray before bankAndPass advances currentIndex / refreshes dice.
-      if (playerHasSharkBiteMark(player)) {
-        const localIdx = onlineMockActive ? onlineSession?.viewerPlayerIndex ?? 0 : 0;
+        heldInfo.valid &&
+        heldPts > 0 &&
+        (!!p.onBoard || pot >= ENTRY_THRESHOLD);
+      if (!ok) return s;
+      const prevScore = p.score;
+      const prevName = p.name;
+      if (playerHasSharkBiteMark(p)) {
+        const localIdx = onlineAnyActive ? onlineViewerIndex : 0;
         const victimSkinId = getPrisonTraySkinId(
           s,
           s.currentIndex,
-          getDisplaySkinId(player, ghostOptions)
+          getDisplaySkinId(p, ghostOptions)
         );
         biteTrayFreezeRef.current = captureSharkBiteTrayFreeze({
           dice: s.dice,
@@ -762,7 +866,7 @@ export default function Game() {
       }
       const next = bankAndPass(s);
       if (!next.sharkBiteFx) biteTrayFreezeRef.current = null;
-      const after = next.players.find((p) => p.name === prevName);
+      const after = next.players.find((pl) => pl.name === prevName);
       const gained = (after?.score ?? prevScore) - prevScore;
       if (gained > 0) addCoins(Math.floor(gained / 1000));
       return next;
@@ -802,7 +906,25 @@ export default function Game() {
     );
   }
 
-  if (!state) return null;
+  if (!state) {
+    if (onlineLiveActive) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-cyan-300 px-6 text-center gap-4">
+          {onlineMatch.error ? (
+            <>
+              <p className="text-rose-400">{onlineMatch.error}</p>
+              <Link to="/online" className="text-cyan-400 underline text-sm font-bold">
+                Back to online lobby
+              </Link>
+            </>
+          ) : (
+            <p className="text-sm">Connecting to match…</p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  }
 
   const displayState = onlineActive ? onlineView.renderState : state;
   const effectiveTurnScore = displayState.turnScore ?? 0;
@@ -890,7 +1012,7 @@ export default function Game() {
     (currentGhostPrivacy && hideDiceNow ? getGhostHiddenTraySkinId() : practiceTraySkinId);
   // Only the local player's own tray should show earned frost progression.
   const localPlayerIndex = onlineActive
-    ? onlineSession?.viewerPlayerIndex ?? 0
+    ? onlineViewerIndex
     : 0;
   const trayOwnerIndex = biteTrayFreeze?.playerIndex ?? displayState.currentIndex;
   const diceTraySkinLevel = biteTrayFreeze
@@ -921,7 +1043,7 @@ export default function Game() {
     return xrayRevealsVisible(displayState.xrayReveals, {
       scannerIndex: displayState.xrayScannerIndex,
       currentIndex: displayState.currentIndex,
-      viewerIndex: onlineActive ? (onlineSession?.viewerPlayerIndex ?? 0) : null,
+      viewerIndex: onlineActive ? (onlineViewerIndex) : null,
     });
   })();
   const diceInputBlocked = shieldUp || (onlineActive && onlineUi.diceInteractionDisabled);
@@ -1333,11 +1455,14 @@ export default function Game() {
       <SharkBiteScreenFX
         active={!!state.sharkBiteFx}
         onComplete={() => {
-          // Bite finished — always restore tray dice + skins.
           setBloodWaterLocked(false);
           practiceSharkBiteRef.current = false;
           biteTrayFreezeRef.current = null;
           setBiteTrayFreeze(null);
+          if (onlineLiveActive) {
+            onlineMatch.sendAction("clear_shark_bite_fx");
+            return;
+          }
           setState((s) => restoreSharkDice(clearSharkBiteFx(s)));
         }}
       />

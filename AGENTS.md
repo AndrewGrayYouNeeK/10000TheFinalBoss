@@ -52,7 +52,7 @@ ios/             Capacitor native iOS project (generated)
 - **Local game**: Home → Setup → Game (`sessionStorage` for player names)
 - **Story mode**: Home → Story → StoryGame (AI opponent via `aiOpponent.js`)
 - **Shop**: coins/XP from `localProfile`; purchases via `useCosmetics().buyItem()`
-- **Online**: `/online` shows unavailable page (no server yet)
+- **Online**: `/online` lobby + WebSocket server (`npm run dev:online-server`)
 
 ## Cursor Rules
 

@@ -43,7 +43,7 @@ const SoundwaveMicSettings = lazy(() => import('@/pages/SoundwaveMicSettings'));
 const About = lazy(() => import('@/pages/About'));
 const Contact = lazy(() => import('@/pages/Contact'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
-const OnlineUnavailable = lazy(() => import('@/pages/OnlineUnavailable'));
+const OnlineLobby = lazy(() => import('@/pages/OnlineLobby'));
 const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
 const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
 const IcePowerLab = lazy(() => import('@/pages/IcePowerLab'));
@@ -151,8 +151,8 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy" element={<Privacy />} />
-            <Route path="/online" element={<OnlineUnavailable />} />
-            <Route path="/online/:matchId" element={<OnlineUnavailable />} />
+            <Route path="/online" element={<OnlineLobby />} />
+            <Route path="/online/:matchId" element={<OnlineLobby />} />
             <Route path="/story" element={<Story />} />
             <Route path="/story/:bossId" element={<StoryGame />} />
             <Route path="/video-assets" element={<VideoAssets />} />

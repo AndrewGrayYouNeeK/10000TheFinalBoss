@@ -1,6 +1,6 @@
 # Online Multiplayer Architecture
 
-**Status (Jul 2026):** Online PvP is **not implemented**. `/online` routes to a placeholder page. There is no game server, WebSocket layer, matchmaking, or auth. Local pass-and-play privacy (`src/lib/passPlayPrivacy.js`) is a **shared-device** feature and does not apply to remote play.
+**Status (Aug 2026):** Online PvP is **implemented** for 2-player rooms via the Node WebSocket server in `server/`. Matchmaking is invite-code based (create/join lobby). Auth and ranked queue are still out of scope.
 
 This document defines the **server-authoritative, per-client visibility** model the client is scaffolded for.
 
@@ -10,9 +10,9 @@ This document defines the **server-authoritative, per-client visibility** model 
 
 | Area | Status |
 |------|--------|
-| Route `/online`, `/online/:matchId` | Placeholder → `OnlineUnavailable.jsx` |
-| WebSocket / REST game server | **None** |
-| Matchmaking / rooms / invites | **None** |
+| Route `/online`, `/online/:matchId` | Lobby → `OnlineLobby.jsx` |
+| WebSocket game server | `server/index.mjs` (`npm run dev:online-server`) |
+| Matchmaking / rooms / invites | 4-letter room codes, host start |
 | Auth / accounts | Local profile only (`localProfile.js`) |
 | Online skin levels stub | `skin_levels` in profile + `getSkinPowerLevel()` |
 | Opponent SFX mute | Saved in profile (for future online) |

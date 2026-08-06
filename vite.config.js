@@ -16,6 +16,12 @@ export default defineConfig({
     strictPort: true,
     // IPv4 loopback — default Vite on macOS often listens on IPv6 [::1] only, so 127.0.0.1 refused.
     host: '127.0.0.1',
+    proxy: {
+      '/ws': {
+        target: 'http://127.0.0.1:8787',
+        ws: true,
+      },
+    },
   },
   preview: {
     port: 4173,
