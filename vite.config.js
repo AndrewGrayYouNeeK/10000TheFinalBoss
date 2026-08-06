@@ -17,9 +17,12 @@ export default defineConfig({
     // IPv4 loopback — default Vite on macOS often listens on IPv6 [::1] only, so 127.0.0.1 refused.
     host: '127.0.0.1',
     proxy: {
-      '/ws': {
+      // Local online multiplayer worker (`npm run online:dev` → wrangler on :8787)
+      '/online-api': {
         target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
         ws: true,
+        rewrite: (p) => p.replace(/^\/online-api/, ''),
       },
     },
   },

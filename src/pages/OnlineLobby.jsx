@@ -1,110 +1,101 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Wifi, WifiOff, Copy, Users, Loader2 } from "lucide-react";
+import { Copy, FlaskConical, Users, Wifi } from "lucide-react";
 import { motion } from "framer-motion";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import NightCityBackground from "@/components/online/NightCityBackground";
 import OnlineVisibilityPreview from "@/components/online/OnlineVisibilityPreview";
 import MuteToggleButton from "@/components/game/MuteToggleButton";
 import { useCosmetics } from "@/hooks/useCosmetics";
-import { useOnlineMatch } from "@/hooks/useOnlineMatch";
-import { writeOnlineLiveSession, readOnlineLiveSession } from "@/lib/onlineSession";
-import { clearOnlineMockSession } from "@/lib/onlineVisibility";
-import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
+import { writeOnlineMockSession, clearOnlineMockSession } from "@/lib/onlineVisibility";
+import { SESSION_PLAYER_SKINS_KEY } from "@/lib/ghostDisguise";
+import {
+  clearOnlineLiveSession,
+  createOnlineRoom,
+  defaultOnlineDisplayName,
+  defaultOnlineSkinId,
+  newPlayerId,
+  writeOnlineLiveSession,
+} from "@/lib/onlineClient";
 import { toast } from "sonner";
 
 export default function OnlineLobby() {
   const navigate = useNavigate();
-  const { matchId: routeMatchId } = useParams();
-  const {
-    sfxMuted,
-    opponentSfxMuted,
-    setSfxMuted,
-    setOpponentSfxMuted,
-    equippedSkinId,
-    ghostDisguiseId,
-    profile,
-  } = useCosmetics();
+  const { matchId } = useParams();
+  const { sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, equippedSkinId } =
+    useCosmetics();
 
-  const existing = readOnlineLiveSession();
-  const [playerName, setPlayerName] = useState(() => profile?.display_name || "Player");
-  const [joinCode, setJoinCode] = useState(() => routeMatchId?.toUpperCase() || "");
-  const [connectMode, setConnectMode] = useState(null);
+  const [name, setName] = useState(() => defaultOnlineDisplayName());
+  const [joinCode, setJoinCode] = useState(() => (matchId ? String(matchId).toUpperCase() : ""));
+  const [busy, setBusy] = useState(false);
+  const [createdCode, setCreatedCode] = useState(null);
 
-  const disguiseSkinId =
-    equippedSkinId === GHOST_SKIN_ID && ghostDisguiseId ? ghostDisguiseId : null;
+  const skinId = useMemo(
+    () => equippedSkinId || defaultOnlineSkinId(),
+    [equippedSkinId]
+  );
 
-  const online = useOnlineMatch({
-    enabled: !!connectMode,
-    mode: connectMode || "create",
-    roomCode:
-      connectMode === "join" || connectMode === "reconnect"
-        ? joinCode || existing?.matchId
-        : null,
-    playerId: connectMode === "reconnect" ? existing?.playerId : null,
-    playerName,
-    skinId: equippedSkinId,
-    disguiseSkinId,
-  });
-
-  useEffect(() => {
-    if (routeMatchId && !connectMode) {
-      setConnectMode("join");
-    } else if (existing && !connectMode && !routeMatchId) {
-      setConnectMode("reconnect");
-    }
-  }, [routeMatchId, existing, connectMode]);
-
-  useEffect(() => {
-    if (online.roomState?.status !== "playing" && !online.viewerState) return;
-
-    const joined = online.joinedInfo;
-    const matchId = joined?.roomCode || online.roomState?.roomCode;
-    const playerId = joined?.playerId || existing?.playerId;
-    const viewerIndex = joined?.playerIndex ?? online.roomState?.youAreIndex ?? 0;
-
-    if (!matchId || !playerId) return;
-
+  const enterMatch = (code, playerId, viewerPlayerIndex = 0) => {
     clearOnlineMockSession();
-    const names =
-      online.viewerState?.players?.map((p) => p.name) ?? ["You", "Opponent"];
-    sessionStorage.setItem("dice10k_players", JSON.stringify(names));
-    writeOnlineLiveSession({
-      matchId,
-      playerId,
-      viewerPlayerIndex: viewerIndex,
-      isHost: joined?.isHost ?? online.roomState?.isHost ?? false,
-    });
-    navigate("/game", { replace: true });
-  }, [
-    online.roomState?.status,
-    online.viewerState,
-    online.joinedInfo,
-    navigate,
-    existing?.playerId,
-    online.roomState?.roomCode,
-    online.roomState?.youAreIndex,
-    online.roomState?.isHost,
-  ]);
+    sessionStorage.setItem("dice10k_players", JSON.stringify([name.trim() || "Player", "Opponent"]));
+    sessionStorage.removeItem(SESSION_PLAYER_SKINS_KEY);
+    writeOnlineLiveSession({ code, playerId, viewerPlayerIndex });
+    navigate(`/online/${encodeURIComponent(code)}/play`);
+  };
 
-  const roomCode = online.joinedInfo?.roomCode || online.roomState?.roomCode;
-  const waiting = online.roomState?.status === "lobby";
-  const canStart = online.roomState?.canStart;
-  const playerCount = online.roomState?.players?.length ?? 0;
-
-  const copyCode = async () => {
-    if (!roomCode) return;
+  const onCreate = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
-      await navigator.clipboard.writeText(roomCode);
-      toast.success("Room code copied!");
-    } catch {
-      toast.error(`Could not copy — share manually: ${roomCode}`);
+      const code = await createOnlineRoom();
+      const playerId = newPlayerId();
+      setCreatedCode(code);
+      enterMatch(code, playerId, 0);
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.message || "Could not create room — is the online server running?");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const serverDown = connectMode && online.error && !online.connected && !roomCode;
+  const onJoin = async () => {
+    const code = String(joinCode || "").trim().toUpperCase();
+    if (!code || code.length < 4) {
+      toast.warning("Enter a room code");
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    try {
+      clearOnlineLiveSession();
+      const playerId = newPlayerId();
+      enterMatch(code, playerId, 1);
+    } catch (err) {
+      toast.error(err?.message || "Could not join");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyCode = async () => {
+    if (!createdCode) return;
+    try {
+      await navigator.clipboard.writeText(createdCode);
+      toast.success("Code copied");
+    } catch {
+      toast.message(createdCode);
+    }
+  };
+
+  const startDevMock = () => {
+    clearOnlineLiveSession();
+    sessionStorage.setItem("dice10k_players", JSON.stringify(["You", "Opponent"]));
+    sessionStorage.removeItem(SESSION_PLAYER_SKINS_KEY);
+    writeOnlineMockSession(0);
+    navigate("/game");
+  };
 
   return (
     <div
@@ -142,167 +133,107 @@ export default function OnlineLobby() {
         <div
           className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
           style={{
-            background: serverDown ? "rgba(255,100,100,0.1)" : "rgba(0,255,200,0.08)",
-            border: serverDown
-              ? "2px solid rgba(255,100,100,0.4)"
-              : "2px solid rgba(0,255,200,0.35)",
+            background: "rgba(0,255,200,0.1)",
+            border: "2px solid rgba(0,255,200,0.4)",
           }}
         >
-          {serverDown ? (
-            <WifiOff className="w-10 h-10 text-rose-400" />
-          ) : (
-            <Wifi className="w-10 h-10 text-cyan-400" />
-          )}
+          <Wifi className="w-10 h-10 text-cyan-300" />
         </div>
 
-        <h1 className="font-pixel text-2xl mb-2" style={{ color: "#00ffc8" }}>
-          Play Online
+        <h1 className="font-pixel text-2xl mb-3" style={{ color: "#00ffc8" }}>
+          Online Play
         </h1>
         <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-          {serverDown
-            ? "Start the online server, then try again."
-            : "Create a room or join with a friend's 4-letter code."}
+          Create a room, share the code, and duel on separate devices. The server rolls the dice —
+          each player only sees what your privacy settings allow.
         </p>
 
-        {serverDown && (
-          <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-4 py-3 mb-4 text-left text-xs text-slate-400">
-            <p className="text-rose-300 font-bold mb-1">Server not reachable</p>
-            <p className="mb-2">{online.error}</p>
-            <p>
-              In a second terminal run:{" "}
-              <code className="text-cyan-300">npm run dev:online-server</code>
-            </p>
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3 mb-4 text-left space-y-3">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Your name
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value.slice(0, 24))}
+            className="w-full rounded-lg bg-slate-950/80 border border-slate-600 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400"
+            placeholder="Player"
+            maxLength={24}
+          />
+          <p className="text-[11px] text-slate-500">
+            Skin in play: <span className="text-cyan-300">{skinId}</span>
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 mb-4">
+          <Button
+            type="button"
+            disabled={busy}
+            className="w-full font-bold"
+            style={{ background: "linear-gradient(135deg, #00ffc8, #00b8ff)", color: "#000" }}
+            onClick={onCreate}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            {busy ? "Creating…" : "Create room"}
+          </Button>
+
+          {createdCode && (
+            <button
+              type="button"
+              onClick={copyCode}
+              className="flex items-center justify-center gap-2 text-sm text-cyan-200 border border-cyan-500/30 rounded-lg py-2 bg-cyan-950/20"
+            >
+              <Copy className="w-4 h-4" />
+              Room code: <span className="font-mono font-bold tracking-widest">{createdCode}</span>
+            </button>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              value={joinCode}
+              onChange={(e) =>
+                setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))
+              }
+              className="flex-1 rounded-lg bg-slate-950/80 border border-slate-600 px-3 py-2 text-sm text-white font-mono tracking-widest outline-none focus:border-cyan-400"
+              placeholder="ROOM CODE"
+              maxLength={8}
+            />
             <Button
               type="button"
               variant="outline"
-              className="mt-3 w-full border-slate-600"
-              onClick={() => setConnectMode(null)}
+              disabled={busy}
+              className="border-cyan-500/40 text-cyan-200"
+              onClick={onJoin}
             >
-              Try again
+              Join
             </Button>
           </div>
-        )}
-
-        {!roomCode && !serverDown && (
-          <div className="space-y-4 mb-6 text-left">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Your name
-              </label>
-              <Input
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                maxLength={24}
-                className="mt-1 bg-slate-900/60 border-slate-700"
-              />
-            </div>
-
-            {connectMode !== "create" && (
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Room code
-                </label>
-                <Input
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 4))}
-                  placeholder="ABCD"
-                  maxLength={4}
-                  className="mt-1 bg-slate-900/60 border-slate-700 font-mono tracking-widest uppercase"
-                />
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {!connectMode && (
-                <>
-                  <Button
-                    type="button"
-                    className="w-full font-bold"
-                    style={{
-                      background: "linear-gradient(135deg, #00ffc8, #00b8ff)",
-                      color: "#000",
-                    }}
-                    disabled={!playerName.trim()}
-                    onClick={() => setConnectMode("create")}
-                  >
-                    Create room
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full border-slate-600 text-slate-300"
-                    disabled={!playerName.trim() || joinCode.length < 4}
-                    onClick={() => setConnectMode("join")}
-                  >
-                    Join room
-                  </Button>
-                </>
-              )}
-              {connectMode && !roomCode && !serverDown && (
-                <p className="text-xs text-slate-500 text-center flex items-center justify-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Connecting…
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {roomCode && waiting && (
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 px-4 py-4 mb-4 text-left">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-2">
-              Room code — share with friend
-            </p>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="font-mono text-3xl font-black tracking-[0.35em] text-white">
-                {roomCode}
-              </span>
-              <Button type="button" size="icon" variant="ghost" onClick={copyCode}>
-                <Copy className="w-4 h-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-slate-400 flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              {playerCount}/2 players connected
-            </p>
-            {online.error && (
-              <p className="text-xs text-rose-400 mt-2">{online.error}</p>
-            )}
-            {canStart && (
-              <Button
-                type="button"
-                className="w-full mt-4 font-bold"
-                style={{
-                  background: "linear-gradient(135deg, #00ffc8, #00b8ff)",
-                  color: "#000",
-                }}
-                onClick={online.startMatch}
-              >
-                Start match
-              </Button>
-            )}
-            {!canStart && playerCount < 2 && (
-              <p className="text-xs text-slate-500 mt-3">Waiting for opponent to join…</p>
-            )}
-          </div>
-        )}
+        </div>
 
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 px-4 py-3 mb-4 text-left">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-2">
-            Privacy
+            Privacy (per turn)
           </p>
           <p className="text-xs text-slate-400 leading-relaxed mb-3">
-            Each player chooses what opponents see during their turn. Tune this in-game via the
-            eye icon.
+            Opponents see a redacted payload while you roll — dice, turn score, and power panel stay
+            hidden by default. Change this in-game under Online privacy.
           </p>
           <OnlineVisibilityPreview />
         </div>
 
         <div className="flex flex-col gap-3">
+          {import.meta.env.DEV && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-amber-500/40 text-amber-200 hover:bg-amber-950/30"
+              onClick={startDevMock}
+            >
+              <FlaskConical className="w-4 h-4 mr-2" />
+              Offline visibility mock (dev)
+            </Button>
+          )}
           <Button asChild variant="outline" className="w-full border-slate-600 text-slate-300">
-            <Link to="/setup">Play Local Instead</Link>
-          </Button>
-          <Button asChild variant="ghost" className="w-full text-slate-500">
-            <Link to="/">Back to Home</Link>
+            <Link to="/setup">Play Local instead</Link>
           </Button>
         </div>
       </motion.div>

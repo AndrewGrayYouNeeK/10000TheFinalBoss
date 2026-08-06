@@ -87,33 +87,18 @@ Bundle ID: `com.yourneek.neon10000`
 
 ## Online Multiplayer
 
-Online PvP works via a **WebSocket game server** (authoritative dice, per-client privacy payloads).
-
-### Local dev (two browsers / two devices on LAN)
-
-Terminal 1 — Vite client:
+Invite-code PvP via a Cloudflare Worker + Durable Object (`server/`).
 
 ```bash
+# Terminal A
 npm run dev
+# Terminal B
+npm run online:dev
 ```
 
-Terminal 2 — game server:
+Open `/online` on two devices/browsers → Create room / Join with code → Ready.
 
-```bash
-npm run dev:online-server
-```
-
-Open **Play Online** on Home → create a room → share the 4-letter code → opponent joins → host starts.
-
-Vite proxies `ws://127.0.0.1:5173/ws` → `ws://127.0.0.1:8787/ws` automatically.
-
-Optional override: `VITE_ONLINE_WS_URL=ws://127.0.0.1:8787/ws` in `.env.local`.
-
-### Production
-
-Deploy the static site as usual (`npm run deploy:web`). Run `npm run dev:online-server` (or a hosted equivalent) on a reachable host and set `VITE_ONLINE_WS_URL` to that `wss://` endpoint at build time.
-
-See `docs/ONLINE_ARCHITECTURE.md` for the wire protocol.
+Production: `npm run online:deploy`, then set `VITE_ONLINE_URL` to the worker URL and rebuild the web app.
 
 ## AI / Cursor Setup
 

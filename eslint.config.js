@@ -6,7 +6,7 @@ import pluginUnusedImports from "eslint-plugin-unused-imports";
 
 export default [
   {
-    ignores: ["ios/**", "node_modules/**", "dist/**", "android/**"],
+    ignores: ["ios/**", "node_modules/**", "dist/**", "android/**", ".wrangler/**"],
   },
   {
     files: [

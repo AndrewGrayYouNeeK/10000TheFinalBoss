@@ -19,6 +19,7 @@ import {
 import PassPlayPrivacySettings from "@/components/game/PassPlayPrivacySettings";
 import { loadPassPlayPrivacy, savePassPlayPrivacy } from "@/lib/passPlayPrivacy";
 import { clearOnlineMockSession } from "@/lib/onlineVisibility";
+import { clearOnlineLiveSession } from "@/lib/onlineClient";
 import { clearLocalGame } from "@/lib/localGameSave";
 
 export default function Setup() {
@@ -126,6 +127,7 @@ export default function Setup() {
     sessionStorage.setItem(SESSION_PLAYER_DISGUISES_KEY, JSON.stringify(disguises));
     savePassPlayPrivacy(privacySettings, { persistProfile: true });
     clearOnlineMockSession();
+    clearOnlineLiveSession();
     clearLocalGame();
     navigate("/game");
   };

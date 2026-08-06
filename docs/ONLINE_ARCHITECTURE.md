@@ -1,8 +1,6 @@
 # Online Multiplayer Architecture
 
-**Status (Aug 2026):** Online PvP is **implemented** for 2-player rooms via the Node WebSocket server in `server/`. Matchmaking is invite-code based (create/join lobby). Auth and ranked queue are still out of scope.
-
-This document defines the **server-authoritative, per-client visibility** model the client is scaffolded for.
+**Status (Aug 2026):** Online PvP MVP is implemented via a Cloudflare Worker + Durable Object (`server/`). Local play remains fully offline.
 
 ---
 
@@ -10,14 +8,53 @@ This document defines the **server-authoritative, per-client visibility** model 
 
 | Area | Status |
 |------|--------|
-| Route `/online`, `/online/:matchId` | Lobby → `OnlineLobby.jsx` |
-| WebSocket game server | `server/index.mjs` (`npm run dev:online-server`) |
-| Matchmaking / rooms / invites | 4-letter room codes, host start |
-| Auth / accounts | Local profile only (`localProfile.js`) |
-| Online skin levels stub | `skin_levels` in profile + `getSkinPowerLevel()` |
-| Opponent SFX mute | Saved in profile (for future online) |
-| Pass-and-play privacy | Local shared-screen only — **not** online |
-| Client scaffolding | `onlineGameState.js`, `onlineVisibility.js`, `useOnlineGameView.js` |
+| Route `/online` | Lobby — create / join by invite code |
+| Route `/online/:code/play` | Waiting room → hands off to `/game` |
+| WebSocket game server | `server/` Cloudflare Worker + `MatchRoom` DO |
+| Matchmaking | Invite codes (2 players) |
+| Auth / accounts | Guest tokens in `sessionStorage` (no accounts yet) |
+| Per-client visibility | `buildClientMatchPayload()` on the server |
+| Client scaffolding | `onlineClient.js`, `useOnlineMatch.js`, `useOnlineGameView.js` |
+
+---
+
+## Local development
+
+Run **two** terminals:
+
+```bash
+# Terminal A — game UI
+npm run dev
+
+# Terminal B — online worker (Durable Objects)
+npm run online:dev
+```
+
+Vite proxies `/online-api` → `http://127.0.0.1:8787` (see `vite.config.js`).
+
+Open two browser profiles (or one normal + one private window) at `http://127.0.0.1:5173/online`:
+
+1. **Create room** on device A → copy code  
+2. **Join** with that code on device B  
+3. Both tap **I'm ready** → match starts on `/game`
+
+---
+
+## Production deploy
+
+```bash
+npx wrangler login   # once
+npm run online:deploy
+```
+
+Then set the worker URL for the web app:
+
+```bash
+# .env.production / Cloudflare Pages env
+VITE_ONLINE_URL=https://roll10000-online.<account>.workers.dev
+```
+
+Rebuild/deploy the Pages site (`npm run deploy:web`) so the client picks up `VITE_ONLINE_URL`.
 
 ---
 
@@ -25,139 +62,31 @@ This document defines the **server-authoritative, per-client visibility** model 
 
 Each connected client receives a **`ClientMatchPayload`** built by the server for **that viewer only**. Clients must never infer hidden opponent data from a shared broadcast.
 
-```
-┌─────────────┐     authoritative      ┌──────────────┐
-│   Server    │◄─── actions (roll,     │  Player A    │
-│  match room │     hold, bank, power) │  (client)    │
-│             │                        └──────────────┘
-│  canonical  │     ClientMatchPayload
-│  MatchState │────────────────────────► Player A view (full dice on A's turn)
-│             │
-│             │     ClientMatchPayload
-│             └────────────────────────► Player B view (redacted dice on A's turn)
-```
-
-The reference implementation of payload projection lives in:
+The reference implementation lives in:
 
 - `src/lib/onlineGameState.js` → `buildClientMatchPayload()`, `deriveOnlineUiFlags()`
-
-The server should run equivalent logic (or share this module in a monorepo worker).
-
----
-
-## Visibility preferences (per player)
-
-Each player configures what **opponents** see during **their** turn. Stored locally today as `online_visibility` in the player profile; must sync to server account when online launches.
-
-| Flag | Opponent sees during your turn |
-|------|----------------------------------|
-| `hideDice` | Blurred/hidden die faces (held status optional) |
-| `hideTurnScore` | `•••` instead of live turn score |
-| `hidePowerPanel` | No power mode panel / tray charge fanfare |
-| `hidePowerChargeBadge` | No ⚡ on score card |
-| `hideXrayReveals` | X-ray findings withheld |
-| `subtlePowerVfx` | Reduced glow if any power UI leaks through |
-
-Defaults: all hiding **on** (privacy-first).
-
-Managed by `src/lib/onlineVisibility.js` and `OnlinePrivacySettings.jsx`.
+- `server/applyAction.js` → applies `gameLogic` actions, then fans out payloads
 
 ---
 
 ## Server message contract
 
-### Client → Server (actions)
+### Client → Server
 
 ```json
-{
-  "type": "action",
-  "matchId": "uuid",
-  "playerId": "uuid",
-  "action": "roll" | "toggle_hold" | "confirm_reroll" | "bank" | "pass_farkle" | "use_power" | "plasma_cut" | ...,
-  "payload": {}
-}
+{ "type": "join", "name": "You", "skinId": "classic_white", "visibility": { } }
+{ "type": "ready" }
+{ "type": "action", "action": "roll" | "toggle_hold" | "confirm_reroll" | "bank" | "pass_farkle" | "use_power" | "plasma_cut" | "clear_shark_bite_fx", "payload": {} }
+{ "type": "set_visibility", "visibility": { } }
 ```
 
-Server validates turn, applies via existing game rules (`gameLogic.js` on server), then pushes updated payloads.
-
-### Server → Client (state sync)
+### Server → Client
 
 ```json
-{
-  "type": "match_state",
-  "matchId": "uuid",
-  "viewerPlayerIndex": 0,
-  "seq": 42,
-  "payload": { /* ClientMatchPayload — see onlineGameState.js */ }
-}
+{ "type": "lobby", "code": "ABC123", "status": "lobby", "seats": [] }
+{ "type": "match_state", "seq": 42, "viewerPlayerIndex": 0, "payload": { /* ClientMatchPayload */ }, "rollAnimMs": 900 }
+{ "type": "error", "error": "…" }
 ```
-
-### ClientMatchPayload (per viewer)
-
-Fields the client needs to render (redacted where applicable):
-
-| Field | Notes |
-|-------|-------|
-| `viewerPlayerIndex` | Which seat this payload is for |
-| `currentIndex` | Active turn |
-| `players[]` | Names, banked scores, onBoard, debuffs; `scoreHidden` per player when applicable |
-| `dice[]` | Full values for active viewer on their turn; `value: null` + `valueHidden: true` for opponents when `hideDice` |
-| `turnScore` | `null` when hidden from this viewer |
-| `hasRolled`, `farkle`, `winner`, … | Same semantics as local `gameLogic` state |
-| `xrayReveals` | Empty object when hidden from viewer |
-| `uiHints` | Precomputed flags: `opponentTurnShield`, `hidePowerPanel`, `subtlePowerVfx`, etc. |
-
-Reveal rules (when opponent **may** see data):
-
-- **Bank / pass / farkle end of turn** — final turn score and dice outcome broadcast to both (configurable; default reveal on bank).
-- **Game over** — all scores visible.
-- **Powers with public effect** (e.g. score freeze on opponent) — effect visible, charge animation optional per `hidePowerPanel`.
-
----
-
-## What must be built (backend)
-
-1. **Game server** — WebSocket or WebRTC data channel; room lifecycle, reconnect.
-2. **Authoritative game loop** — Port or share `gameLogic.js` + `scoring.js` + `powers.js` on server.
-3. **Per-client fan-out** — After each action, call `buildClientMatchPayload()` once per connected player.
-4. **Account / matchmaking** — Invite codes, queue, or friends list (out of scope for client stub).
-5. **Anti-cheat** — Never trust client dice values; server rolls.
-6. **Profile sync** — `skin_levels`, `online_visibility`, cosmetics for display.
-
----
-
-## Client integration points
-
-| File | Role |
-|------|------|
-| `src/hooks/useOnlineGameView.js` | Maps server payload → UI flags + display dice |
-| `src/pages/Game.jsx` | Uses hook when `dice10k_online_mock` session flag set; ready for real socket |
-| `src/pages/OnlineUnavailable.jsx` | Roadmap + dev visibility preview |
-| `src/lib/onlineGameState.js` | Payload builder (server spec + client mock) |
-
-When wiring a real server:
-
-```javascript
-// Pseudocode in Game.jsx or useOnlineMatch.js
-socket.on("match_state", (msg) => {
-  setClientPayload(msg.payload);
-});
-const { ui, displayDice } = useOnlineGameView({
-  enabled: true,
-  clientPayload, // from server — skip local buildClientMatchPayload
-});
-```
-
----
-
-## Dev mock (no server)
-
-1. Open `/online` → **Preview visibility (dev)**.
-2. Sets session flags and opens `/game` as viewer index `0`.
-3. Toggle **Online privacy** in the header (EyeOff) to change what the opponent would see.
-4. Use browser devtools to change `sessionStorage.dice10k_online_viewer_index` to `1` and refresh to simulate the other device.
-
-This runs **local** game logic with **simulated** per-client redaction — useful for UI only, not network testing.
 
 ---
 
@@ -168,4 +97,4 @@ This runs **local** game logic with **simulated** per-client redaction — usefu
 | `passPlayPrivacy.js` | One device, handoff overlay, look-away |
 | `onlineVisibility.js` | Two devices, server redacts opponent payload |
 
-Do not conflate them. Online mode ignores pass-and-play handoff overlay.
+Online mode ignores pass-and-play handoff overlay.

@@ -270,6 +270,9 @@ export default function Home() {
             >
               <Wifi className="w-5 h-5" />
               PLAY ONLINE
+              <span className="text-[10px] font-bold ml-1 px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">
+                Live
+              </span>
             </Link>
           </motion.div>
 
