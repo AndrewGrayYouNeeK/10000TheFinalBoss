@@ -85,6 +85,17 @@ export function buildClientMatchPayload({
     Object.keys(visibleXrayReveals).length === 0 &&
     Object.keys(matchState.xrayReveals ?? {}).length > 0;
 
+  // Prefer reference match (works before JSON) so duplicate display names stay unambiguous.
+  let winnerPlayerIndex = -1;
+  if (matchState.winner && Array.isArray(matchState.players)) {
+    winnerPlayerIndex = matchState.players.findIndex((p) => p === matchState.winner);
+    if (winnerPlayerIndex < 0) {
+      winnerPlayerIndex = matchState.players.findIndex(
+        (p) => p?.name === matchState.winner?.name && p?.score === matchState.winner?.score
+      );
+    }
+  }
+
   const dice = hideDiceFromViewer
     ? redactDiceForOpponent(matchState.dice)
     : (matchState.dice ?? []).map((d) => ({ ...d, valueHidden: false }));
@@ -95,6 +106,8 @@ export function buildClientMatchPayload({
   }));
 
   return {
+    // Full renderable snapshot + per-viewer redacted overrides.
+    ...matchState,
     viewerPlayerIndex,
     currentIndex,
     players,
@@ -103,8 +116,8 @@ export function buildClientMatchPayload({
     hasRolled: !!matchState.hasRolled,
     farkle: !!matchState.farkle,
     winner: matchState.winner ?? null,
+    winnerPlayerIndex: winnerPlayerIndex >= 0 ? winnerPlayerIndex : null,
     xrayReveals: visibleXrayReveals,
-    // Pass-through fields the UI may need (extend as online grows)
     sharkBiteFx: matchState.sharkBiteFx,
     sharkDiceHidden: matchState.sharkDiceHidden,
     sharkFishFeast: matchState.sharkFishFeast,
@@ -167,11 +180,19 @@ export function deriveOnlineUiFlags(payload) {
  * When online is live, prefer payload dice/turnScore over local inference.
  */
 export function applyClientPayloadToRenderState(localState, payload) {
-  if (!payload || !localState) return localState;
+  if (!payload) return localState;
+  const { uiHints: _uiHints, viewerPlayerIndex: _viewer, ...rest } = payload;
+  if (!localState) return rest;
   return {
     ...localState,
+    ...rest,
     dice: payload.dice ?? localState.dice,
-    turnScore: payload.turnScore ?? localState.turnScore,
+    turnScore: Object.prototype.hasOwnProperty.call(payload, "turnScore")
+      ? payload.turnScore
+      : localState.turnScore,
     xrayReveals: payload.xrayReveals ?? localState.xrayReveals,
+    winnerPlayerIndex: Object.prototype.hasOwnProperty.call(payload, "winnerPlayerIndex")
+      ? payload.winnerPlayerIndex
+      : localState.winnerPlayerIndex,
   };
 }

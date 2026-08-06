@@ -87,7 +87,18 @@ Bundle ID: `com.yourneek.neon10000`
 
 ## Online Multiplayer
 
-Not included in this standalone build. `/online` shows an unavailable page until a game server is added.
+Invite-code PvP via a Cloudflare Worker + Durable Object (`server/`).
+
+```bash
+# Terminal A
+npm run dev
+# Terminal B
+npm run online:dev
+```
+
+Open `/online` on two devices/browsers → Create room / Join with code → Ready.
+
+Production: `npm run online:deploy`, then set `VITE_ONLINE_URL` to the worker URL and rebuild the web app.
 
 ## AI / Cursor Setup
 

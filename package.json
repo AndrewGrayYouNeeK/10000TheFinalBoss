@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "dev:lan": "vite --host",
+    "online:dev": "npx wrangler dev --port 8787 --ip 127.0.0.1",
+    "online:deploy": "npx wrangler deploy",
     "start": "npm run build && vite preview --host localhost --port 4173 --strictPort --open",
     "play": "bash scripts/play.sh",
     "smoke": "node scripts/smoke-test.mjs",
+    "smoke:online": "node scripts/smoke-online.mjs",
     "verify:dice": "npm run build && node scripts/verify-all-dice-skins.mjs",
     "verify:blue-gel-game": "npm run build && node scripts/verify-blue-gel-gameplay.mjs",
     "check:aquarium": "node scripts/check-aquarium-skins.mjs",
