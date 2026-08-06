@@ -552,8 +552,15 @@ export default function Game() {
       const viewerIndex = isOnline
         ? (onlineLiveActive ? liveMatch.viewerPlayerIndex : onlineSession?.viewerPlayerIndex ?? 0)
         : 0;
-      const viewerWon =
-        !isOnline || state.players?.[viewerIndex]?.name === state.winner?.name;
+      const winnerPlayerIndex =
+        typeof state.winnerPlayerIndex === "number"
+          ? state.winnerPlayerIndex
+          : onlineView.payload?.winnerPlayerIndex;
+      const viewerWon = !isOnline
+        ? true
+        : typeof winnerPlayerIndex === "number"
+          ? winnerPlayerIndex === viewerIndex
+          : state.players?.[viewerIndex]?.name === state.winner?.name;
       const playedSkinId =
         state.players?.[viewerIndex]?.skinId || equippedSkinId || user?.equipped_skin;
 
@@ -596,6 +603,7 @@ export default function Game() {
     onlineLiveActive,
     onlineSession?.viewerPlayerIndex,
     liveMatch.viewerPlayerIndex,
+    onlineView.payload?.winnerPlayerIndex,
   ]);
 
   // Hot dice XP — award once per hot-dice event (tracked in game state)
@@ -807,12 +815,11 @@ export default function Game() {
   // Local pass-and-play: handoff so others look away before Ghost sees dice.
   const passPlayPrivacyActive = privacySettings.enabled && multiPlayer;
   const ghostLocalHandoff = multiPlayer && currentGhostPrivacy && !onlineMockActive && !onlineLiveActive;
-  const localHandoffActive = passPlayPrivacyActive || ghostLocalHandoff;
-  // Same-device pass-and-play uses handoff overlay — not online opponent-view blocking.
-  const onlineActive =
-    (onlineMockActive || onlineLiveActive) &&
-    (onlineLiveActive || !passPlayPrivacyActive) &&
-    onlineView.active;
+  // Pass-and-play handoff is local-only — never during mock or live online.
+  const localHandoffActive =
+    !onlineMockActive && !onlineLiveActive && (passPlayPrivacyActive || ghostLocalHandoff);
+  // Online uses server/client redaction via onlineView — ignore pass-and-play privacy flag.
+  const onlineActive = (onlineMockActive || onlineLiveActive) && onlineView.active;
   const shieldUp = onlineActive
     ? onlineUi.opponentTurnShield
     : localHandoffActive && revealedTurnKey !== state?.currentIndex;

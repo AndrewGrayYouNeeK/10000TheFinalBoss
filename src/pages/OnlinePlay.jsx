@@ -12,6 +12,7 @@ import {
   defaultOnlineSkinId,
   readOnlineLiveSession,
 } from "@/lib/onlineClient";
+import { GHOST_SKIN_ID, pickTrueSkinForGhost } from "@/lib/ghostDisguise";
 import { readProfileOnlineVisibility } from "@/lib/onlineVisibility";
 import { toast } from "sonner";
 
@@ -22,7 +23,7 @@ import { toast } from "sonner";
 export default function OnlinePlay() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const { equippedSkinId } = useCosmetics();
+  const { equippedSkinId, ghostDisguiseId, ownedSkins } = useCosmetics();
   const session = readOnlineLiveSession();
   const code = (matchId || session?.code || "").toUpperCase();
 
@@ -31,6 +32,13 @@ export default function OnlinePlay() {
 
   const playerId = session?.playerId;
   const skinId = equippedSkinId || defaultOnlineSkinId();
+  const trueSkinId = useMemo(
+    () =>
+      skinId === GHOST_SKIN_ID
+        ? ghostDisguiseId || pickTrueSkinForGhost(ownedSkins)
+        : null,
+    [skinId, ghostDisguiseId, ownedSkins]
+  );
 
   useEffect(() => {
     if (!code || !playerId) {
@@ -44,6 +52,7 @@ export default function OnlinePlay() {
     playerId,
     name,
     skinId,
+    trueSkinId,
     visibility,
     onToast: (msg, variant) => {
       if (variant === "warning") toast.warning(msg);

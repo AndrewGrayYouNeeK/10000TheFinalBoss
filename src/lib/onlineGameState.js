@@ -85,6 +85,17 @@ export function buildClientMatchPayload({
     Object.keys(visibleXrayReveals).length === 0 &&
     Object.keys(matchState.xrayReveals ?? {}).length > 0;
 
+  // Prefer reference match (works before JSON) so duplicate display names stay unambiguous.
+  let winnerPlayerIndex = -1;
+  if (matchState.winner && Array.isArray(matchState.players)) {
+    winnerPlayerIndex = matchState.players.findIndex((p) => p === matchState.winner);
+    if (winnerPlayerIndex < 0) {
+      winnerPlayerIndex = matchState.players.findIndex(
+        (p) => p?.name === matchState.winner?.name && p?.score === matchState.winner?.score
+      );
+    }
+  }
+
   const dice = hideDiceFromViewer
     ? redactDiceForOpponent(matchState.dice)
     : (matchState.dice ?? []).map((d) => ({ ...d, valueHidden: false }));
@@ -95,7 +106,7 @@ export function buildClientMatchPayload({
   }));
 
   return {
-    // Full renderable snapshot + per-viewer redactionsactions overrides.
+    // Full renderable snapshot + per-viewer redacted overrides.
     ...matchState,
     viewerPlayerIndex,
     currentIndex,
@@ -105,6 +116,7 @@ export function buildClientMatchPayload({
     hasRolled: !!matchState.hasRolled,
     farkle: !!matchState.farkle,
     winner: matchState.winner ?? null,
+    winnerPlayerIndex: winnerPlayerIndex >= 0 ? winnerPlayerIndex : null,
     xrayReveals: visibleXrayReveals,
     sharkBiteFx: matchState.sharkBiteFx,
     sharkDiceHidden: matchState.sharkDiceHidden,
@@ -179,5 +191,8 @@ export function applyClientPayloadToRenderState(localState, payload) {
       ? payload.turnScore
       : localState.turnScore,
     xrayReveals: payload.xrayReveals ?? localState.xrayReveals,
+    winnerPlayerIndex: Object.prototype.hasOwnProperty.call(payload, "winnerPlayerIndex")
+      ? payload.winnerPlayerIndex
+      : localState.winnerPlayerIndex,
   };
 }

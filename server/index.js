@@ -59,6 +59,7 @@ export class MatchRoom extends DurableObject {
         seats: [],
         matchState: null,
         seq: 0,
+        rollPending: false,
         createdAt: Date.now(),
       }
     );
@@ -193,15 +194,16 @@ export class MatchRoom extends DurableObject {
     }
 
     if (msg.type === "action") {
-      if (this.busy) {
+      const roomForBusy = await this.loadRoom();
+      if (this.busy || roomForBusy.rollPending) {
         this.send(ws, { type: "error", error: "Please wait" });
         return;
       }
-      if (room.status !== "playing" || !room.matchState) {
+      if (roomForBusy.status !== "playing" || !roomForBusy.matchState) {
         this.send(ws, { type: "error", error: "Match not in progress" });
         return;
       }
-      await this.handleAction(ws, meta, room, msg);
+      await this.handleAction(ws, meta, roomForBusy, msg);
       return;
     }
 
@@ -249,6 +251,20 @@ export class MatchRoom extends DurableObject {
       seat.skinId = skinId;
       seat.trueSkinId = trueSkinId;
       seat.visibility = visibility;
+      // Reconnect may bring Ghost disguise after lobby join — sync into live match players.
+      if (room.matchState?.players?.[seat.playerIndex]) {
+        const p = room.matchState.players[seat.playerIndex];
+        room.matchState.players[seat.playerIndex] = {
+          ...p,
+          name: seat.name,
+          skinId: seat.skinId,
+          ...(seat.trueSkinId ? { trueSkinId: seat.trueSkinId } : {}),
+        };
+        if (!seat.trueSkinId && p.trueSkinId) {
+          const { trueSkinId: _drop, ...rest } = room.matchState.players[seat.playerIndex];
+          room.matchState.players[seat.playerIndex] = rest;
+        }
+      }
     }
 
     ws.serializeAttachment({
@@ -297,8 +313,11 @@ export class MatchRoom extends DurableObject {
     room.seq = (room.seq || 0) + 1;
     if (room.matchState?.winner) room.status = "finished";
 
+    // Lock before any await so deferred evaluate can't race with other actions
+    // (and survive Durable Object hibernation via persisted rollPending).
     if (result.deferEvaluate) {
       this.busy = true;
+      room.rollPending = true;
     }
 
     await this.saveRoom(room);
@@ -315,12 +334,18 @@ export class MatchRoom extends DurableObject {
         if (latest.matchState) {
           latest.matchState = evaluateDeferredRoll(latest.matchState);
           latest.seq = (latest.seq || 0) + 1;
+          latest.rollPending = false;
           if (latest.matchState?.winner) latest.status = "finished";
           await this.saveRoom(latest);
           await this.broadcastState(latest);
         }
       } finally {
         this.busy = false;
+        const cleared = await this.loadRoom();
+        if (cleared.rollPending) {
+          cleared.rollPending = false;
+          await this.saveRoom(cleared);
+        }
       }
     }
   }
