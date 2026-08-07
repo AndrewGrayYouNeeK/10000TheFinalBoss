@@ -8,7 +8,7 @@ export default function Rules() {
         className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur px-4 pb-3 flex items-center gap-3"
         style={PAGE_HEADER_SAFE_STYLE}
       >
-        <BackButton to="/" label="Back" />
+        <BackButton label="Back" />
         <h1 className="text-xl font-bold">How to Play</h1>
       </div>
 

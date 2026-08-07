@@ -4,12 +4,16 @@ import {
   HELD_DICE_STYLES,
   HELD_STYLE_CATEGORY,
 } from "@/lib/heldDiceStyles";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessLabs } from "@/lib/labAccess";
 
 /**
  * Compact held-dice glow picker for use during gameplay.
  */
 export default function HeldDiceStylePicker({ value, onChange }) {
   const [expanded, setExpanded] = useState(false);
+  const { user } = useAuth();
+  const showLabs = canAccessLabs(user);
 
   const favorites = HELD_DICE_STYLES.filter(
     (s) => s.category === HELD_STYLE_CATEGORY.FAVORITE
@@ -40,12 +44,14 @@ export default function HeldDiceStylePicker({ value, onChange }) {
           >
             {expanded ? "Show less" : "More styles"}
           </button>
-          <Link
-            to="/held-style"
-            className="text-[10px] text-slate-500 hover:text-slate-300"
-          >
-            Preview
-          </Link>
+          {showLabs && (
+            <Link
+              to="/labs"
+              className="text-[10px] text-slate-500 hover:text-slate-300"
+            >
+              Labs
+            </Link>
+          )}
         </div>
       </div>
       <div className="flex gap-1.5 flex-wrap max-h-28 overflow-y-auto">

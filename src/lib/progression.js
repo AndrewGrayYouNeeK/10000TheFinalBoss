@@ -54,7 +54,7 @@ export const SKIN_TIERS = {
   toxic_plasma_v2: 4,
   matrix: 4,
   snow_globe: 4,
-  blue_gel: 4,
+  shark_gel: 4, // Mythic — Shark Tank (merged former Angelfish / blue_gel)
 };
 
 // If the player tries to buy a skin from a tier above their current tier,

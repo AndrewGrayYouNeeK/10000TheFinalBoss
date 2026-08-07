@@ -195,9 +195,9 @@ function DiceTray({
                 sharkBiteFx={false}
                 bloodWaterLocked={bloodWaterLocked && !fishFeastMode}
                 onBloodWaterSettled={onBloodWaterSettled}
-                includeJellyfish={traySkinId === "blue_gel" && d.id === jellyDieId}
+                includeJellyfish={traySkinId === "shark_gel" && d.id === jellyDieId}
                 matrixGlitchFx={matrixGlitchDieIds.includes(d.id)}
-                {...(traySkinId === "blue_gel" ? getBlueGelTrayFishProps(idx) : {})}
+                {...(traySkinId === "shark_gel" ? getBlueGelTrayFishProps(idx) : {})}
               />
             </motion.div>
             );

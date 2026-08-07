@@ -4,12 +4,13 @@ import { getBossDefinition } from "@/lib/storyBosses";
 import {
   getStoryBossAvatarLoopFit,
   getStoryBossAvatarLoopVideoStyle,
+  isCoverAvatarLoopBoss,
 } from "@/lib/storyBossVideos";
 import {
-  getFishermanAvatarLoopVideoStyle,
-  getFishermanAvatarLoopTrimBounds,
-  useFishermanAvatarLoopSettings,
-} from "@/lib/fishermanAvatarLoopSettings";
+  getSharkTankAvatarLoopVideoStyle,
+  getSharkTankAvatarLoopTrimBounds,
+  useSharkTankAvatarLoopSettings,
+} from "@/lib/sharkTankAvatarLoopSettings";
 
 /** Story fight gameplay loop — per-boss upload; Neo never uses bundled 10,000 sign mp4. */
 export default function StoryBossGameplayLoop({
@@ -18,7 +19,7 @@ export default function StoryBossGameplayLoop({
   fit: fitOverride,
   videoStyle: videoStyleOverride,
 }) {
-  const fishermanTuning = useFishermanAvatarLoopSettings();
+  const sharkTankTuning = useSharkTankAvatarLoopSettings();
   const { src, onError } = useStoryBossVideo(bossId, "avatar", { enabled: enabled && !!bossId });
   const videoRef = useRef(null);
   const [hidden, setHidden] = React.useState(false);
@@ -26,16 +27,16 @@ export default function StoryBossGameplayLoop({
   const fit = fitOverride ?? getStoryBossAvatarLoopFit(bossId);
   const baseStyle =
     videoStyleOverride ??
-    (bossId === "fisherman"
-      ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
+    (bossId === "shark_tank"
+      ? getSharkTankAvatarLoopVideoStyle(sharkTankTuning)
       : getStoryBossAvatarLoopVideoStyle(bossId));
   const videoStyle = fitOverride ? { ...baseStyle, objectFit: fit } : baseStyle;
 
   const keepVideoInsideTrim = (video) => {
-    if (bossId !== "fisherman") return;
-    const { startSeconds, endSeconds } = getFishermanAvatarLoopTrimBounds(
+    if (!isCoverAvatarLoopBoss(bossId)) return;
+    const { startSeconds, endSeconds } = getSharkTankAvatarLoopTrimBounds(
       video.duration,
-      fishermanTuning
+      sharkTankTuning
     );
     if (video.currentTime < startSeconds || video.currentTime >= endSeconds - 0.05) {
       video.currentTime = startSeconds;

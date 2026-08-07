@@ -31,7 +31,7 @@ const SKIN_STORY_BOSS = {
   // Frosty the Evil Snowman — story ladder id (not dormant ice_witch / old "Glacia" label)
   ice: "snowman",
   dragon_scale: "dragon_knight",
-  blue_gel: "fisherman",
+  shark_gel: "shark_tank",
 };
 
 /** @deprecated Wrong slot — migrated to Neo story intro/win keys. */
@@ -68,7 +68,7 @@ export function getSpriteLabVideoKeys(skinId) {
     keys.push(VIDEO_KEYS.MATRIX_POWER);
   }
   if (skinId === "crystal_cut") keys.push(VIDEO_KEYS.DIAMOND_CUT_POWER);
-  if (skinId === "blue_gel") {
+  if (skinId === "shark_gel") {
     keys.push(VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO, VIDEO_KEYS.BLUE_GEL_POWER);
   }
   const bossId = SKIN_STORY_BOSS[skinId];
@@ -88,7 +88,7 @@ export function getSkinIdsForVideoKey(videoKey) {
   if (videoKey === VIDEO_KEYS.MATRIX_POWER) skinIds.add("matrix");
   if (videoKey === VIDEO_KEYS.DIAMOND_CUT_POWER) skinIds.add("crystal_cut");
   if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER || videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
-    skinIds.add("blue_gel");
+    skinIds.add("shark_gel");
   }
   if (videoKey === MATRIX_GAMEPLAY_BILLBOARD_KEY || videoKey === VIDEO_KEYS.GAMEPLAY_BILLBOARD) {
     skinIds.add("matrix");
@@ -153,9 +153,11 @@ function recoverySourceKeysForVideoKey(videoKey) {
   }
 
   if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER) {
+    sources.add(lockedVideoStorageKey("shark_gel", VIDEO_KEYS.BLUE_GEL_POWER));
     sources.add(lockedVideoStorageKey("blue_gel", VIDEO_KEYS.BLUE_GEL_POWER));
   }
   if (videoKey === VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO) {
+    sources.add(lockedVideoStorageKey("shark_gel", VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO));
     sources.add(lockedVideoStorageKey("blue_gel", VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO));
   }
 

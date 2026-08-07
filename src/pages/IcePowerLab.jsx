@@ -132,7 +132,7 @@ export default function IcePowerLab() {
         style={{ background: "rgba(2,8,18,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <BackButton to="/" label="Home" />
+          <BackButton to="/labs" label="Labs" />
           <div className="min-w-0 flex-1 flex items-center gap-2">
             <Snowflake className="w-5 h-5 text-sky-300 shrink-0" />
             <div className="min-w-0">

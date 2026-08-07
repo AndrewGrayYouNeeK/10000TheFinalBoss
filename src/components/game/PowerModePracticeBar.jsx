@@ -1,5 +1,4 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const practiceBtnBase =
@@ -7,6 +6,7 @@ const practiceBtnBase =
 
 /**
  * Mid-game toggles to preview power-mode visuals without earning Hot Dice.
+ * Editor pages live under /labs — not linked from here.
  * variant: marlin (Shark Bite / Blue Gel) | gq (Diamond Cut / Double or Nothing) | ice (Frosty / Score Freeze)
  */
 export default function PowerModePracticeBar({
@@ -18,13 +18,16 @@ export default function PowerModePracticeBar({
   onSharkVideoPreviewChange,
   onReplaySharkBite,
   sharkBiteActive = false,
+  label: labelOverride,
   className,
 }) {
   if (!variant) return null;
 
   const isMarlin = variant === "marlin";
   const isIce = variant === "ice";
-  const label = isMarlin ? "Marlin practice" : isIce ? "Frosty practice" : "GQ practice";
+  const label =
+    labelOverride ??
+    (isMarlin ? "Shark practice" : isIce ? "Frosty practice" : "GQ practice");
   const accent = isMarlin ? "#22d3ee" : isIce ? "#7dd3fc" : "#7dd3fc";
   const accentGlow = isMarlin
     ? "rgba(34,211,238,0.55)"
@@ -70,33 +73,8 @@ export default function PowerModePracticeBar({
         {powerPreview ? "Dice on" : "Power dice"}
       </button>
 
-      {isIce && (
-        <Link
-          to="/ice-lab"
-          className={cn(practiceBtnBase, "text-sky-100 inline-flex items-center")}
-          style={{
-            borderColor: "rgba(125,211,252,0.65)",
-            background: "linear-gradient(90deg, rgba(14,165,233,0.45), rgba(12,74,110,0.55))",
-            boxShadow: "0 0 8px rgba(125,211,252,0.35)",
-          }}
-        >
-          Preview freeze
-        </Link>
-      )}
-
       {isMarlin && (
         <>
-          <Link
-            to="/sprite-lab/blue_gel"
-            className={cn(practiceBtnBase, "text-cyan-100 inline-flex items-center")}
-            style={{
-              borderColor: "rgba(34,211,238,0.65)",
-              background: "linear-gradient(90deg, rgba(8,47,73,0.55), rgba(14,116,144,0.45))",
-              boxShadow: "0 0 8px rgba(34,211,238,0.35)",
-            }}
-          >
-            Blue Gel lab
-          </Link>
           <button
             type="button"
             disabled={disabled}
@@ -135,7 +113,7 @@ export default function PowerModePracticeBar({
 
 /** Story boss id → practice bar variant, or null. */
 export function storyBossPracticeVariant(bossId) {
-  if (bossId === "fisherman") return "marlin";
+  if (bossId === "shark_tank") return "marlin";
   if (bossId === "gq") return "gq";
   if (bossId === "snowman" || bossId === "ice_witch") return "ice";
   return null;
@@ -143,16 +121,15 @@ export function storyBossPracticeVariant(bossId) {
 
 /** Local play equipped skin → practice bar variant, or null. */
 export function skinPracticeVariant(skinId) {
-  // Angelfish (blue_gel) + Shark Tank (shark_gel) both use Shark Bite.
-  if (skinId === "blue_gel" || skinId === "shark_gel") return "marlin";
+  if (skinId === "shark_gel" || skinId === "blue_gel") return "marlin";
   // GQ Diamond Cut + its Diamond Ruby upgrade share Double or Nothing practice.
   if (skinId === "crystal_cut" || skinId === "diamond_ruby") return "gq";
   if (skinId === "ice") return "ice";
   return null;
 }
 
-export function practicePreviewSkinId(variant) {
-  if (variant === "marlin") return "blue_gel";
+export function practicePreviewSkinId(variant, context = {}) {
+  if (variant === "marlin") return "shark_gel";
   if (variant === "gq") return "crystal_cut";
   if (variant === "ice") return "ice";
   return null;

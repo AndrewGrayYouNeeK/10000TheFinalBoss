@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import SpriteLab from "@/components/spriteLab/SpriteLab";
 import {
@@ -17,7 +17,7 @@ function SpriteLabIndex() {
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-3xl mx-auto flex items-center gap-2">
-          <BackButton to="/shop" label="Shop" />
+          <BackButton to="/labs" label="Labs" />
           <div>
             <h1 className="text-lg font-black">Sprite Lab</h1>
             <p className="text-[10px] text-slate-400">Pick a dice skin to tune crop, faces, and video</p>
@@ -47,6 +47,11 @@ export default function SpriteLabPage() {
 
   if (!skinId) {
     return <SpriteLabIndex />;
+  }
+
+  // Angelfish / Blue Gel merged into Shark Tank.
+  if (skinId === "blue_gel") {
+    return <Navigate to="/sprite-lab/shark_gel" replace />;
   }
 
   if (!isSpriteLabSkin(skinId)) {

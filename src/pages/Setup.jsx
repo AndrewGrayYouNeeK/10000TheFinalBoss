@@ -153,7 +153,7 @@ export default function Setup() {
             boxShadow: "0 1px 0 rgba(255,0,170,0.25), 0 8px 24px rgba(0,255,200,0.08)",
           }}
         >
-          <BackButton to="/" label="Back" />
+          <BackButton label="Back" />
           <NeonTitle dieSize={32} />
           <div className="w-[72px]" />
         </div>

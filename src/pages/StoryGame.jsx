@@ -239,7 +239,7 @@ export default function StoryGame() {
     }, FROZEN_DICE_REVEAL_MS);
   }, []);
   const foregroundCanvasRef = useRef(null);
-  const foregroundFx = bossId === "fisherman" || bossId === "gq";
+  const foregroundFx = bossId === "shark_tank" || bossId === "gq";
   const replayPracticeSharkBite = useCallback(() => {
     practiceSharkBiteRef.current = true;
     setGame((g) => (g ? { ...g, sharkBiteFx: true, sharkDiceHidden: true } : g));
@@ -321,7 +321,7 @@ export default function StoryGame() {
       setDialogue(saved.dialogue === "lose" ? null : saved.dialogue ?? null);
       // Repair Composer bug: player was wrongly given Marlin's shark_bite charge.
       let restored = saved.game;
-      if (bossId === "fisherman" && restored?.players?.length >= 2) {
+      if ((bossId === "shark_tank") && restored?.players?.length >= 2) {
         restored = {
           ...restored,
           players: restored.players.map((p, i) => {
@@ -669,8 +669,11 @@ export default function StoryGame() {
 
       // First roll of the turn if not yet rolled
       if (!game.hasRolled) {
-        // Marlin Joe — fire Shark Bite at the player before rolling when charged.
-        if (bossId === "fisherman" && game.players[game.currentIndex]?.powerCharge) {
+        // Marlin Joe / Captain Chomps — fire Shark Bite at the player before rolling when charged.
+        if (
+          (bossId === "shark_tank") &&
+          game.players[game.currentIndex]?.powerCharge
+        ) {
           const result = applySkinPower(game, "shark_bite");
           if (result.variant !== "warning") {
             const next = consumeSkinPower(result.state);
@@ -1061,7 +1064,7 @@ export default function StoryGame() {
       : getDisplaySkinId(trayPlayer, { ghostDisguiseId, ownedSkins })
   );
   const practiceVariant = storyBossPracticeVariant(bossId);
-  const previewSkinId = practicePreviewSkinId(practiceVariant);
+  const previewSkinId = practicePreviewSkinId(practiceVariant, { bossId });
   const practiceTraySkinId =
     practicePowerPreview && previewSkinId ? previewSkinId : traySkinId;
   // Feeding Frenzy VFX — do not swap tray skin to the opponent on cast.
@@ -1106,7 +1109,7 @@ export default function StoryGame() {
       <BossRainBackground
         bossId={boss.id}
         lite={cutsceneOverlay || lowPower}
-        bubblesFullScreen={bossId === "fisherman"}
+        bubblesFullScreen={bossId === "shark_tank"}
         frontCanvasRef={foregroundFx && !cutsceneOverlay ? foregroundCanvasRef : null}
       />
       <div className="relative z-10 flex flex-col min-w-0 min-h-0">
@@ -1158,7 +1161,9 @@ export default function StoryGame() {
         {!cutsceneOverlay && (
           <StoryBossFightVideo
             bossId={bossId}
-            loopPanEnabled={bossId === "fisherman" && marlinLoopToolOpen}
+            loopPanEnabled={
+              (bossId === "shark_tank") && marlinLoopToolOpen
+            }
             frozen={storyIceFight && !!game?.storyIceFreeze}
           />
         )}
@@ -1174,8 +1179,9 @@ export default function StoryGame() {
         </div>
       )}
 
-      {bossId === "fisherman" && !cutsceneOverlay && (
+      {(bossId === "shark_tank") && !cutsceneOverlay && (
         <MarlinLoopPositionTool
+          bossId={bossId}
           floating
           open={marlinLoopToolOpen}
           onOpenChange={setMarlinLoopToolOpen}
@@ -1482,8 +1488,8 @@ function makeInitialGame(boss, storyPlayerSkin, ownedSkins = [], ghostDisguiseId
     typeof headStart === "number" && headStart > 0 ? [0, headStart] : null;
   let state = createInitialState([PLAYER_NAME, bossDef.name], { playerSkins, startScores });
   state = applyStoryBossHeadStart(state, bossDef.id);
-  // Marlin Joe owns Shark Bite (boss index 1). Player keeps their own skin power.
-  if (bossDef.id === "fisherman") {
+  // Captain Chomps owns Shark Bite (boss index 1). Player keeps their own skin power.
+  if (bossDef.id === "shark_tank") {
     state.players = state.players.map((p, i) =>
       i === 1 ? { ...p, chargePowerId: "shark_bite" } : p
     );

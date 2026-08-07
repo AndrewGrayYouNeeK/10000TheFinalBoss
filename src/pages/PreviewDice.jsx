@@ -43,7 +43,7 @@ export default function PreviewDice() {
         }}
       >
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <BackButton to="/shop" label="Shop" />
+          <BackButton to="/labs" label="Labs" />
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold truncate">Custom Dice Lab</h1>
             <p className="text-[10px] text-slate-400 truncate">

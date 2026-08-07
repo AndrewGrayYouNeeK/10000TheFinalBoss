@@ -64,7 +64,7 @@ export default function HeldStylePreview() {
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <BackButton to="/shop" label="Shop" />
+          <BackButton to="/labs" label="Labs" />
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold truncate">Held Dice Style</h1>
             <p className="text-[10px] text-slate-400 truncate">

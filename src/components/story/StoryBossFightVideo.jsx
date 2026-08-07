@@ -1,6 +1,6 @@
 import StoryBossGameplayLoop from "./StoryBossGameplayLoop";
 import { MarlinLoopPanOverlay } from "./MarlinLoopPositionTool";
-import { getStoryBossAvatarLoopFit } from "@/lib/storyBossVideos";
+import { getStoryBossAvatarLoopFit, isCoverAvatarLoopBoss } from "@/lib/storyBossVideos";
 
 const FRAME_BY_BOSS = {
   neo: {
@@ -15,9 +15,9 @@ const FRAME_BY_BOSS = {
     borderColor: "#7dd3fc",
     boxShadow: "0 0 18px #bae6fd, 0 0 32px rgba(56,189,248,0.45)",
   },
-  fisherman: {
-    borderColor: "#38bdf8",
-    boxShadow: "0 0 18px #7dd3fc, 0 0 32px rgba(56,189,248,0.5)",
+  shark_tank: {
+    borderColor: "#22d3ee",
+    boxShadow: "0 0 18px #67e8f9, 0 0 32px rgba(34,211,238,0.55)",
   },
 };
 
@@ -54,7 +54,9 @@ export default function StoryBossFightVideo({
           enabled={enabled}
           fit={getStoryBossAvatarLoopFit(bossId)}
         />
-        {bossId === "fisherman" ? <MarlinLoopPanOverlay enabled={loopPanEnabled} /> : null}
+        {isCoverAvatarLoopBoss(bossId) ? (
+          <MarlinLoopPanOverlay enabled={loopPanEnabled} bossId={bossId} />
+        ) : null}
         {frozen ? (
           <div
             className="absolute inset-0 pointer-events-none z-10 flex items-end justify-center pb-2"

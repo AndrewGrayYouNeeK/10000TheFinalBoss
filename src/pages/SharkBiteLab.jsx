@@ -43,7 +43,7 @@ export default function SharkBiteLab() {
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-2xl mx-auto flex items-center gap-2">
-          <BackButton to="/shop" label="Shop" />
+          <BackButton to="/labs" label="Labs" />
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-black truncate">Shark Bite Lab</h1>
             <p className="text-[10px] text-slate-400 truncate">
@@ -56,10 +56,16 @@ export default function SharkBiteLab() {
       <div className="max-w-2xl mx-auto p-4 space-y-4">
         <div className="flex flex-wrap gap-2">
           <Link
-            to="/sprite-lab/blue_gel"
+            to="/sprite-lab/shark_gel"
             className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white"
           >
             Blue Gel dice lab
+          </Link>
+          <Link
+            to="/shark-tank-lab"
+            className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white"
+          >
+            Shark Tank Lab
           </Link>
           <Link
             to="/game?previewSharkBite=1"
@@ -106,7 +112,7 @@ export default function SharkBiteLab() {
               dice={PREVIEW_DICE}
               rolling={false}
               disabled
-              skinId="blue_gel"
+              skinId="shark_gel"
               feltId="classic_green"
               sharkBiteFx={sharkBiteFx}
               sharkDiceHidden={sharkDiceHidden}

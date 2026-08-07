@@ -1,5 +1,5 @@
 import { getBossDefinition, STORY_LADDER_IDS } from "./storyBosses";
-import { getFishermanAvatarLoopVideoStyle } from "./fishermanAvatarLoopSettings";
+import { getSharkTankAvatarLoopVideoStyle } from "./sharkTankAvatarLoopSettings";
 import {
   getLocalVideoBlob,
   getLocalVideoObjectUrl,
@@ -10,6 +10,11 @@ import {
 } from "./localVideoStore";
 
 /** @typedef {"intro" | "win" | "avatar"} StoryBossVideoSlot */
+
+/** Captain Chomps — cover-fit avatar loop with crop tuner. */
+export function isCoverAvatarLoopBoss(bossId) {
+  return bossId === "shark_tank";
+}
 
 export function storyBossIntroKey(bossId) {
   return `story_boss_intro_${bossId}`;
@@ -40,7 +45,7 @@ export function getStoryBossIdForAvatarKey(videoKey) {
 
 /** Avatar loop object-fit during story fights and upload previews. */
 export function getStoryBossAvatarLoopFit(bossId) {
-  if (bossId === "fisherman") return "cover";
+  if (isCoverAvatarLoopBoss(bossId)) return "cover";
   return "contain";
 }
 
@@ -51,7 +56,7 @@ export function getStoryBossAvatarLoopObjectPosition() {
 
 /** Full inline video style for story avatar loops (object-fit, crop, pan). */
 export function getStoryBossAvatarLoopVideoStyle(bossId) {
-  if (bossId === "fisherman") return getFishermanAvatarLoopVideoStyle();
+  if (bossId === "shark_tank") return getSharkTankAvatarLoopVideoStyle();
   return {
     objectFit: getStoryBossAvatarLoopFit(bossId),
     objectPosition: getStoryBossAvatarLoopObjectPosition(bossId),
@@ -77,7 +82,7 @@ export function getStoryBossVideoMuteAtSeconds(bossId, slot) {
 
 /** Cutscenes with no embedded audio — plays fully silent from the first frame. */
 export function isStoryBossVideoSilent(bossId, slot) {
-  return bossId === "fisherman" && slot === "win";
+  return isCoverAvatarLoopBoss(bossId) && slot === "win";
 }
 
 export function getStoryBossVideoStartOffsetForKey(videoKey) {

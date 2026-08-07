@@ -22,14 +22,19 @@ function pinStorageOrigin() {
 }
 
 const RAGNAROK_LEGACY_SKINS = ["lava", "ragnarok_regular"];
+const BLUE_GEL_LEGACY_SKIN = "blue_gel";
 const REMOVED_SKIN_IDS = ["tesla"];
-const REMOVED_STORY_BOSS_IDS = ["diamond_cut", "tesla_phreak"];
+const REMOVED_STORY_BOSS_IDS = ["diamond_cut", "tesla_phreak", "fisherman"];
 
 function migrateProfile(profile) {
   const next = { ...profile };
   let owned = [...(next.owned_skins ?? ["classic_white"])];
   if (owned.some((id) => RAGNAROK_LEGACY_SKINS.includes(id))) {
     owned = [...new Set([...owned.filter((id) => !RAGNAROK_LEGACY_SKINS.includes(id)), "ragnarok"])];
+    next.owned_skins = owned;
+  }
+  if (owned.includes(BLUE_GEL_LEGACY_SKIN)) {
+    owned = [...new Set([...owned.filter((id) => id !== BLUE_GEL_LEGACY_SKIN), "shark_gel"])];
     next.owned_skins = owned;
   }
   if (owned.some((id) => REMOVED_SKIN_IDS.includes(id))) {
@@ -39,6 +44,9 @@ function migrateProfile(profile) {
   if (RAGNAROK_LEGACY_SKINS.includes(next.equipped_skin)) {
     next.equipped_skin = "ragnarok";
   }
+  if (next.equipped_skin === BLUE_GEL_LEGACY_SKIN) {
+    next.equipped_skin = "shark_gel";
+  }
   if (REMOVED_SKIN_IDS.includes(next.equipped_skin)) {
     next.equipped_skin = "classic_white";
   }
@@ -47,6 +55,9 @@ function migrateProfile(profile) {
   }
   if (RAGNAROK_LEGACY_SKINS.includes(next.ghost_disguise)) {
     next.ghost_disguise = "ragnarok";
+  }
+  if (next.ghost_disguise === BLUE_GEL_LEGACY_SKIN) {
+    next.ghost_disguise = "shark_gel";
   }
   const defeated = [...(next.bosses_defeated ?? [])];
   const filteredDefeated = defeated.filter((id) => !REMOVED_STORY_BOSS_IDS.includes(id));
@@ -95,6 +106,8 @@ const DEFAULT_PROFILE = {
   skin_levels: {},
   /** Local play-time XP per skin (levels 1–10 derived in progression.addSkinPlayXp). */
   skin_level_xp: {},
+  /** Web-shop mystery box credits synced from cloud entitlements (add-only). */
+  mystery_box_credits: {},
   /** What opponents see during your turn in online PvP (sync to server when live). */
   online_visibility: {
     hideDice: true,

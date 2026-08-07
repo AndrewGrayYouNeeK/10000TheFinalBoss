@@ -10,6 +10,7 @@ import MuteToggleButton from "@/components/game/MuteToggleButton";
 import { useCosmetics } from "@/hooks/useCosmetics";
 import { writeOnlineMockSession } from "@/lib/onlineVisibility";
 import { SESSION_PLAYER_SKINS_KEY } from "@/lib/ghostDisguise";
+import { gameHubPath } from "@/lib/webPlay";
 
 export default function OnlineUnavailable() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function OnlineUnavailable() {
         className="absolute top-0 left-0 right-0 z-10 px-4 pb-3 flex items-center justify-between gap-2"
         style={PAGE_HEADER_SAFE_STYLE}
       >
-        <BackButton to="/" label="Back" />
+        <BackButton label="Back" />
         <div className="flex items-center gap-0.5">
           <MuteToggleButton
             muted={sfxMuted}
@@ -135,7 +136,7 @@ export default function OnlineUnavailable() {
             <Link to="/setup">Play Local</Link>
           </Button>
           <Button asChild variant="outline" className="w-full border-slate-600 text-slate-300">
-            <Link to="/">Back to Home</Link>
+            <Link to={gameHubPath()}>Back to Home</Link>
           </Button>
         </div>
       </motion.div>

@@ -15,15 +15,16 @@ import {
 import VideoPreviewDialog from "@/components/video/VideoPreviewDialog";
 import { toast } from "sonner";
 import {
-  getFishermanAvatarLoopVideoStyle,
-  getFishermanAvatarLoopTrimBounds,
-  useFishermanAvatarLoopSettings,
-} from "@/lib/fishermanAvatarLoopSettings";
+  getSharkTankAvatarLoopVideoStyle,
+  getSharkTankAvatarLoopTrimBounds,
+  useSharkTankAvatarLoopSettings,
+} from "@/lib/sharkTankAvatarLoopSettings";
 import MarlinLoopPositionTool from "@/components/story/MarlinLoopPositionTool";
 import {
   getStoryBossAvatarLoopVideoStyle,
   getStoryBossIdForAvatarKey,
   getStoryBossVideoStartOffsetForKey,
+  isCoverAvatarLoopBoss,
 } from "@/lib/storyBossVideos";
 import {
   loadSharkBiteSettings,
@@ -111,14 +112,14 @@ export default function VideoUploadCard({
         previewVideoSize.height
       )
     : undefined;
-  const fishermanTuning = useFishermanAvatarLoopSettings();
+  const sharkTankTuning = useSharkTankAvatarLoopSettings();
   const avatarBossId = getStoryBossIdForAvatarKey(videoKey);
-  const isFishermanAvatar = avatarBossId === "fisherman";
-  const keepFishermanVideoTrim = (video) => {
-    if (!isFishermanAvatar) return;
-    const { startSeconds, endSeconds } = getFishermanAvatarLoopTrimBounds(
+  const isTunableAvatar = isCoverAvatarLoopBoss(avatarBossId);
+  const keepCoverAvatarVideoTrim = (video) => {
+    if (!isTunableAvatar) return;
+    const { startSeconds, endSeconds } = getSharkTankAvatarLoopTrimBounds(
       video.duration,
-      fishermanTuning
+      sharkTankTuning
     );
     if (video.currentTime < startSeconds || video.currentTime >= endSeconds - 0.05) {
       video.currentTime = startSeconds;
@@ -127,11 +128,11 @@ export default function VideoUploadCard({
   };
   const handlePreviewMetadata = (video) => {
     if (isSharkBiteSlot) syncPreviewVideoSize(video);
-    keepFishermanVideoTrim(video);
+    keepCoverAvatarVideoTrim(video);
   };
   const storyAvatarPreviewStyle = avatarBossId
-    ? isFishermanAvatar
-      ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
+    ? avatarBossId === "shark_tank"
+      ? getSharkTankAvatarLoopVideoStyle(sharkTankTuning)
       : getStoryBossAvatarLoopVideoStyle(avatarBossId)
     : undefined;
   const inlinePreviewStyle =
@@ -346,8 +347,8 @@ export default function VideoUploadCard({
         ) : null}
       </p>
 
-      {isFishermanAvatar && previewSrc && !pendingPreviewUrl ? (
-        <MarlinLoopPositionTool compact />
+      {isTunableAvatar && previewSrc && !pendingPreviewUrl ? (
+        <MarlinLoopPositionTool bossId={avatarBossId} compact />
       ) : null}
 
       {previewSrc && !pendingPreviewUrl && (
@@ -365,7 +366,7 @@ export default function VideoUploadCard({
             className={`${inlinePreviewVideoClassName} bg-black`}
             style={inlinePreviewStyle}
             onLoadedMetadata={(e) => handlePreviewMetadata(e.currentTarget)}
-            onTimeUpdate={(e) => keepFishermanVideoTrim(e.currentTarget)}
+            onTimeUpdate={(e) => keepCoverAvatarVideoTrim(e.currentTarget)}
             onError={(e) => {
               if (!previewUrl) e.currentTarget.style.display = "none";
             }}
@@ -384,9 +385,9 @@ export default function VideoUploadCard({
         videoClassName={dialogVideoClassName}
         videoContainerClassName={dialogVideoContainerClassName}
         onVideoMetadata={
-          isSharkBiteSlot || isFishermanAvatar ? handlePreviewMetadata : undefined
+          isSharkBiteSlot || isTunableAvatar ? handlePreviewMetadata : undefined
         }
-        onVideoTimeUpdate={isFishermanAvatar ? keepFishermanVideoTrim : undefined}
+        onVideoTimeUpdate={isTunableAvatar ? keepCoverAvatarVideoTrim : undefined}
         contentClassName={
           avatarBossId ? "max-w-md" : isSharkBiteSlot ? "max-w-3xl" : undefined
         }

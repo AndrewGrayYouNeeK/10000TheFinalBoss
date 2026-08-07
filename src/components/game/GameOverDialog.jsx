@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Link } from "react-router-dom";
+import { gameHubPath } from "@/lib/webPlay";
 
 export default function GameOverDialog({ open, winner, onPlayAgain }) {
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function GameOverDialog({ open, winner, onPlayAgain }) {
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" className="flex-1">
-            <Link to="/"><Home className="w-4 h-4 mr-2" />Home</Link>
+            <Link to={gameHubPath()}><Home className="w-4 h-4 mr-2" />Home</Link>
           </Button>
           <Button onClick={onPlayAgain} className="flex-1">
             <RotateCcw className="w-4 h-4 mr-2" />Play Again

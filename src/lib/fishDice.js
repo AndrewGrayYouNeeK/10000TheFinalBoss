@@ -1,5 +1,5 @@
 /** Skins that show fish inside the dice (aquarium family). */
-export const FISH_DICE_SKINS = ["blue_gel", "aquamarine", "aquamarine_light"];
+export const FISH_DICE_SKINS = ["shark_gel", "aquamarine", "aquamarine_light"];
 
 /** Per-die big-fish variant index for Angelfish tray — one species per face. */
 export const BLUE_GEL_TRAY_FISH_VARIANTS = [6, 7, 0, 1, 2, 3];

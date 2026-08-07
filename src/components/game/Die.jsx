@@ -22,7 +22,6 @@ import Pip from "./Pip";
 import FishOverlay, { ANGELFISH_VARIANT_INDICES, FISH_VARIANTS } from "./FishOverlay";
 import {
   BlueGelSharkAttack,
-  BlueGelSharkBiteCharge,
   BloodPowerFx,
   BloodyWaterTint,
   SharkTankOverlay,
@@ -302,7 +301,7 @@ function Die({
   const icePowerActive = iceFrozenOverlay && !reduceEffects && !freezeImmune;
   const iceOverlayActive = icePowerActive || levelFrostActive;
   const isAquariumOverlaySkin = AQUARIUM_OVERLAY_SKIN_IDS.has(effectiveSkinId);
-  const isBlueGelTank = effectiveSkinId === "blue_gel";
+  // Shark Tank: regular = former Marlin/Angelfish aquarium; power = sharks.
   const isSharkTank = effectiveSkinId === "shark_gel";
   const blueGelVariantSeed = Number(effectDieSeed);
   const blueGelBigFishVariantIndex =
@@ -334,14 +333,14 @@ function Die({
   const dieShapeStyle = getDieSquircleClipStyle(size);
 
   const showSpriteLayer =
-    !isBlueGelTank &&
+    !isSharkTank &&
     displaySpriteLayer &&
     !videoPlaying &&
     !isAquariumOverlaySkin &&
     !spriteFailed;
   // Pip grid only when there is no sprite sheet, or the sheet failed to load — never flash during load.
   const showPipFallback =
-    !isBlueGelTank &&
+    !isSharkTank &&
     !isAquariumOverlaySkin &&
     !videoPlaying &&
     !videoSkinActive &&
@@ -367,7 +366,7 @@ function Die({
   const isClearBody =
     skin.id === "classic_white" ||
     isAquariumOverlaySkin ||
-    isBlueGelTank ||
+    isSharkTank ||
     videoSkinActive ||
     skin.videoUrl ||
     isExperimentalClearBody(skin) ||
@@ -551,7 +550,7 @@ function Die({
         )}
 
         {/* Video background skin — cropped 3×2 grid, one face per die */}
-        {activeVideoUrl && !reduceEffects && effectiveSkinId !== "blue_gel" && (() => {
+        {activeVideoUrl && !reduceEffects && !isSharkTank && (() => {
           let videoStyle;
           if (skin.id === "matrix") {
             // Preserve the video's real aspect and COVER each cell so the face
@@ -666,14 +665,15 @@ function Die({
           );
         })()}
 
-        {/* Blue Gel — original live aquarium, kept in the existing die stack. */}
-        {effectiveSkinId === "blue_gel" && (
+        {/* Shark Tank — regular: Marlin/Angelfish aquarium; power: sharks. */}
+        {isSharkTank && (
             <>
               <div
                 className="absolute inset-0 pointer-events-none z-0"
                 style={{
-                  background:
-                    "linear-gradient(160deg, rgba(125,211,252,0.55) 0%, rgba(56,189,248,0.65) 35%, rgba(37,99,235,0.75) 70%, rgba(30,64,175,0.85) 100%)",
+                  background: powerMode && !reducePowerPresentation
+                    ? "linear-gradient(160deg, rgba(100,116,139,0.68) 0%, rgba(14,116,144,0.78) 38%, rgba(15,23,42,0.9) 72%, rgba(2,6,23,0.96) 100%)"
+                    : "linear-gradient(160deg, rgba(125,211,252,0.55) 0%, rgba(56,189,248,0.65) 35%, rgba(37,99,235,0.75) 70%, rgba(30,64,175,0.85) 100%)",
                 }}
               />
               <div className="absolute inset-0 z-[1] pointer-events-none">
@@ -700,20 +700,14 @@ function Die({
                   />
                 </BlueGelSharkAttack>
               ) : powerMode && !reducePowerPresentation ? (
-                <BlueGelSharkBiteCharge size={size} radius={radius} count={value} dieSeed={effectDieSeed}>
-                  <FishOverlay
-                    size={size}
-                    radius={radius}
-                    count={value}
-                    dieSeed={effectDieSeed}
-                    bigFishVariantIndex={blueGelBigFishVariantIndex}
-                    bigFishExtraScale={Math.min(bigFishExtraScale, 1.65)}
-                    bigFishStaticPose={false}
-                    fishVariantIndices={BLUE_GEL_FISH_VARIANT_INDICES}
-                    includeJellyfish={includeJellyfish}
-                    frozen={icePowerActive}
-                  />
-                </BlueGelSharkBiteCharge>
+                <SharkTankOverlay
+                  size={size}
+                  radius={radius}
+                  count={value}
+                  dieSeed={effectDieSeed}
+                  frozen={icePowerActive}
+                  powerMode
+                />
               ) : (
                 <>
                   <FishOverlay
@@ -768,72 +762,12 @@ function Die({
               <div
                 className="absolute inset-0 pointer-events-none z-[3]"
                 style={{
-                  boxShadow:
-                    "inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.35)",
+                  boxShadow: powerMode && !reducePowerPresentation
+                    ? "inset 0 0 0 2px rgba(148,163,184,0.55), inset 0 -8px 16px rgba(0,0,0,0.42), inset 0 4px 8px rgba(255,255,255,0.25), inset 0 0 12px rgba(220,38,38,0.12)"
+                    : "inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.35)",
                 }}
               />
             </>
-        )}
-
-        {/* Shark Tank — separate dark aquarium skin; Blue Gel/Angelfish stays untouched. */}
-        {isSharkTank && (
-          <>
-            <div
-              className="absolute inset-0 pointer-events-none z-0"
-              style={{
-                background:
-                  "linear-gradient(160deg, rgba(100,116,139,0.68) 0%, rgba(14,116,144,0.78) 38%, rgba(15,23,42,0.9) 72%, rgba(2,6,23,0.96) 100%)",
-              }}
-            />
-            <div className="absolute inset-0 z-[1] pointer-events-none">
-              <SharkTankOverlay
-                size={size}
-                radius={radius}
-                count={value}
-                dieSeed={effectDieSeed}
-                frozen={icePowerActive}
-                powerMode={powerMode && !reducePowerPresentation}
-              />
-            </div>
-            {showAquamarineShell ? (() => {
-              const { xNudge, yNudge } = resolveBlueGelShellNudges(
-                value,
-                size,
-                liveBlueGelSettings
-              );
-              const aquaForShell = {
-                ...aquamarineShellSkin,
-                spriteCrop: getBlueGelShellCrop(
-                  aquamarineShellSkin?.spriteCrop,
-                  liveBlueGelSettings
-                ),
-              };
-              const shellStyle = getAquamarineShellStyle(
-                aquaForShell,
-                value,
-                size,
-                { xNudge, yNudge }
-              );
-              return (
-                <div
-                  className="absolute pointer-events-none z-[2]"
-                  style={{
-                    backgroundImage: `url(${assetUrl(aquamarineShellSkin.spriteUrl)})`,
-                    opacity: 0.58,
-                    mixBlendMode: "multiply",
-                    ...shellStyle,
-                  }}
-                />
-              );
-            })() : null}
-            <div
-              className="absolute inset-0 pointer-events-none z-[3]"
-              style={{
-                boxShadow:
-                  "inset 0 0 0 2px rgba(148,163,184,0.55), inset 0 -8px 16px rgba(0,0,0,0.42), inset 0 4px 8px rgba(255,255,255,0.25), inset 0 0 12px rgba(220,38,38,0.12)",
-              }}
-            />
-          </>
         )}
 
         {/* Default power move for skins without dedicated power visuals — bloody water */}
@@ -885,7 +819,7 @@ function Die({
           );
         })() :
 
-        !isBlueGelTank &&
+        !isSharkTank &&
           (skin.experimental || showPipFallback) &&
           !(isGhostSkin && rolling && !held && !used) &&
           renderPipGrid()}

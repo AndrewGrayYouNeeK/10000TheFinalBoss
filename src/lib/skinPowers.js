@@ -60,8 +60,7 @@ const SKIN_POWER_MAP = {
   pf_soundwave: "lucky_seven",
   pf_score_meter: "overtime",
   snow_globe: "shield",
-  blue_gel: "shark_bite",
-  shark_gel: "shark_bite", // Shark Tank — same Shark Bite as Blue Gel / Angelfish
+  shark_gel: "shark_bite", // Shark Tank — fish aquarium regular, sharks on Shark Bite charge
   amber_wasp: "lucky_seven",
   circuit_board: "reroll",
   neon_grid: "hot_streak",

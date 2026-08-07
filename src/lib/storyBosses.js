@@ -99,13 +99,29 @@ const ALL_BOSSES = [
     coins: 320, xp: 400, skin: "ice", storyFeltId: "frozen_lake",
   }),
   fight({
+    // Dormant — Marlin Joe dice merged into Shark Tank / Captain Chomps. Kept for old video keys.
     id: "fisherman", name: "Marlin Joe", title: "Deep Sea Captain",
     avatar: "🐟", color: "from-sky-400 to-blue-700",
     difficulty: { bankThreshold: 650, greed: 0.22, holdGreedy: true },
     intro: "Caught bigger fish than you, kid. Cast your dice.",
     winLine: "Heh. Slippery one. Reel ya in next time.",
     loseLine: "Catch of the day! That's you.",
-    coins: 350, xp: 420, skin: "blue_gel", storyFeltId: "underwater",
+    coins: 350, xp: 420, skin: "shark_gel", storyFeltId: "underwater",
+  }),
+  fight({
+    id: "shark_tank", name: "Captain Chomps", title: "Shark Tank Warden",
+    avatar: "🦈", color: "from-slate-600 via-cyan-950 to-rose-900",
+    isBoss: true,
+    difficulty: { bankThreshold: 750, greed: 0.28, holdGreedy: true },
+    gimmick: {
+      id: "head_start", name: "Blood in the Water",
+      description: "Captain Chomps starts with 1,800 points already banked.",
+      startScore: 1800,
+    },
+    intro: "Welcome to my tank. Glass is thick. Your score isn't.",
+    winLine: "The tank goes quiet… for now. Take the dice. Earn them.",
+    loseLine: "Blood in the water. You're dinner.",
+    coins: 650, xp: 780, skin: "shark_gel", storyFeltId: "underwater",
   }),
   fight({
     id: "shark", name: "Card Shark Cleo", title: "Casino Floor Legend",
@@ -439,7 +455,7 @@ export const STORY_LADDER_IDS = [
   "ghost",         // The Ghost
   "lavadragon",    // Ragnarok
   "neo",           // Matrix
-  "fisherman",     // Marlin Joe — second-to-last; unlocks Blue Gel + Shark Bite
+  "shark_tank",    // Captain Chomps — unlocks Shark Tank (fish regular / sharks power)
   "gq",            // GQ — final boss
 ];
 

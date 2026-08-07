@@ -5,12 +5,17 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { isNativeApp } from '@/lib/platform';
+import { isWebPlayEnabled } from '@/lib/webPlay';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
 import { recoverCorruptDiceState } from '@/lib/skinRecovery';
 import PageNotFound from './lib/PageNotFound';
 import Home from '@/pages/Home';
+import Landing from '@/pages/Landing';
 import Story from '@/pages/Story';
 import StoryGame from '@/pages/StoryGame';
+import WebPlayGate from '@/components/marketing/WebPlayGate';
+import AuthBootstrap from '@/components/marketing/AuthBootstrap';
+import LabAccessGate from '@/components/marketing/LabAccessGate';
 
 // Repair corrupt sprite-lab saves before hydration syncs them into the profile.
 recoverCorruptDiceState();
@@ -32,6 +37,9 @@ import("@/lib/spriteLabLockedVideos")
   .catch(() => {});
 
 const Shop = lazy(() => import('@/pages/Shop'));
+const WebShop = lazy(() => import('@/pages/WebShop'));
+const Community = lazy(() => import('@/pages/Community'));
+const Account = lazy(() => import('@/pages/Account'));
 
 const Setup = lazy(() => import('@/pages/Setup'));
 const Game = lazy(() => import('@/pages/Game'));
@@ -48,7 +56,9 @@ const VideoAssets = lazy(() => import('@/pages/VideoAssets'));
 const FishShowcase = lazy(() => import('@/pages/FishShowcase'));
 const IcePowerLab = lazy(() => import('@/pages/IcePowerLab'));
 const SharkBiteLab = lazy(() => import('@/pages/SharkBiteLab'));
+const SharkTankLab = lazy(() => import('@/pages/SharkTankLab'));
 const FeltLabPage = lazy(() => import('@/pages/FeltLabPage'));
+const LabsHub = lazy(() => import('@/pages/LabsHub'));
 
 function PageLoader() {
   return (
@@ -128,41 +138,79 @@ function RouteErrorBoundaryWithLocation({ children }) {
   );
 }
 
+function RootRoute() {
+  // Native app: game hub. Web: marketing landing.
+  if (isNativeApp()) return <Home />;
+  return <Landing />;
+}
+
+function PlayHubRoute() {
+  if (isNativeApp()) return <Navigate to="/" replace />;
+  if (!isWebPlayEnabled()) return <Navigate to="/" replace />;
+  return <Home />;
+}
+
+function ShopRoute() {
+  // Native + in-app: GQ coin shop. Web: real-money WebShop.
+  if (isNativeApp()) return <Shop />;
+  return <WebShop />;
+}
+
 function App() {
   const Router = isNativeApp() ? HashRouter : BrowserRouter;
 
   return (
     <QueryClientProvider client={queryClientInstance}>
       <Router>
+        <AuthBootstrap />
         <Suspense fallback={<PageLoader />}>
           <RouteErrorBoundaryWithLocation>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/setup" element={<Setup />} />
-            <Route path="/game" element={<Game />} />
-            <Route path="/rules" element={<Rules />} />
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/preview-dice" element={<PreviewDice />} />
-            <Route path="/ragnarok-sprites" element={<Navigate to="/sprite-lab/matrix" replace />} />
-            <Route path="/sprite-lab" element={<SpriteLabPage />} />
-            <Route path="/sprite-lab/:skinId" element={<SpriteLabPage />} />
-            <Route path="/held-style" element={<HeldStylePreview />} />
-            <Route path="/soundwave-mic" element={<SoundwaveMicSettings />} />
+            <Route path="/" element={<RootRoute />} />
+            <Route path="/shop" element={<ShopRoute />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/community/:boardId" element={<Community />} />
+            <Route path="/community/:boardId/:postId" element={<Community />} />
+            <Route path="/account" element={<Account />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy" element={<Privacy />} />
-            <Route path="/online" element={<OnlineUnavailable />} />
-            <Route path="/online/:matchId" element={<OnlineUnavailable />} />
-            <Route path="/story" element={<Story />} />
-            <Route path="/story/:bossId" element={<StoryGame />} />
-            <Route path="/video-assets" element={<VideoAssets />} />
-            <Route path="/fish-showcase" element={<FishShowcase />} />
-            <Route path="/ice-lab" element={<IcePowerLab />} />
-            <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
-            <Route path="/felt-lab" element={<FeltLabPage />} />
-            <Route path="/felt-lab/:feltId" element={<FeltLabPage />} />
-            <Route path="/shark-bite-lab" element={<SharkBiteLab />} />
-            <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
+
+            {/* Pre-launch web play + always-on native play */}
+            <Route element={<WebPlayGate />}>
+              <Route path="/play" element={<PlayHubRoute />} />
+              <Route path="/home" element={<Navigate to="/play" replace />} />
+              <Route path="/play/shop" element={<Shop />} />
+              <Route path="/setup" element={<Setup />} />
+              <Route path="/game" element={<Game />} />
+              <Route path="/rules" element={<Rules />} />
+              <Route path="/online" element={<OnlineUnavailable />} />
+              <Route path="/online/:matchId" element={<OnlineUnavailable />} />
+              <Route path="/story" element={<Story />} />
+              <Route path="/story/:bossId" element={<StoryGame />} />
+
+              {/* Private forever — only VITE_LAB_ADMIN_EMAILS (open on localhost) */}
+              <Route element={<LabAccessGate />}>
+                <Route path="/labs" element={<LabsHub />} />
+                <Route path="/preview-dice" element={<PreviewDice />} />
+                <Route path="/ragnarok-sprites" element={<Navigate to="/sprite-lab/matrix" replace />} />
+                <Route path="/sprite-lab" element={<SpriteLabPage />} />
+                <Route path="/sprite-lab/:skinId" element={<SpriteLabPage />} />
+                <Route path="/held-style" element={<HeldStylePreview />} />
+                <Route path="/soundwave-mic" element={<SoundwaveMicSettings />} />
+                <Route path="/video-assets" element={<VideoAssets />} />
+                <Route path="/fish-showcase" element={<FishShowcase />} />
+                <Route path="/ice-lab" element={<IcePowerLab />} />
+                <Route path="/frosty-lab" element={<Navigate to="/ice-lab" replace />} />
+                <Route path="/felt-lab" element={<FeltLabPage />} />
+                <Route path="/felt-lab/:feltId" element={<FeltLabPage />} />
+                <Route path="/shark-bite-lab" element={<SharkBiteLab />} />
+                <Route path="/shark-lab" element={<Navigate to="/shark-bite-lab" replace />} />
+                <Route path="/shark-tank-lab" element={<SharkTankLab />} />
+                <Route path="/shark-tank" element={<Navigate to="/shark-tank-lab" replace />} />
+              </Route>
+            </Route>
+
             <Route path="*" element={<PageNotFound />} />
           </Routes>
           </RouteErrorBoundaryWithLocation>

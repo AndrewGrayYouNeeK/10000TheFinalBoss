@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "create-checkout": {
+      "verify_jwt": true
+    },
+    "stripe-webhook": {
+      "verify_jwt": false
+    }
+  }
+}

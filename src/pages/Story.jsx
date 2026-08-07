@@ -11,10 +11,14 @@ import CyberBackground from "@/components/game/CyberBackground";
 import LocalLoopVideo from "@/components/video/LocalLoopVideo";
 import { VIDEO_KEYS } from "@/lib/localVideoStore";
 import { isLowPowerDevice } from "@/lib/platform";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessLabs } from "@/lib/labAccess";
 
 export default function Story() {
   const navigate = useNavigate();
   const { user, isLoading } = useCosmetics();
+  const { user: authUser } = useAuth();
+  const showLabs = canAccessLabs(authUser);
   const bossesDefeated = user?.bosses_defeated || [];
   const totalDefeated = BOSSES.filter((b) => bossesDefeated.includes(b.id)).length;
   const activeBossId = resolveStoryActiveBoss(user?.story_active_boss, bossesDefeated);
@@ -42,7 +46,7 @@ export default function Story() {
             backdropFilter: "blur(8px)",
           }}
         >
-          <BackButton to="/" label="Back" />
+          <BackButton label="Back" />
           <div
             className="font-pixel text-xs flex items-center gap-2 neon-glitch"
             style={{
@@ -64,15 +68,17 @@ export default function Story() {
             className="shadow-lg shadow-fuchsia-500/10"
           />
 
+          {showLabs && (
           <div className="flex justify-end">
             <Link
-              to="/video-assets"
+              to="/labs"
               className="inline-flex items-center gap-1.5 text-[10px] font-bold text-cyan-300/80 hover:text-cyan-200"
             >
               <Film className="w-3.5 h-3.5" />
-              Video settings
+              Dev Labs
             </Link>
           </div>
+          )}
 
           {/* Intro */}
           <motion.div

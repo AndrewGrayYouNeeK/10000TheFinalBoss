@@ -2,7 +2,7 @@
 export function skinHasDedicatedPowerVisual(skin) {
   if (!skin) return false;
   if (skin.powerVideoUrl || skin.powerSpriteUrl || skin.powerDice) return true;
-  if (skin.id === "blue_gel" || skin.id === "snow_globe") return true;
+  if (skin.id === "shark_gel" || skin.id === "snow_globe") return true;
   return false;
 }
 

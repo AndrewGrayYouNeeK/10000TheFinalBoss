@@ -15,7 +15,6 @@ import { FLUORITE_SPRITE_TUNING } from "./fluoriteSpriteTuning";
 import { TEAL_CRACKLE_SPRITE_TUNING } from "./tealCrackleSpriteTuning";
 import { AQUAMARINE_LIGHT_SPRITE_TUNING } from "./aquamarineLightSpriteTuning";
 import { AQUAMARINE_SPRITE_TUNING } from "./aquamarineSpriteTuning";
-import { BLUE_GEL_SPRITE_TUNING } from "./blueGelSpriteTuning";
 import { WOOD_SPRITE_TUNING } from "./woodSpriteTuning";
 import { SILVER_SPRITE_TUNING } from "./silverSpriteTuning";
 import { CIRCUIT_BOARD_SPRITE_TUNING } from "./circuitBoardSpriteTuning";
@@ -417,28 +416,17 @@ export const PRODUCTION_DICE_SKINS = [
     realistic: true,
   },
   {
-    id: "blue_gel",
-    name: "Angelfish",
-    price: 400,
-    gradient: "from-sky-300 via-blue-400 to-blue-600",
-    border: "border-blue-500",
-    pipColor: "bg-white",
-    glow: "shadow-blue-400/60",
-    description: "A big angelfish circling the pips.",
-    realistic: true,
-    powerDice: true,
-    spriteUrl: "/assets/999d8760b_generated_image.png",
-  },
-  {
     id: "shark_gel",
     name: "Shark Tank",
     price: 650,
-    gradient: "from-slate-600 via-cyan-900 to-slate-950",
-    border: "border-rose-700",
+    gradient: "from-sky-300 via-cyan-800 to-slate-950",
+    border: "border-cyan-600",
     pipColor: "bg-white",
-    glow: "shadow-rose-500/60",
-    description: "A dark aquarium stalked by great whites — and the occasional killer whale.",
+    glow: "shadow-cyan-400/60",
+    description:
+      "Angelfish aquarium on the table — great whites and orcas when Shark Bite is charged.",
     realistic: true,
+    powerDice: true,
   },
   {
     id: "plasma",
@@ -518,7 +506,6 @@ const EXOTIC_SKIN_IDS = new Set([
   "toxic_plasma_v2",
   "matrix",
   "plasma",
-  "blue_gel",
   "shark_gel",
   "snow_globe",
 ]);
@@ -937,6 +924,8 @@ const REMOVED_SKIN_IDS = ["tesla"];
 export function normalizeSkinId(id) {
   if (REMOVED_SKIN_IDS.includes(id)) return "plasma";
   if (RAGNAROK_LEGACY_SKIN_IDS.includes(id)) return "ragnarok";
+  // Angelfish / Marlin Joe Blue Gel merged into Shark Tank (regular = fish, power = sharks).
+  if (id === "blue_gel") return "shark_gel";
   return id;
 }
 
@@ -966,19 +955,13 @@ function resolveLockedPowerVideoZoom(draftZoom, catalogZoom, locked) {
 }
 
 /** Aquarium skins — custom Die.jsx faces with a borrowed glass shell. */
-export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe", "blue_gel", "shark_gel"]);
+export const AQUARIUM_OVERLAY_SKIN_IDS = new Set(["snow_globe", "shark_gel"]);
 
 export const BLUE_GEL_SPRITE_URL = "/assets/999d8760b_generated_image.png";
 
-/** Blue Gel face is tank + CSS pips — never re-inject the fish-baked sheet. */
+/** @deprecated Blue Gel merged into shark_gel — kept for any leftover callers. */
 function withoutBlueGelRuntimeSprite(skin) {
-  if (skin?.id !== "blue_gel") return skin;
-  const next = { ...skin };
-  delete next.spriteUrl;
-  delete next.powerSpriteUrl;
-  delete next.videoUrl;
-  delete next.powerVideoUrl;
-  return next;
+  return skin;
 }
 
 function withoutAquariumSpriteSheets(skin) {
@@ -1001,8 +984,6 @@ export function isAquariumOverlaySkinId(skinId) {
 export function getSkinSpriteLayer(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
-  // Blue Gel — no face sheet (old sheet baked a tropical fish over every face).
-  if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return null;
   if (powerMode && skin.powerSpriteUrl) {
     return {
@@ -1029,8 +1010,6 @@ export function skinHasPowerSprite(skin) {
 export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = true } = {}) {
   if (!skin) return null;
   if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin.id)) return null;
-  // Blue Gel — tank + CSS pips in Die.jsx; shark bite uses fullscreen video FX.
-  if (skin.id === "blue_gel") return null;
   if (powerMode && allowPowerVideo && skin.powerVideoUrl) return skin.powerVideoUrl;
   if (!powerMode && skin.videoUrl) return skin.videoUrl;
   return null;
@@ -1039,7 +1018,7 @@ export function getActiveVideoUrl(skin, { powerMode = false, allowPowerVideo = t
 function applyLockedSpritePaths(skin, draft, locked) {
   if (!locked || !draft) return skin;
   // Old lock snapshots may still carry sprite paths — aquarium skins never use them.
-  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id) || skin?.id === "blue_gel") return skin;
+  if (AQUARIUM_OVERLAY_SKIN_IDS.has(skin?.id)) return skin;
   const next = { ...skin };
   // Regular + power sprite sheets always follow catalog — lock stores crop/face tuning only.
   // (Stale locks once pointed cyber_neon / ragnarok power at the wrong gameplay PNG.)
@@ -1070,14 +1049,6 @@ export function getSkin(id) {
     withoutAquariumSpriteSheets(applyLockedSpritePaths(base, draft, locked)),
   );
   if (!draft) {
-    if (skin.id === "blue_gel") {
-      return {
-        ...skin,
-        spriteSheetSize: BLUE_GEL_SPRITE_TUNING.spriteSheetSize,
-        spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
-        spriteFaceOffsets: BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets,
-      };
-    }
     return skin;
   }
   const mergeRegular = (offsetsBase) => {
@@ -1434,21 +1405,6 @@ export function getSkin(id) {
         regular: mergeRegular(skin.spriteFaceOffsets?.regular),
       },
     };
-  }
-
-  if (skin.id === "blue_gel") {
-    // Tank + CSS pips in Die.jsx — never reattach the fish-baked face sheet.
-    return withoutBlueGelRuntimeSprite({
-      ...skin,
-      spriteCrop: BLUE_GEL_SPRITE_TUNING.spriteCrop,
-      spriteFaceOffsets: {
-        ...skin.spriteFaceOffsets,
-        regular: mergeRegular(
-          skin.spriteFaceOffsets?.regular ?? BLUE_GEL_SPRITE_TUNING.spriteFaceOffsets?.regular
-        ),
-        power: mergePower(skin.spriteFaceOffsets?.power),
-      },
-    });
   }
 
   if (skin.spriteCrop) {

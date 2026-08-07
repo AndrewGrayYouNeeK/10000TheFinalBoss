@@ -36,6 +36,23 @@ const THEMES = {
       frontRatio: 0.32,
     },
   },
+  // Captain Chomps — same underwater bubble field as Marlin Joe
+  shark_tank:   {
+    bg: "#02101c",
+    glow: "rgba(56,189,248,0.4)",
+    effect: "bubbles",
+    bubbles: {
+      vents: 16,
+      breathMin: 0.3,
+      breathMax: 1.5,
+      cluster: [16, 36],
+      cap: 780,
+      speed: [0.5, 1.75],
+      radius: [1.0, 5.6],
+      dripRate: 30,
+      frontRatio: 0.34,
+    },
+  },
   shark:        { glyphs: ["🦈","♠","♣","♥","♦","A","K","Q","J"], color: "rgba(100,220,240,0.9)", glow: "rgba(40,200,255,0.55)", bg: "#04101a" },
 
   // Tier 3

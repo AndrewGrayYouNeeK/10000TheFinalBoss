@@ -16,14 +16,11 @@ import FeltPreview from "@/components/shop/FeltPreview";
 import MysteryBoxesTab from "@/components/shop/MysteryBoxesTab";
 import BuyCoinsDialog from "@/components/shop/BuyCoinsDialog";
 import { isPreviewSkin } from "@/lib/previewSkins";
-import { getHeldDiceStyle } from "@/lib/heldDiceStyles";
 import { GHOST_SKIN_ID } from "@/lib/ghostDisguise";
 import GhostDisguisePicker from "@/components/shop/GhostDisguisePicker";
-import { SPRITE_LAB_SKIN_IDS } from "@/lib/spriteLab";
-import { cn } from "@/lib/utils";
-
-const showPreviewLab = true;
-
+import HeldDiceStylePicker from "@/components/game/HeldDiceStylePicker";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessLabs } from "@/lib/labAccess";
 
 export default function Shop() {
   const {
@@ -31,9 +28,10 @@ export default function Shop() {
     coins, xp, isLoading,
     ownedSkins, ownedBadges, ownedFelts,
     equippedSkinId, equippedBadgeId, equippedFeltId, heldDiceStyleId, ghostDisguiseId,
-    buyItem, equipItem, setGhostDisguise, getSkinEffectivePrice, addCoins, isDevUnlockAll,
+    buyItem, equipItem, setGhostDisguise, setHeldDiceStyle, getSkinEffectivePrice, addCoins, isDevUnlockAll,
   } = useCosmetics();
-  const heldStyle = getHeldDiceStyle(heldDiceStyleId);
+  const { user: authUser } = useAuth();
+  const showLabs = canAccessLabs(authUser);
   const [tab, setTab] = useState("skins");
 
   const handleBuy = (type, item) => {
@@ -59,17 +57,16 @@ export default function Shop() {
         className="sticky top-0 z-20 backdrop-blur bg-slate-950/90 border-b border-white/10 px-3 pb-3 flex items-center justify-between gap-2"
         style={PAGE_HEADER_SAFE_STYLE}
       >
-        <BackButton to="/" label="Back" />
+        <BackButton label="Back" />
         <h1 className="text-lg font-black flex items-center gap-2 truncate">
           <Sparkles className="w-5 h-5 text-amber-400 shrink-0" /> Shop
         </h1>
         <div className="flex items-center gap-2 shrink-0">
-          <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-emerald-500/40 text-emerald-200 px-2">
-            <Link to="/felt-lab">Felt Lab</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-green-500/40 text-green-200 px-2">
-            <Link to="/sprite-lab">Sprite Lab</Link>
-          </Button>
+          {showLabs && (
+            <Button asChild size="sm" variant="outline" className="h-8 text-[10px] border-amber-500/40 text-amber-200 px-2">
+              <Link to="/labs">Labs</Link>
+            </Button>
+          )}
           <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 rounded-full px-3 py-1.5">
             <Coins className="w-4 h-4 text-amber-400" />
             <span className="font-black tabular-nums text-amber-300">
@@ -88,30 +85,14 @@ export default function Shop() {
           </span>
         </div>
 
-        <div className="rounded-2xl border border-fuchsia-500/35 bg-gradient-to-br from-fuchsia-950/30 to-slate-900/50 p-4 mb-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-300">Soundwave Mic</p>
-              <p className="text-sm text-slate-300">Presets, sensitivity, and mic device for audio-reactive dice</p>
-              <p className="text-[10px] text-fuchsia-200/90 mt-1 font-semibold">Tap Soundwave dice in-game to enable the mic</p>
-            </div>
-            <Button asChild size="sm" variant="outline" className="border-fuchsia-400/50 text-fuchsia-200 shrink-0 hover:bg-fuchsia-500/10">
-              <Link to="/soundwave-mic">Settings</Link>
-            </Button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-amber-500/35 bg-gradient-to-br from-amber-950/30 to-slate-900/50 p-4 mb-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-amber-300">Held Dice Glow</p>
-              <p className="text-sm text-slate-300">Saved to your profile — same glow on every dice skin</p>
-              <p className="text-[10px] text-amber-200/90 mt-1 font-semibold">Current: {heldStyle.label}</p>
-            </div>
-            <Button asChild size="sm" variant="outline" className="border-amber-400/50 text-amber-200 shrink-0 hover:bg-amber-500/10">
-              <Link to="/held-style">Change</Link>
-            </Button>
-          </div>
+        <div className="mb-4">
+          <HeldDiceStylePicker
+            value={heldDiceStyleId}
+            onChange={(id) => {
+              setHeldDiceStyle(id);
+              toast.success("Held glow updated");
+            }}
+          />
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -143,32 +124,11 @@ export default function Shop() {
               </div>
             )}
 
-            {showPreviewLab && (
-            <div className="mb-4 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 to-indigo-950/30 p-4">
-              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Preview Lab</p>
-                  <p className="text-sm text-slate-300">12 custom effects + spectral clears</p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button asChild size="sm" className="bg-cyan-600 hover:bg-cyan-500">
-                    <Link to="/preview-dice">Custom Lab</Link>
-                  </Button>
-                </div>
-              </div>
-              <div className="flex justify-center gap-3 py-2 flex-wrap">
-                {["pf_radar_sweep", "pf_score_meter", "pf_tornado", "ghost", "cyber_neon"].map((id) => (
-                  <DicePreview key={id} skinId={id} value={5} resolveGhost={false} />
-                ))}
-              </div>
-            </div>
-            )}
-
             {(() => {
               const dupes = getDuplicateGroups(DICE_SKINS);
               const PINNED_FIRST = ["pride", "ruby"];
               const PINNED_FIRST_BY_CAT = { power: ["ragnarok"] };
-              const PINNED_LAST = ["gold", "dragon_scale", "circuit_board", "galaxy", "snow_globe", "blue_gel"];
+              const PINNED_LAST = ["gold", "dragon_scale", "circuit_board", "galaxy", "snow_globe", "shark_gel"];
               const firstRank = (id) => PINNED_FIRST.indexOf(id);
               const lastRank = (id) => PINNED_LAST.indexOf(id);
 
@@ -209,38 +169,6 @@ export default function Shop() {
                   <div className="mb-3">
                     <div className="flex items-center justify-between gap-2">
                       <h2 className="text-sm font-black uppercase tracking-wider text-amber-200">{cat.label}</h2>
-                      {SPRITE_LAB_SKIN_IDS.some((id) => getSkinShopCategory(id) === cat.id) && (
-                        <div className="flex flex-wrap gap-1 justify-end">
-                          {SPRITE_LAB_SKIN_IDS.filter((id) => getSkinShopCategory(id) === cat.id).map((id) => (
-                            <Button
-                              key={id}
-                              asChild
-                              size="sm"
-                              variant="outline"
-                              className={cn(
-                                "h-7 text-[10px] capitalize",
-                                id === "matrix"
-                                  ? "border-green-500/40 text-green-200"
-                                  : id === "crystal_cut"
-                                    ? "border-cyan-500/40 text-cyan-200"
-                                    : id === "diamond_ruby"
-                                      ? "border-red-500/40 text-red-200"
-                                      : id === "ice"
-                                        ? "border-sky-500/40 text-sky-200"
-                                        : id === "snow_globe"
-                                          ? "border-sky-500/40 text-sky-200"
-                                          : id === "blue_gel"
-                                            ? "border-cyan-500/40 text-cyan-200"
-                                            : "border-orange-500/40 text-orange-200"
-                              )}
-                            >
-                              <Link to={`/sprite-lab/${id}`}>
-                                {id === "blue_gel" ? "Blue Gel · Marlin Joe" : `${getSkin(id)?.name || id} lab`}
-                              </Link>
-                            </Button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     <p className="text-[10px] text-slate-500">{cat.blurb}</p>
                   </div>
@@ -325,22 +253,6 @@ export default function Shop() {
           </TabsContent>
 
           <TabsContent value="felts" className="mt-4">
-            <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/30 to-slate-900/50 p-4 mb-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Felt Lab</p>
-                  <p className="text-sm text-slate-300">
-                    Fix stretched or blurry table felt — tune texture fit and sharpness
-                  </p>
-                  <p className="text-[10px] text-emerald-200/90 mt-1 font-semibold">
-                    Saves to your profile — same look in shop and game
-                  </p>
-                </div>
-                <Button asChild size="sm" variant="outline" className="border-emerald-400/50 text-emerald-200 shrink-0 hover:bg-emerald-500/10">
-                  <Link to="/felt-lab">Open Lab</Link>
-                </Button>
-              </div>
-            </div>
             <p className="text-[10px] text-slate-400 mb-3 text-center">
               Each card shows the real table surface — scroll to match names to looks.
             </p>

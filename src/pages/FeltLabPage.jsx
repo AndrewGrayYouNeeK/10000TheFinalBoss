@@ -251,7 +251,7 @@ function FeltLabIndex() {
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-3xl mx-auto flex items-center gap-2">
-          <BackButton to="/shop" label="Shop" />
+          <BackButton to="/labs" label="Labs" />
           <div>
             <h1 className="text-lg font-black">Felt Lab</h1>
             <p className="text-[10px] text-slate-400">
@@ -321,10 +321,10 @@ export default function FeltLabPage() {
             <p className="text-[10px] text-slate-400 truncate">Texture fit · clarity · overlays</p>
           </div>
           <Link
-            to="/shop"
+            to="/labs"
             className="text-[10px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-white/20 text-slate-300 hover:bg-white/5 shrink-0"
           >
-            Shop
+            Labs
           </Link>
         </div>
       </div>

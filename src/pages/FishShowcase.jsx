@@ -154,7 +154,7 @@ export default function FishShowcase() {
               ▶ Game Bite preview
             </Link>
             <Link
-              to="/sprite-lab/blue_gel"
+              to="/sprite-lab/shark_gel"
               className="text-xs font-black uppercase tracking-wider text-white bg-cyan-700 hover:bg-cyan-600 rounded-full px-3 py-1.5"
             >
               Blue Gel dice lab
@@ -178,10 +178,10 @@ export default function FishShowcase() {
               Ice Lab
             </Link>
             <Link
-              to="/shop"
+              to="/labs"
               className="text-xs font-bold uppercase tracking-wider text-cyan-300 border border-cyan-700/60 rounded-full px-3 py-1.5 hover:bg-cyan-950/60"
             >
-              ← Shop
+              ← Labs
             </Link>
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function FishShowcase() {
               dice={PREVIEW_DICE}
               rolling={false}
               disabled
-              skinId="blue_gel"
+              skinId="shark_gel"
               feltId="classic_green"
               fishFeastMode={fishFeastMode}
               sharkBiteFx={sharkBiteFx}
@@ -286,7 +286,7 @@ export default function FishShowcase() {
                 key={`${replayKey}-${d.id}`}
                 value={d.value}
                 size={88}
-                skinId="blue_gel"
+                skinId="shark_gel"
                 powerMode={powerPreview}
                 includeJellyfish={d.id === jellyDieId}
                 {...getBlueGelTrayFishProps(idx)}

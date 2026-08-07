@@ -49,10 +49,14 @@ ios/             Capacitor native iOS project (generated)
 
 ## Key Flows
 
-- **Local game**: Home → Setup → Game (`sessionStorage` for player names)
-- **Story mode**: Home → Story → StoryGame (AI opponent via `aiOpponent.js`)
-- **Shop**: coins/XP from `localProfile`; purchases via `useCosmetics().buyItem()`
-- **Online**: `/online` shows unavailable page (no server yet)
+- **Marketing site (web):** `/` landing → `/shop` (USD) → `/community` → `/account` (Supabase sync)
+- **Local game (pre-launch web):** Landing → `/play` hub → Setup → Game (`sessionStorage` for player names)
+- **Local game (native):** Home `/` → Setup → Game
+- **Story mode:** Hub → Story → StoryGame (AI opponent via `aiOpponent.js`)
+- **In-app coin shop:** `/shop` native or `/play/shop` on web (`useCosmetics().buyItem()`)
+- **Online:** `/online` shows unavailable page (no server yet)
+
+**Launch cutover:** set `VITE_WEB_PLAY_ENABLED=false` and redeploy — see `docs/WEB_SHOP_LAUNCH.md`.
 
 ## Cursor Rules
 

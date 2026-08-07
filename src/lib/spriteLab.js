@@ -14,7 +14,7 @@ import { isPaperTuningLocked } from "@/lib/paperTuningLock";
 import { isClassicWhiteTuningLocked } from "@/lib/classicWhiteTuningLock";
 import { isDragonScaleTuningLocked } from "@/lib/dragonScaleTuningLock";
 import { isSnowGlobeTuningLocked } from "@/lib/snowGlobeTuningLock";
-import { isBlueGelTuningLocked } from "@/lib/blueGelTuningLock";
+import { isSharkGelTuningLocked } from "@/lib/sharkGelTuningLock";
 import { isTealCrackleTuningLocked } from "@/lib/tealCrackleTuningLock";
 import { isAquamarineLightTuningLocked } from "@/lib/aquamarineLightTuningLock";
 import { isAquamarineTuningLocked } from "@/lib/aquamarineTuningLock";
@@ -48,7 +48,7 @@ const TUNING_LOCK_CHECKERS = {
   classic_white: isClassicWhiteTuningLocked,
   dragon_scale: isDragonScaleTuningLocked,
   snow_globe: isSnowGlobeTuningLocked,
-  blue_gel: isBlueGelTuningLocked,
+  shark_gel: isSharkGelTuningLocked,
   teal_crackle: isTealCrackleTuningLocked,
   aquamarine_light: isAquamarineLightTuningLocked,
   aquamarine: isAquamarineTuningLocked,
@@ -84,7 +84,7 @@ const TUNING_LOCK_FLAG_KEYS = {
   classic_white: "yourneek_classic_white_tuning_locked",
   dragon_scale: "yourneek_dragon_scale_tuning_locked",
   snow_globe: "yourneek_snow_globe_tuning_locked",
-  blue_gel: "yourneek_blue_gel_tuning_locked",
+  shark_gel: "yourneek_shark_gel_tuning_locked",
   teal_crackle: "yourneek_teal_crackle_tuning_locked",
   aquamarine_light: "yourneek_aquamarine_light_tuning_locked",
   aquamarine: "yourneek_aquamarine_tuning_locked",
@@ -359,12 +359,12 @@ function writeSpriteLabSnapshotToLocalStorage(skinId, snapshot) {
 export function restoreAquariumShellSettingsFromSnapshot(skinId, snapshot) {
   if (!snapshot?.shellSettings) return;
   if (skinId === "snow_globe") saveSnowGlobeSettings(snapshot.shellSettings);
-  if (skinId === "blue_gel") saveBlueGelSettings(snapshot.shellSettings);
+  if (skinId === "shark_gel") saveBlueGelSettings(snapshot.shellSettings);
 }
 
 function loadAquariumShellSettingsForSnapshot(skinId) {
   if (skinId === "snow_globe") return loadSnowGlobeSettings();
-  if (skinId === "blue_gel") return loadBlueGelSettings();
+  if (skinId === "shark_gel") return loadBlueGelSettings();
   return undefined;
 }
 
@@ -653,7 +653,7 @@ export function hydrateSpriteLabPersistence() {
 }
 
 /** Featured skins — shop category headers link to these labs first */
-export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe", "blue_gel", "shark_gel"];
+export const SPRITE_LAB_SKIN_IDS = ["matrix", "crystal_cut", "ragnarok", "ice", "snow_globe", "shark_gel"];
 
 export const DEFAULT_SPRITE_LAB_SKIN_ID = "matrix";
 

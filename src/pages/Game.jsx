@@ -89,6 +89,8 @@ import { redactDiceForOpponent } from "@/lib/onlineGameState";
 import { xrayRevealsVisible } from "@/lib/xrayScan";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessLabs } from "@/lib/labAccess";
 
 import {
   clearLocalGame,
@@ -180,6 +182,8 @@ export default function Game() {
     () => bootSave?.revealedTurnKey ?? null
   );
   const { user, equippedSkinId, equippedFeltId, addCoins, addXp, recordGameResult, grantReward, sfxMuted, opponentSfxMuted, setSfxMuted, setOpponentSfxMuted, heldDiceStyleId, setHeldDiceStyle, ownedSkins, ghostDisguiseId, isLoading } = useCosmetics();
+  const { user: authUser } = useAuth();
+  const showLabs = canAccessLabs(authUser);
   const playDiceSound = useDiceSound();
   const prevBustRef = React.useRef(bootSave?.game?.bustCount || 0);
   const winnerAwardedRef = React.useRef(
@@ -840,7 +844,7 @@ export default function Game() {
   const lowPower = isLowPowerDevice();
   const practiceVariant =
     skinPracticeVariant(activeSkinId) || (previewSharkBite ? "marlin" : null);
-  const previewSkinId = practicePreviewSkinId(practiceVariant);
+  const previewSkinId = practicePreviewSkinId(practiceVariant, { skinId: activeSkinId });
   const practiceTraySkinId =
     practicePowerPreview && previewSkinId ? previewSkinId : activeSkinId;
   const practiceSkinPower =
@@ -945,7 +949,6 @@ export default function Game() {
         }}
       >
         <BackButton
-          to="/"
           label="Back"
           confirmMessage={state.winner ? undefined : "Leave this game and go home?"}
         />
@@ -1011,14 +1014,16 @@ export default function Game() {
               <HeldDiceStylePicker value={heldDiceStyleId} onChange={setHeldDiceStyle} />
             </PopoverContent>
           </Popover>
+          {showLabs && (
           <Link
-            to="/video-assets"
+            to="/labs"
             className="text-slate-400 hover:text-cyan-300 p-1"
-            title="Video settings"
-            aria-label="Video settings"
+            title="Dev Labs"
+            aria-label="Dev Labs"
           >
             <Film className="w-4 h-4" />
           </Link>
+          )}
           <RulesSheet />
         </div>
       </div>

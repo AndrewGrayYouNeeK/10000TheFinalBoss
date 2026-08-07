@@ -3,9 +3,9 @@ import { useLocalVideo } from "@/hooks/useLocalVideo";
 import { useStoryBossVideo } from "@/hooks/useStoryBossVideo";
 import { getStoryBossAvatarLoopVideoStyle } from "@/lib/storyBossVideos";
 import {
-  getFishermanAvatarLoopVideoStyle,
-  useFishermanAvatarLoopSettings,
-} from "@/lib/fishermanAvatarLoopSettings";
+  getSharkTankAvatarLoopVideoStyle,
+  useSharkTankAvatarLoopSettings,
+} from "@/lib/sharkTankAvatarLoopSettings";
 
 // Renders a boss avatar — emoji, image URL, or optional looping video (falls back to image).
 // sizeClass controls the wrapper box, emojiClass controls the text size.
@@ -37,11 +37,11 @@ export default function BossAvatar({
     !!(videoKey || useBossAvatarVideo) &&
     !!videoSrc &&
     !videoFailed;
-  const fishermanTuning = useFishermanAvatarLoopSettings();
+  const sharkTankTuning = useSharkTankAvatarLoopSettings();
   const avatarVideoStyle =
     useBossAvatarVideo && boss?.id
-      ? boss.id === "fisherman"
-        ? getFishermanAvatarLoopVideoStyle(fishermanTuning)
+      ? boss.id === "shark_tank"
+        ? getSharkTankAvatarLoopVideoStyle(sharkTankTuning)
         : getStoryBossAvatarLoopVideoStyle(boss.id)
       : { objectFit: "cover", objectPosition: "center center" };
 

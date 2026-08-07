@@ -89,10 +89,10 @@ import {
   unlockSnowGlobeTuning,
 } from "@/lib/snowGlobeTuningLock";
 import {
-  isBlueGelTuningLocked,
-  lockBlueGelTuning,
-  unlockBlueGelTuning,
-} from "@/lib/blueGelTuningLock";
+  isSharkGelTuningLocked,
+  lockSharkGelTuning,
+  unlockSharkGelTuning,
+} from "@/lib/sharkGelTuningLock";
 import {
   isIceTuningLocked,
   lockIceTuning,
@@ -271,11 +271,11 @@ const TUNING_LOCK_SKINS = {
     accent: "sky",
     noSpriteTuning: true,
   },
-  blue_gel: {
-    isLocked: isBlueGelTuningLocked,
-    lock: lockBlueGelTuning,
-    unlock: unlockBlueGelTuning,
-    tuningFile: "blueGelSpriteTuning.js",
+  shark_gel: {
+    isLocked: isSharkGelTuningLocked,
+    lock: lockSharkGelTuning,
+    unlock: unlockSharkGelTuning,
+    tuningFile: "sharkGelSpriteTuning.js",
     accent: "cyan",
   },
   galaxy: {
@@ -492,6 +492,7 @@ const NEO_BOSS_ID = "neo";
 /** Frosty the Evil Snowman — story ladder / video key id (not dormant ice_witch). */
 const FROSTY_BOSS_ID = "snowman";
 const DRAGON_KNIGHT_BOSS_ID = "dragon_knight";
+const SHARK_TANK_BOSS_ID = "shark_tank";
 
 function skinUsesTuningLock(skinId) {
   return skinId in TUNING_LOCK_SKINS;
@@ -1011,7 +1012,7 @@ export default function SpriteLab({ skinId }) {
           ? "border-sky-500/30 bg-sky-950/20"
           : skinId === "snow_globe"
             ? "border-sky-500/30 bg-sky-950/20"
-            : skinId === "blue_gel"
+            : skinId === "shark_gel"
               ? "border-cyan-500/30 bg-cyan-950/20"
               : "border-orange-500/30 bg-orange-950/20";
   const accentText =
@@ -1023,7 +1024,7 @@ export default function SpriteLab({ skinId }) {
           ? "text-sky-200"
           : skinId === "snow_globe"
             ? "text-sky-200"
-            : skinId === "blue_gel"
+            : skinId === "shark_gel"
               ? "text-cyan-200"
               : "text-orange-200";
   const videoLabAccent =
@@ -1059,8 +1060,8 @@ export default function SpriteLab({ skinId }) {
       skinLevel={previewSkinLevel}
       snowGlobeShellSettings={skinId === "snow_globe" ? snowGlobeShell : undefined}
       devSkin={labPreviewSkin}
-      includeJellyfish={skinId === "blue_gel" && face >= 2}
-      {...(skinId === "blue_gel" ? getBlueGelTrayFishProps(face - 1) : {})}
+      includeJellyfish={skinId === "shark_gel" && face >= 2}
+      {...(skinId === "shark_gel" ? getBlueGelTrayFishProps(face - 1) : {})}
     />
   );
 
@@ -1071,13 +1072,11 @@ export default function SpriteLab({ skinId }) {
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-3xl mx-auto flex items-center gap-2">
-          <BackButton to="/shop" label="Shop" />
+          <BackButton to="/labs" label="Labs" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-black truncate">
-                {skinId === "blue_gel"
-                  ? "Blue Gel — Marlin Joe's Dice"
-                  : `${catalogSkin.name} Sprite Lab`}
+                {`${catalogSkin.name} Sprite Lab`}
               </h1>
               <label className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wide">Skin</span>
@@ -1160,7 +1159,7 @@ export default function SpriteLab({ skinId }) {
                   : "Locked — tuning and videos saved on this device"
                 : skinId === "snow_globe"
                   ? "Glass shell dice — live preview + shell shift"
-                  : skinId === "blue_gel"
+                  : skinId === "shark_gel"
                     ? "Face sprite sheet — crop + per-face nudge · autosaved"
                     : skinId === "ice"
                     ? "Sprite crop + per-face nudge · Save or Lock to persist"
@@ -1706,13 +1705,19 @@ export default function SpriteLab({ skinId }) {
         </div>
 
 
-        {skinId === "blue_gel" && (
+        {skinId === "shark_gel" && (
           <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 text-xs text-cyan-100 space-y-2">
             <p>
-              Blue Gel uses its own <b>face sprite sheet</b> (<code className="text-cyan-200">999d8760b_generated_image.png</code>)
-              with <b>baked-in dark pips</b> painted above the fish tank. Use crop + nudge below to align each face.
+              <b>Shark Tank</b> — regular faces show the angelfish aquarium; Shark Bite charge swaps
+              in great whites &amp; orcas. Crop &amp; nudge the glass shell here.
             </p>
             <div className="flex flex-wrap gap-2">
+              <Link
+                to="/shark-tank-lab"
+                className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white"
+              >
+                Shark Tank Lab
+              </Link>
               <Link
                 to="/shark-bite-lab"
                 className="text-[11px] font-black uppercase tracking-wider rounded-full px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white"
@@ -1728,7 +1733,7 @@ export default function SpriteLab({ skinId }) {
             </div>
           </div>
         )}
-        {skinId === "blue_gel" && (
+        {skinId === "shark_gel" && (
           <div className="rounded-xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-rose-200">
               Shark Bite power videos
@@ -1816,10 +1821,10 @@ export default function SpriteLab({ skinId }) {
               <li>Tune global shell zoom/offset, then fine-tune each face</li>
               <li>Settings autosave in this browser — apply in-game immediately</li>
             </ol>
-          ) : skinId === "blue_gel" ? (
+          ) : skinId === "shark_gel" ? (
             <ol className="list-decimal pl-4 space-y-1 text-slate-300">
               <li>Pick a face with the <b>1–6 buttons</b></li>
-              <li>Drag <b>Nudge X / Y</b> until the dark pips/digits read clearly over the fish</li>
+              <li>Drag <b>Nudge X / Y</b> until the dark pips/digits read clearly over the aquarium</li>
               <li>Tune global crop, then fine-tune each face</li>
               <li>Settings autosave in this browser — apply in-game immediately</li>
               <li>
@@ -1827,6 +1832,14 @@ export default function SpriteLab({ skinId }) {
                 <Link to="/shark-bite-lab" className="text-rose-300 underline">
                   Shark Bite Lab
                 </Link>
+                {skinId === "shark_gel" ? (
+                  <>
+                    {" · "}
+                    <Link to="/shark-tank-lab" className="text-cyan-300 underline">
+                      Shark Tank Lab
+                    </Link>
+                  </>
+                ) : null}
               </li>
             </ol>
           ) : (
@@ -2345,6 +2358,48 @@ export default function SpriteLab({ skinId }) {
               Same slots are under <b>Neo</b> in{" "}
               <Link to="/video-assets" className="text-cyan-400 underline">
                 Video Assets → Story mode
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
+        {skinId === "shark_gel" && (
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">
+              Story mode — Captain Chomps videos
+            </p>
+            <p className="text-[10px] text-slate-400">
+              Only plays in <b>Story mode</b> fights against Captain Chomps. <b>Before match</b>{" "}
+              fullscreen intro · <b>After victory</b> win · <b>Avatar loop</b> above the table (crop /
+              trim tuner on the Avatar loop card).
+            </p>
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossIntroKey(SHARK_TANK_BOSS_ID)}
+              label={getStoryBossVideoLabel(SHARK_TANK_BOSS_ID, "intro")}
+              description={getStoryBossVideoDescription(SHARK_TANK_BOSS_ID, "intro")}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossWinKey(SHARK_TANK_BOSS_ID)}
+              label={getStoryBossVideoLabel(SHARK_TANK_BOSS_ID, "win")}
+              description={getStoryBossVideoDescription(SHARK_TANK_BOSS_ID, "win")}
+            />
+            <VideoUploadCard
+              lockRemovesOnly={tuningLocked}
+              videoKey={storyBossAvatarKey(SHARK_TANK_BOSS_ID)}
+              label={getStoryBossVideoLabel(SHARK_TANK_BOSS_ID, "avatar")}
+              description={getStoryBossVideoDescription(SHARK_TANK_BOSS_ID, "avatar")}
+            />
+            <p className="text-[10px] text-slate-500 pt-1">
+              Same slots are under <b>Captain Chomps</b> in{" "}
+              <Link to="/video-assets" className="text-cyan-400 underline">
+                Video Assets → Story mode
+              </Link>
+              . Dice preview workspace:{" "}
+              <Link to="/shark-tank-lab" className="text-cyan-400 underline">
+                Shark Tank Lab
               </Link>
               .
             </p>

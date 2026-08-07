@@ -10,9 +10,14 @@ import DevServerTip from "@/components/home/DevServerTip";
 import { isNativeApp } from "@/lib/platform";
 import { assetUrl } from "@/lib/assetUrl";
 import { hasResumableLocalGame } from "@/lib/localGameSave";
+import { coinShopPath } from "@/lib/webPlay";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessLabs } from "@/lib/labAccess";
 
 export default function Home() {
   const { coins, isLoading } = useCosmetics();
+  const { user: authUser } = useAuth();
+  const showLabs = canAccessLabs(authUser);
   const native = isNativeApp();
   const particleCount = native ? 0 : 14;
   const canContinueGame = hasResumableLocalGame();
@@ -126,21 +131,59 @@ export default function Home() {
       <DevServerTip />
 
       {/* Top bar */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
-        <Link
-          to="/shop"
-          className="flex items-center gap-1.5 rounded px-3 py-1.5 transition-all border font-black tabular-nums text-sm"
-          style={{
-            background: "rgba(0,255,200,0.07)",
-            borderColor: "rgba(0,255,200,0.35)",
-            color: "#00ffc8",
-            boxShadow: "0 0 12px rgba(0,255,200,0.15)",
-          }}
-        >
-          <Coins className="w-4 h-4" />
-          {isLoading ? "…" : coins.toLocaleString()}
-        </Link>
-        <RulesSheet />
+      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {!native && (
+            <Link
+              to="/"
+              className="rounded px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border"
+              style={{
+                borderColor: "rgba(0,255,200,0.25)",
+                color: "rgba(0,255,200,0.55)",
+              }}
+            >
+              Site
+            </Link>
+          )}
+          <Link
+            to="/account"
+            className="rounded px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border"
+            style={{
+              borderColor: "rgba(168,85,247,0.4)",
+              color: "#c084fc",
+            }}
+          >
+            Account
+          </Link>
+          {showLabs && (
+            <Link
+              to="/labs"
+              className="rounded px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border"
+              style={{
+                borderColor: "rgba(251,191,36,0.45)",
+                color: "#fbbf24",
+              }}
+            >
+              Labs
+            </Link>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            to={coinShopPath()}
+            className="flex items-center gap-1.5 rounded px-3 py-1.5 transition-all border font-black tabular-nums text-sm"
+            style={{
+              background: "rgba(0,255,200,0.07)",
+              borderColor: "rgba(0,255,200,0.35)",
+              color: "#00ffc8",
+              boxShadow: "0 0 12px rgba(0,255,200,0.15)",
+            }}
+          >
+            <Coins className="w-4 h-4" />
+            {isLoading ? "…" : coins.toLocaleString()}
+          </Link>
+          <RulesSheet />
+        </div>
       </div>
 
       {/* Main content */}
@@ -280,7 +323,7 @@ export default function Home() {
             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               <Link
                 data-dice-obstacle
-                to="/shop"
+                to={coinShopPath()}
                 className="flex items-center justify-center w-full h-13 py-3 text-sm font-bold rounded-lg gap-2 border"
                 style={{
                   background: "rgba(168,85,247,0.1)",

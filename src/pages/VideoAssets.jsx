@@ -59,7 +59,7 @@ export default function VideoAssets() {
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-2xl mx-auto flex items-center gap-2">
-          <BackButton to="/" label="Home" />
+          <BackButton to="/labs" label="Labs" />
           <div className="min-w-0 flex-1 flex items-center gap-2">
             <Film className="w-5 h-5 text-cyan-400 shrink-0" />
             <div>
@@ -107,10 +107,12 @@ export default function VideoAssets() {
         <section className="rounded-2xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-black text-rose-200">Blue Gel — Shark Bite workbench</h2>
+              <h2 className="text-sm font-black text-rose-200">
+                Shark Bite workbench (Shark Tank)
+              </h2>
               <p className="text-[11px] text-slate-400 mt-1 max-w-md">
-                Upload both clips below — they play as one power move (swim forward, then chomp).
-                Tune background removal live; settings save on this device.
+                Power clips for Shark Tank — swim forward, then chomp. Tune background removal live;
+                settings save on this device.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -121,10 +123,16 @@ export default function VideoAssets() {
                 Shark Bite Lab
               </Link>
               <Link
-                to="/sprite-lab/blue_gel"
+                to="/shark-tank-lab"
                 className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
               >
-                Blue Gel dice lab
+                Shark Tank Lab
+              </Link>
+              <Link
+                to="/sprite-lab/shark_gel"
+                className="text-[11px] font-bold uppercase tracking-wider rounded-full px-3 py-1.5 border border-cyan-500/45 text-cyan-200 hover:bg-cyan-950/40"
+              >
+                Shark Tank dice lab
               </Link>
               <Link
                 to="/game?previewSharkBite=1"
@@ -177,19 +185,23 @@ export default function VideoAssets() {
         <VideoUploadCard videoKey={VIDEO_KEYS.CHARACTERS_LOOP} />
 
         <p className="text-xs text-slate-400 rounded-lg border border-rose-500/25 bg-rose-950/20 px-3 py-2">
-          Shark Bite quick links:{" "}
+          Shark Bite / aquarium quick links:{" "}
           <Link to="/game?previewSharkBite=1" className="text-rose-300 underline font-bold">
             /game?previewSharkBite=1
           </Link>{" "}
-          (Marlin practice — POWER DICE / SHARK VID / ▶ BITE FX) ·{" "}
+          (practice — POWER DICE / SHARK VID / ▶ BITE FX) ·{" "}
           <Link to="/shark-bite-lab" className="text-rose-300 underline font-bold">
             /shark-bite-lab
           </Link>{" "}
           (timing + chroma tuner) ·{" "}
-          <Link to="/sprite-lab/blue_gel" className="text-cyan-300 underline font-bold">
-            /sprite-lab/blue_gel
+          <Link to="/shark-tank-lab" className="text-cyan-300 underline font-bold">
+            /shark-tank-lab
           </Link>{" "}
-          (dice preview only) ·{" "}
+          (Captain Chomps dice) ·{" "}
+          <Link to="/sprite-lab/shark_gel" className="text-cyan-300 underline font-bold">
+            /sprite-lab/shark_gel
+          </Link>{" "}
+          ·{" "}
           <Link to="/fish-showcase" className="text-rose-300 underline font-bold">
             /fish-showcase
           </Link>{" "}
@@ -236,7 +248,9 @@ export default function VideoAssets() {
                 className={`rounded-2xl border p-4 space-y-3 ${
                   boss.id === "gq"
                     ? "border-cyan-400/40 bg-cyan-950/20"
-                    : "border-fuchsia-500/20 bg-slate-950/50"
+                    : boss.id === "shark_tank"
+                      ? "border-sky-400/35 bg-sky-950/20"
+                      : "border-fuchsia-500/20 bg-slate-950/50"
                 }`}
               >
                 <div>
@@ -245,6 +259,10 @@ export default function VideoAssets() {
                     {boss.id === "gq" ? (
                       <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
                         Final boss — upload here
+                      </span>
+                    ) : boss.id === "shark_tank" ? (
+                      <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-sky-300">
+                        Chomps — loop crop on Avatar
                       </span>
                     ) : null}
                   </p>

@@ -27,9 +27,9 @@ export default function DicePreview({
   const felt = getFelt(equippedFeltId);
   const renderSkinId = skinId;
   const previewValue =
-    renderSkinId === "blue_gel" ? 1 : isAquariumOverlaySkinId(renderSkinId) ? 1 : value;
+    renderSkinId === "shark_gel" || isAquariumOverlaySkinId(renderSkinId) ? 1 : value;
   const blueGelFishProps =
-    renderSkinId === "blue_gel" ? getBlueGelTrayFishProps(0) : {};
+    renderSkinId === "shark_gel" ? getBlueGelTrayFishProps(0) : {};
   const ref = React.useRef(null);
 
   React.useEffect(() => {
