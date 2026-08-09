@@ -36,8 +36,9 @@ export default function VideoAssets() {
           : "No uploads to save yet"
       );
     } catch (err) {
+      // Keep the raw error in the console; show friendly copy to the player.
       console.error("[YouNeeK 10,000] Saving video settings failed.", err);
-      toast.error(err?.message || "Could not save video settings");
+      toast.error("Could not save video settings");
     }
   };
 
@@ -51,8 +52,9 @@ export default function VideoAssets() {
           : "No backup copies found on this device — re-upload if still missing"
       );
     } catch (err) {
+      // Keep the raw error in the console; show friendly copy to the player.
       console.error("[YouNeeK 10,000] Restoring videos failed.", err);
-      toast.error(err?.message || "Could not restore videos");
+      toast.error("Could not restore videos");
     }
   };
 

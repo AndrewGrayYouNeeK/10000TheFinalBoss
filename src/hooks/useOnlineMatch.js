@@ -53,30 +53,34 @@ export function useOnlineMatch({
     onToastRef.current = onToast;
   }, [onToast]);
 
-  const send = useCallback((obj) => {
+  const send = useCallback((obj, { notify = false } = {}) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // Callers ignore the return value, so tell the player their tap was
-      // dropped instead of leaving the board looking frozen.
-      onToastRef.current?.("Not connected — reconnecting to the online match…", "warning");
+      // Only warn for user-initiated taps — background syncs (visibility, join)
+      // should not surface a "reconnecting" toast when nothing is stuck.
+      if (notify) {
+        onToastRef.current?.("Not connected — reconnecting to the online match…", "warning");
+      }
       return false;
     }
     try {
       ws.send(JSON.stringify(obj));
     } catch (err) {
       console.error("[YouNeeK 10,000] Could not send an online match message.", err);
-      onToastRef.current?.("Could not reach the online match — retrying…", "warning");
+      if (notify) {
+        onToastRef.current?.("Could not reach the online match — retrying…", "warning");
+      }
       return false;
     }
     return true;
   }, []);
 
   const sendAction = useCallback(
-    (action, payload = {}) => send({ type: "action", action, payload }),
+    (action, payload = {}) => send({ type: "action", action, payload }, { notify: true }),
     [send]
   );
 
-  const setReady = useCallback(() => send({ type: "ready" }), [send]);
+  const setReady = useCallback(() => send({ type: "ready" }, { notify: true }), [send]);
 
   const syncVisibility = useCallback(
     (next) => {
@@ -98,7 +102,6 @@ export function useOnlineMatch({
     const connect = () => {
       if (cancelled) return;
       setStatus((s) => (s === "playing" || s === "lobby" ? s : "connecting"));
-      setError(null);
 
       const url = onlineWsUrl(code, { name, playerId, skinId, trueSkinId });
       const ws = new WebSocket(url);
@@ -106,6 +109,9 @@ export function useOnlineMatch({
 
       ws.onopen = () => {
         reconnectRef.current = 0;
+        // Clear any "lost connection" banner only once we are actually back —
+        // clearing at the start of every retry made it flicker on fast failures.
+        setError(null);
         send({
           type: "join",
           name,

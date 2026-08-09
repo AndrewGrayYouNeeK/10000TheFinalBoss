@@ -508,11 +508,21 @@ export default {
       target.pathname = targetPath;
       // Ensure room knows its code on first touch.
       if (request.headers.get("Upgrade") === "websocket") {
-        await stub.fetch(
-          new Request(`https://match/bootstrap?code=${encodeURIComponent(code)}`, {
-            method: "POST",
-          })
-        );
+        try {
+          const boot = await stub.fetch(
+            new Request(`https://match/bootstrap?code=${encodeURIComponent(code)}`, {
+              method: "POST",
+            })
+          );
+          if (!boot.ok) {
+            console.error("Room bootstrap failed", boot.status);
+            return json({ error: `Could not join the room (${boot.status})` }, 502);
+          }
+        } catch (err) {
+          // Without this the client only sees an opaque 500 with no body.
+          console.error("Room bootstrap failed", err);
+          return json({ error: "Could not join the room" }, 502);
+        }
       }
       return stub.fetch(new Request(target.toString(), request));
     }
