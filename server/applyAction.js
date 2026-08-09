@@ -11,8 +11,10 @@ import {
   clearSharkBiteFx,
   restoreSharkDice,
   consumeSkinPower,
+  playerHasPowerCharge,
   ENTRY_THRESHOLD,
 } from "../src/lib/gameLogic.js";
+import { resolvePlayerPower } from "../src/lib/ghostDisguise.js";
 import { heldSelectionPoints } from "../src/lib/scoring.js";
 import { applySkinPower } from "../src/lib/powerEffects.js";
 import { applyPlasmaCut, canUsePlasmaCut } from "../src/lib/plasmaCut.js";
@@ -20,6 +22,38 @@ import { buildClientMatchPayload } from "../src/lib/onlineGameState.js";
 import { normalizeOnlineVisibility } from "../src/lib/onlineVisibility.js";
 
 const ROLL_ANIM_MS = 900;
+
+function hasDebuff(player, debuffId) {
+  return (player?.debuffs || []).some((d) => (typeof d === "string" ? d : d?.id) === debuffId);
+}
+
+/**
+ * Server-side gate for firing a secret power: the client may only fire the power
+ * its own seat actually resolves to, and only while holding a charge.
+ * @returns {{ ok: boolean, error?: string }}
+ */
+function checkPowerFireAllowed(matchState, playerIndex, powerId) {
+  if (!playerHasPowerCharge(matchState, playerIndex)) {
+    return { ok: false, error: "No power charge" };
+  }
+  const player = matchState.players?.[playerIndex];
+  if (hasDebuff(player, "lockout") || hasDebuff(player, "freeze")) {
+    return { ok: false, error: "Power is locked" };
+  }
+  const resolved = resolvePlayerPower(matchState, playerIndex)?.power?.id;
+  if (!resolved || resolved !== powerId) {
+    return { ok: false, error: "Power not available for your skin" };
+  }
+  return { ok: true };
+}
+
+/** Only known reroll options are forwarded from the client, and only in range. */
+function sanitizeRerollOptions(payload) {
+  const raw = payload && typeof payload === "object" ? payload : {};
+  const threshold = Number(raw.powerChargeHotDiceThreshold);
+  if (!Number.isFinite(threshold)) return {};
+  return { powerChargeHotDiceThreshold: Math.min(5, Math.max(1, Math.floor(threshold))) };
+}
 
 /**
  * @param {object} room
@@ -92,9 +126,7 @@ export function applyMatchAction(matchState, playerIndex, action, payload = {}) 
       if (!info.valid || heldSelectionPoints(info, matchState.perfectTenKPending) === 0) {
         return { ok: false, error: "Select scoring dice first" };
       }
-      const { state: next } = confirmAndReroll(matchState, {
-        ...(payload && typeof payload === "object" ? payload : {}),
-      });
+      const { state: next } = confirmAndReroll(matchState, sanitizeRerollOptions(payload));
       if (next.winner) return { ok: true, state: next };
       return { ok: true, state: next, rollAnimMs: ROLL_ANIM_MS };
     }
@@ -119,7 +151,11 @@ export function applyMatchAction(matchState, playerIndex, action, payload = {}) 
     }
     case "use_power": {
       const powerId = payload?.powerId;
-      if (!powerId) return { ok: false, error: "Missing powerId" };
+      if (!powerId || typeof powerId !== "string") {
+        return { ok: false, error: "Missing powerId" };
+      }
+      const gate = checkPowerFireAllowed(matchState, playerIndex, powerId);
+      if (!gate.ok) return gate;
       const result = applySkinPower(matchState, powerId);
       if (result.variant === "warning") {
         return { ok: false, error: result.message || "Power failed" };
@@ -135,6 +171,8 @@ export function applyMatchAction(matchState, playerIndex, action, payload = {}) 
       if (!canUsePlasmaCut(matchState)) {
         return { ok: false, error: "Plasma Cut not available" };
       }
+      const gate = checkPowerFireAllowed(matchState, playerIndex, "plasma_cut");
+      if (!gate.ok) return gate;
       const result = applyPlasmaCut(matchState, payload?.dieId, payload?.newValue);
       if (result.variant === "warning") {
         return { ok: false, error: result.message || "Plasma Cut failed" };
