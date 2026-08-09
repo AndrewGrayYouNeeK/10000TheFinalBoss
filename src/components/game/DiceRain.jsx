@@ -78,7 +78,9 @@ function DiceRainCanvas() {
           try {
             const res = await DeviceOrientationEvent.requestPermission();
             if (res === "granted") attachOrientation();
-          } catch {}
+          } catch (err) {
+            console.warn("[YouNeeK 10,000] Orientation permission was denied — dice tilt is off.", err);
+          }
           document.removeEventListener("click", requestPerm);
           document.removeEventListener("touchend", requestPerm);
         };

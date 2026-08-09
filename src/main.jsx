@@ -21,11 +21,13 @@ try {
     const portPart = port ? `:${port}` : ''
     window.location.replace(`${protocol}//localhost${portPart}${pathname}${search}${hash}`)
   }
-} catch {
-  /* ignore */
+} catch (err) {
+  console.warn('[YouNeeK 10,000] Could not canonicalize the app origin.', err)
 }
 
-preloadAllLocalVideos().catch(() => {})
+preloadAllLocalVideos().catch((err) => {
+  console.error('[YouNeeK 10,000] Video preload failed — uploads may show catalog fallbacks.', err)
+})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />

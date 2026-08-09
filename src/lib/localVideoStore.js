@@ -28,8 +28,8 @@ function clearVideoSavedFlag(key) {
     const meta = raw ? JSON.parse(raw) : {};
     delete meta[key];
     localStorage.setItem(VIDEO_SETTINGS_META_KEY, JSON.stringify(meta));
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not clear the saved flag for video "${key}".`, err);
   }
 }
 
@@ -39,8 +39,8 @@ function markVideoSavedFlag(key) {
     const meta = raw ? JSON.parse(raw) : {};
     meta[key] = true;
     localStorage.setItem(VIDEO_SETTINGS_META_KEY, JSON.stringify(meta));
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not mark video "${key}" as saved.`, err);
   }
 }
 
@@ -48,7 +48,8 @@ function readClearedVideoKeys() {
   try {
     const raw = localStorage.getItem(VIDEO_CLEARED_META_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch {
+  } catch (err) {
+    console.warn("[YouNeeK 10,000] Could not read the cleared-video list.", err);
     return {};
   }
 }
@@ -59,8 +60,8 @@ function markVideoUserCleared(key, cleared = true) {
     if (cleared) meta[key] = true;
     else delete meta[key];
     localStorage.setItem(VIDEO_CLEARED_META_KEY, JSON.stringify(meta));
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not record the cleared state of video "${key}".`, err);
   }
 }
 
@@ -148,8 +149,8 @@ function notify(key, url) {
   for (const fn of ensureListeners(key)) {
     try {
       fn(url);
-    } catch {
-      /* ignore listener errors */
+    } catch (err) {
+      console.error(`[YouNeeK 10,000] A video listener for "${key}" threw.`, err);
     }
   }
 }
@@ -167,10 +168,12 @@ function requestPersistentStorage() {
   persistRequested = true;
   try {
     if (navigator?.storage?.persist) {
-      navigator.storage.persist().catch(() => {});
+      navigator.storage.persist().catch((err) => {
+        console.warn("[YouNeeK 10,000] Persistent storage was not granted.", err);
+      });
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn("[YouNeeK 10,000] Persistent storage API unavailable.", err);
   }
 }
 
@@ -264,8 +267,9 @@ async function opfsWrite(key, blob) {
     const writable = await handle.createWritable();
     await writable.write(blob);
     await writable.close();
-  } catch {
-    /* OPFS unavailable (private mode / older WebView) */
+  } catch (err) {
+    // OPFS unavailable (private mode / older WebView) — the IndexedDB copies stand.
+    console.warn(`[YouNeeK 10,000] Could not write the OPFS copy of video "${key}".`, err);
   }
 }
 
@@ -278,7 +282,10 @@ async function opfsRead(key) {
     const file = await handle.getFile();
     if (!file?.size) return null;
     return file;
-  } catch {
+  } catch (err) {
+    if (err?.name !== "NotFoundError") {
+      console.warn(`[YouNeeK 10,000] Could not read the OPFS copy of video "${key}".`, err);
+    }
     return null;
   }
 }
@@ -289,8 +296,10 @@ async function opfsDelete(key) {
     const root = await navigator.storage.getDirectory();
     const dir = await root.getDirectoryHandle(OPFS_DIR);
     await dir.removeEntry(`${key}.bin`);
-  } catch {
-    /* ignore */
+  } catch (err) {
+    if (err?.name !== "NotFoundError") {
+      console.warn(`[YouNeeK 10,000] Could not delete the OPFS copy of video "${key}".`, err);
+    }
   }
 }
 
@@ -302,9 +311,11 @@ function writeProfileVideoMeta(key, meta) {
       if (meta) video_uploads[key] = meta;
       else delete video_uploads[key];
       updateProfile({ video_uploads });
-    }).catch(() => {});
-  } catch {
-    /* ignore */
+    }).catch((err) => {
+      console.warn(`[YouNeeK 10,000] Could not save upload metadata for video "${key}".`, err);
+    });
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not save upload metadata for video "${key}".`, err);
   }
 }
 
@@ -315,7 +326,8 @@ export function loadProfileVideoUploadKeys() {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Object.keys(parsed?.video_uploads || {}).filter(Boolean);
-  } catch {
+  } catch (err) {
+    console.warn("[YouNeeK 10,000] Could not read the profile video upload list.", err);
     return [];
   }
 }
@@ -402,8 +414,9 @@ export async function saveLocalVideo(key, file) {
   try {
     const { mirrorUploadToSnapshots } = await import("./spriteLabLockedVideos");
     await mirrorUploadToSnapshots(key);
-  } catch {
-    /* lock snapshots are best-effort; vault/backup already written */
+  } catch (err) {
+    // Lock snapshots are best-effort; vault/backup are already written.
+    console.warn(`[YouNeeK 10,000] Could not mirror video "${key}" into lock snapshots.`, err);
   }
 
   writeProfileVideoMeta(key, {
@@ -502,13 +515,18 @@ export function preloadAllLocalVideos() {
   // Recovery must always run — do not chain it behind storyBossVideos (old bug skipped restore).
   const recover = import("./spriteLabLockedVideos")
     .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
-    .catch(() => 0);
+    .catch((err) => {
+      console.error("[YouNeeK 10,000] Video upload recovery failed.", err);
+      return 0;
+    });
 
   const preloadKeys = Promise.all(Object.values(VIDEO_KEYS).map((key) => preloadLocalVideo(key)));
 
   const preloadStory = import("./storyBossVideos")
     .then(({ preloadStoryBossVideos }) => preloadStoryBossVideos())
-    .catch(() => {});
+    .catch((err) => {
+      console.warn("[YouNeeK 10,000] Story boss video preload failed.", err);
+    });
 
   return Promise.all([recover, preloadKeys, preloadStory]).then(() => undefined);
 }

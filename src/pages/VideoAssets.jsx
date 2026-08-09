@@ -21,7 +21,9 @@ export default function VideoAssets() {
   React.useEffect(() => {
     import("@/lib/spriteLabLockedVideos")
       .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
-      .catch(() => {});
+      .catch((err) => {
+        console.error("[YouNeeK 10,000] Video upload recovery failed.", err);
+      });
   }, []);
 
   const handleSaveAll = async () => {
@@ -33,8 +35,9 @@ export default function VideoAssets() {
           ? `Saved ${count} video${count === 1 ? "" : "s"} to this device`
           : "No uploads to save yet"
       );
-    } catch {
-      toast.error("Could not save video settings");
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Saving video settings failed.", err);
+      toast.error(err?.message || "Could not save video settings");
     }
   };
 
@@ -47,8 +50,9 @@ export default function VideoAssets() {
           ? `Restored ${restored} video${restored === 1 ? "" : "s"} from backup`
           : "No backup copies found on this device — re-upload if still missing"
       );
-    } catch {
-      toast.error("Could not restore videos");
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Restoring videos failed.", err);
+      toast.error(err?.message || "Could not restore videos");
     }
   };
 

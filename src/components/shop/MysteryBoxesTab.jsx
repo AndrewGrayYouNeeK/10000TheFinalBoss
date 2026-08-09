@@ -25,6 +25,11 @@ export default function MysteryBoxesTab({ user, coins }) {
       setActiveBox(null);
       return;
     }
+    if (res?.error === "save_failed") {
+      toast.error("Could not save the box result — your coins were not spent.");
+      setActiveBox(null);
+      return;
+    }
     setReward(res);
   };
 

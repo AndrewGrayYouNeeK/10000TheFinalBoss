@@ -152,6 +152,31 @@ export class MatchRoom extends DurableObject {
       return;
     }
 
+    try {
+      await this.dispatchMessage(ws, msg);
+    } catch (err) {
+      // A thrown handler would otherwise leave the client waiting on a socket
+      // that never answers. Log it and unstick the room.
+      console.error("MatchRoom message failed", msg?.type, err);
+      this.send(ws, { type: "error", error: "Server error handling that action" });
+      this.busy = false;
+      await this.clearRollPending();
+    }
+  }
+
+  async clearRollPending() {
+    try {
+      const room = await this.loadRoom();
+      if (room.rollPending) {
+        room.rollPending = false;
+        await this.saveRoom(room);
+      }
+    } catch (err) {
+      console.error("MatchRoom could not clear rollPending", err);
+    }
+  }
+
+  async dispatchMessage(ws, msg) {
     const meta = ws.deserializeAttachment() || {};
     const room = await this.loadRoom();
 
@@ -465,13 +490,23 @@ export default {
       const code = makeRoomCode();
       const id = env.MATCH_ROOM.idFromName(code);
       const stub = env.MATCH_ROOM.get(id);
-      const boot = await stub.fetch(
-        new Request(`https://match/bootstrap?code=${encodeURIComponent(code)}`, {
-          method: "POST",
-        })
-      );
-      const data = await boot.json();
-      return json({ code: data.code || code });
+      try {
+        const boot = await stub.fetch(
+          new Request(`https://match/bootstrap?code=${encodeURIComponent(code)}`, {
+            method: "POST",
+          })
+        );
+        if (!boot.ok) {
+          console.error("Room bootstrap failed", boot.status);
+          return json({ error: `Could not create the room (${boot.status})` }, 502);
+        }
+        const data = await boot.json();
+        return json({ code: data.code || code });
+      } catch (err) {
+        // Without this the client only sees an opaque 500 with no body.
+        console.error("Room bootstrap failed", err);
+        return json({ error: "Could not create the room" }, 502);
+      }
     }
 
     const roomMatch = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]+)(?:\/(ws|status))?$/);

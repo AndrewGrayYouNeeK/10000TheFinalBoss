@@ -61,7 +61,8 @@ function loadStoryFightRaw(bossId) {
       rewardsClaimed: !!data.rewardsClaimed,
       fightStarted: !!data.fightStarted,
     };
-  } catch {
+  } catch (err) {
+    console.error(`[YouNeeK 10,000] Could not read the saved story fight for "${bossId}".`, err);
     return null;
   }
 }
@@ -87,8 +88,9 @@ export function saveStoryFight(bossId, snapshot) {
       key(bossId),
       JSON.stringify({ bossId, savedAt: Date.now(), ...snapshot })
     );
-  } catch {
-    /* quota / private mode */
+  } catch (err) {
+    // Quota / private mode — the fight keeps going, it just will not resume.
+    console.warn(`[YouNeeK 10,000] Could not save the story fight for "${bossId}".`, err);
   }
 }
 
@@ -96,8 +98,8 @@ export function clearStoryFight(bossId) {
   if (!bossId) return;
   try {
     sessionStorage.removeItem(key(bossId));
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not clear the saved story fight for "${bossId}".`, err);
   }
 }
 

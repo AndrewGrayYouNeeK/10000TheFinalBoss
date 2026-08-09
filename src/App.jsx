@@ -13,23 +13,39 @@ import Story from '@/pages/Story';
 import StoryGame from '@/pages/StoryGame';
 
 // Repair corrupt sprite-lab saves before hydration syncs them into the profile.
-recoverCorruptDiceState();
+// These run at module scope, so a throw here blanks the app before the error
+// boundary can mount — log and keep booting instead.
+try {
+  recoverCorruptDiceState();
+} catch (err) {
+  console.error("[YouNeeK 10,000] Dice save recovery failed.", err);
+}
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
-hydrateSpriteLabPersistence();
+try {
+  hydrateSpriteLabPersistence();
+} catch (err) {
+  console.error("[YouNeeK 10,000] Sprite Lab persistence hydration failed.", err);
+}
 // Ask the browser not to evict local saves and uploaded video backups under
 // storage pressure. Browsers that do not support this API simply skip it.
 if (typeof navigator !== "undefined") {
   try {
     const persistenceRequest = navigator.storage?.persist?.();
-    if (persistenceRequest?.catch) void persistenceRequest.catch(() => {});
-  } catch {
-    /* ignore unavailable storage APIs */
+    if (persistenceRequest?.catch) {
+      void persistenceRequest.catch((err) => {
+        console.warn("[YouNeeK 10,000] Persistent storage was not granted.", err);
+      });
+    }
+  } catch (err) {
+    console.warn("[YouNeeK 10,000] Persistent storage API unavailable.", err);
   }
 }
 // Re-seal video uploads from backup/vault/OPFS (never wipes user uploads).
 import("@/lib/spriteLabLockedVideos")
   .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
-  .catch(() => {});
+  .catch((err) => {
+    console.error("[YouNeeK 10,000] Video upload recovery failed.", err);
+  });
 
 const Shop = lazy(() => import('@/pages/Shop'));
 
@@ -64,6 +80,11 @@ class RouteErrorBoundary extends Component {
 
   static getDerivedStateFromError(error) {
     return { error };
+  }
+
+  componentDidCatch(error, info) {
+    // Without this the render error only ever appears as UI copy.
+    console.error("[YouNeeK 10,000] Route render failed.", error, info?.componentStack);
   }
 
   componentDidUpdate(prevProps) {

@@ -84,7 +84,8 @@ export function loadLocalGame() {
       winnerAwarded: !!data.winnerAwarded,
       savedAt: data.savedAt,
     };
-  } catch {
+  } catch (err) {
+    console.error("[YouNeeK 10,000] Could not read the saved local game.", err);
     return null;
   }
 }
@@ -100,8 +101,9 @@ export function saveLocalGame(snapshot) {
       STORAGE_KEY,
       JSON.stringify({ savedAt: Date.now(), ...snapshot })
     );
-  } catch {
-    /* quota / private mode */
+  } catch (err) {
+    // Quota / private mode — the match keeps going, it just will not resume.
+    console.warn("[YouNeeK 10,000] Could not save the local game snapshot.", err);
   }
 }
 
@@ -122,7 +124,8 @@ function loadLocalGameRaw() {
       winnerAwarded: !!data.winnerAwarded,
       savedAt: data.savedAt,
     };
-  } catch {
+  } catch (err) {
+    console.error("[YouNeeK 10,000] Could not read the stored local game.", err);
     return null;
   }
 }
@@ -130,8 +133,8 @@ function loadLocalGameRaw() {
 export function clearLocalGame() {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn("[YouNeeK 10,000] Could not clear the saved local game.", err);
   }
 }
 

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { loadProfile, updateProfile } from "@/lib/localProfile";
 import { getSkin, getBadge, getFelt } from "@/lib/shopCatalog";
 import {
@@ -27,6 +28,13 @@ export function useCosmetics() {
     mutationFn: (data) => Promise.resolve(updateProfile(data)),
     onSuccess: (updated) => {
       queryClient.setQueryData(["me"], updated);
+    },
+    onError: (err) => {
+      // A rejected write means coins / XP / unlocks were not persisted — say so
+      // instead of leaving the UI showing progress that is gone on reload.
+      console.error("[YouNeeK 10,000] Could not save profile progress.", err);
+      toast.error("Could not save progress — device storage may be full or blocked");
+      queryClient.setQueryData(["me"], loadProfile());
     },
   });
 

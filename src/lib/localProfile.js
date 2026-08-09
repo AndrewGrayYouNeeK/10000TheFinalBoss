@@ -1,5 +1,21 @@
 const STORAGE_KEY = "dice10k_profile";
 const STORAGE_ORIGIN_KEY = "dice10k_storage_origin";
+const STORAGE_CORRUPT_KEY = "dice10k_profile_corrupt";
+
+/** Keep unreadable profile JSON around so progress can be recovered by hand. */
+function backupCorruptProfile(raw, err) {
+  console.error(
+    "[YouNeeK 10,000] Profile save could not be read — falling back to a new profile. " +
+      `The unreadable copy is kept in localStorage under "${STORAGE_CORRUPT_KEY}".`,
+    err
+  );
+  if (typeof raw !== "string") return;
+  try {
+    localStorage.setItem(STORAGE_CORRUPT_KEY, raw);
+  } catch (backupErr) {
+    console.error("[YouNeeK 10,000] Could not back up the unreadable profile save.", backupErr);
+  }
+}
 
 function pinStorageOrigin() {
   if (typeof window === "undefined") return;
@@ -16,8 +32,8 @@ function pinStorageOrigin() {
           "Sprite tuning, videos, and profile data will look missing until you use the same URL every time."
       );
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn("[YouNeeK 10,000] Could not check the storage origin pin.", err);
   }
 }
 
@@ -107,25 +123,45 @@ const DEFAULT_PROFILE = {
 };
 
 export function loadProfile() {
+  let raw = null;
   try {
     pinStorageOrigin();
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const profile = { ...DEFAULT_PROFILE };
-      saveProfile(profile);
-      return profile;
-    }
-    const parsed = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
-    const migrated = migrateProfile(parsed);
-    if (JSON.stringify(migrated) !== JSON.stringify(parsed)) {
-      saveProfile(migrated);
-    }
-    return migrated;
-  } catch {
+    raw = localStorage.getItem(STORAGE_KEY);
+  } catch (err) {
+    console.error("[YouNeeK 10,000] localStorage is unavailable — progress will not persist.", err);
     return { ...DEFAULT_PROFILE };
   }
+
+  if (!raw) {
+    const profile = { ...DEFAULT_PROFILE };
+    try {
+      saveProfile(profile);
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Could not create a new profile save.", err);
+    }
+    return profile;
+  }
+
+  let parsed;
+  try {
+    parsed = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+  } catch (err) {
+    backupCorruptProfile(raw, err);
+    return { ...DEFAULT_PROFILE };
+  }
+
+  const migrated = migrateProfile(parsed);
+  if (JSON.stringify(migrated) !== JSON.stringify(parsed)) {
+    try {
+      saveProfile(migrated);
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Could not persist the migrated profile.", err);
+    }
+  }
+  return migrated;
 }
 
+/** @throws when storage is full or blocked — callers must surface the failure. */
 export function saveProfile(profile) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
 }

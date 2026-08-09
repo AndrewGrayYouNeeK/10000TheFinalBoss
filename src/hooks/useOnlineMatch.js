@@ -6,6 +6,9 @@ import {
   writeOnlineLiveSession,
 } from "@/lib/onlineClient";
 
+/** Retries stay quiet at first so a quick blip does not alarm the player. */
+const MAX_SILENT_RECONNECTS = 4;
+
 /**
  * WebSocket match client for live online play.
  *
@@ -52,8 +55,19 @@ export function useOnlineMatch({
 
   const send = useCallback((obj) => {
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify(obj));
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // Callers ignore the return value, so tell the player their tap was
+      // dropped instead of leaving the board looking frozen.
+      onToastRef.current?.("Not connected — reconnecting to the online match…", "warning");
+      return false;
+    }
+    try {
+      ws.send(JSON.stringify(obj));
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Could not send an online match message.", err);
+      onToastRef.current?.("Could not reach the online match — retrying…", "warning");
+      return false;
+    }
     return true;
   }, []);
 
@@ -105,7 +119,8 @@ export function useOnlineMatch({
         let msg;
         try {
           msg = JSON.parse(ev.data);
-        } catch {
+        } catch (err) {
+          console.error("[YouNeeK 10,000] Ignoring unreadable online match message.", err);
           return;
         }
 
@@ -154,12 +169,16 @@ export function useOnlineMatch({
         if (cancelled) return;
         setStatus((s) => (s === "finished" ? s : "connecting"));
         const attempt = (reconnectRef.current += 1);
+        if (attempt >= MAX_SILENT_RECONNECTS) {
+          setError("Lost connection to the online server — still retrying…");
+        }
         const delay = Math.min(8000, 500 * 2 ** Math.min(attempt, 4));
         retryTimer = setTimeout(connect, delay);
       };
 
-      ws.onerror = () => {
-        /* onclose handles retry */
+      ws.onerror = (ev) => {
+        // Reconnect is driven by onclose; log so a failing socket is diagnosable.
+        console.warn("[YouNeeK 10,000] Online match socket error.", ev);
       };
     };
 
@@ -170,8 +189,8 @@ export function useOnlineMatch({
       if (retryTimer) clearTimeout(retryTimer);
       try {
         wsRef.current?.close();
-      } catch {
-        /* ignore */
+      } catch (err) {
+        console.warn("[YouNeeK 10,000] Could not close the online match socket.", err);
       }
       wsRef.current = null;
     };
@@ -188,8 +207,8 @@ export function useOnlineMatch({
     clearOnlineLiveSession();
     try {
       wsRef.current?.close();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn("[YouNeeK 10,000] Could not close the online match socket.", err);
     }
     setStatus("idle");
     setServerPayload(null);

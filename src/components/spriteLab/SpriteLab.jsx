@@ -828,8 +828,9 @@ export default function SpriteLab({ skinId }) {
     let lockedVideos;
     try {
       lockedVideos = await saveLockedVideoSnapshots(skinId);
-    } catch {
+    } catch (err) {
       lockedVideos = undefined;
+      console.error(`[YouNeeK 10,000] Locking video snapshots for "${skinId}" failed.`, err);
       toast.message("Sprite tuning saved — video backup skipped", {
         description: "Uploads still auto-save; tap Restore uploads if needed.",
       });
@@ -862,7 +863,8 @@ export default function SpriteLab({ skinId }) {
           description: "Videos auto-save when you upload. Use Save all on Video Assets to refresh backups.",
         });
       }
-    } catch {
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Restoring uploads failed.", err);
       toast.error("Could not restore uploads");
     }
   };
@@ -882,7 +884,9 @@ export default function SpriteLab({ skinId }) {
         setPowerVideoLoaded(!!url);
         setPowerVideoPreviewUrl(powerVideoConfig.getCached());
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("[YouNeeK 10,000] Matrix video startup recovery failed.", err);
+      });
   }, [skinId, tuningLocked, powerVideoConfig]);
 
   useEffect(() => {
@@ -894,7 +898,9 @@ export default function SpriteLab({ skinId }) {
           );
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error(`[YouNeeK 10,000] Video snapshot recovery for "${skinId}" failed.`, err);
+      });
   }, [skinId, catalogSkin.name]);
 
   useEffect(() => {
@@ -910,7 +916,10 @@ export default function SpriteLab({ skinId }) {
         .then(({ recoverVideoKeyFromSnapshots }) =>
           recoverVideoKeyFromSnapshots(powerVideoConfig.videoKey ?? "matrix_power")
         )
-        .catch(() => false);
+        .catch((err) => {
+          console.error("[YouNeeK 10,000] Power video recovery failed.", err);
+          return false;
+        });
       const loaded = await powerVideoConfig.has();
       if (cancelled) return;
       setPowerVideoLoaded(loaded);
@@ -960,7 +969,8 @@ export default function SpriteLab({ skinId }) {
       clearPendingPowerSelection();
       setPowerVideoPreviewOpen(false);
       toast.success("Power video saved — toggle Power mode to preview");
-    } catch {
+    } catch (err) {
+      console.error(`[YouNeeK 10,000] Saving the power video for "${skinId}" failed.`, err);
       toast.error("Could not save video — try a smaller MP4");
     } finally {
       setPowerVideoUploading(false);
@@ -984,7 +994,8 @@ export default function SpriteLab({ skinId }) {
       setPowerVideoLoaded(false);
       setPowerVideoPreviewUrl(null);
       toast.success("Power video removed");
-    } catch {
+    } catch (err) {
+      console.error(`[YouNeeK 10,000] Removing the power video for "${skinId}" failed.`, err);
       toast.error("Could not remove video");
     }
   };

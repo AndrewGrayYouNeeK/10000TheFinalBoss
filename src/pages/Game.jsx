@@ -119,8 +119,8 @@ function readBootLocalSnapshot(previewSharkBite) {
     if (!Array.isArray(names) || names.length === 0) return null;
     const saved = loadLocalGame();
     if (saved && namesMatch(saved.playerNames, names)) return saved;
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.error("[YouNeeK 10,000] Could not restore the saved local game.", err);
   }
   return null;
 }
@@ -371,7 +371,8 @@ export default function Game() {
     let playerNames;
     try {
       playerNames = JSON.parse(stored);
-    } catch {
+    } catch (err) {
+      console.error("[YouNeeK 10,000] Could not read the stored player names.", err);
       return;
     }
     if (!Array.isArray(playerNames) || playerNames.length === 0) return;
@@ -734,7 +735,9 @@ export default function Game() {
           try {
             const res = await DeviceMotionEvent.requestPermission();
             if (res === "granted") window.addEventListener("devicemotion", handleMotion);
-          } catch {}
+          } catch (err) {
+            console.warn("[YouNeeK 10,000] Motion permission was denied — shake to roll is off.", err);
+          }
           document.removeEventListener("click", requestPerm);
         };
         document.addEventListener("click", requestPerm);

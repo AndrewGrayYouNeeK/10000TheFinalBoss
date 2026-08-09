@@ -169,8 +169,8 @@ function recoverySourceKeysForVideoKey(videoKey) {
 export function saveLockedVideosMetadata(skinId, lockedVideos) {
   try {
     localStorage.setItem(lockedVideosMetaKey(skinId), JSON.stringify(lockedVideos));
-  } catch {
-    /* ignore quota errors */
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not save locked video metadata for "${skinId}".`, err);
   }
 }
 
@@ -178,8 +178,8 @@ export function loadLockedVideosMetadata(skinId) {
   try {
     const raw = localStorage.getItem(lockedVideosMetaKey(skinId));
     if (raw) return JSON.parse(raw);
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.warn(`[YouNeeK 10,000] Could not read locked video metadata for "${skinId}".`, err);
   }
   return loadLockedTuningSnapshot(skinId)?.lockedVideos ?? null;
 }
@@ -202,7 +202,10 @@ export async function recoverAllVideoUploads({ force = false } = {}) {
     await copyBlobToLiveKey(fromKey, toKey);
   }
 
-  const allKeys = await listAllLocalVideoKeys().catch(() => []);
+  const allKeys = await listAllLocalVideoKeys().catch((err) => {
+    console.error("[YouNeeK 10,000] Could not list stored video keys.", err);
+    return [];
+  });
   for (const storageKey of allKeys) {
     if (
       storageKey.startsWith("gameplay_billboard_") &&
@@ -262,13 +265,16 @@ export async function recoverVideoKeyFromSnapshots(videoKey, { force = false } =
             return true;
           }
         }
-      } catch {
-        /* catalog file missing */
+      } catch (err) {
+        console.warn(`[YouNeeK 10,000] Catalog fallback for "${videoKey}" could not be fetched.`, err);
       }
     }
   }
 
-  const allKeys = await listAllLocalVideoKeys().catch(() => []);
+  const allKeys = await listAllLocalVideoKeys().catch((err) => {
+    console.error("[YouNeeK 10,000] Could not list stored video keys.", err);
+    return [];
+  });
   for (const storageKey of allKeys) {
     if (!storageKey.endsWith(`__${videoKey}`) && !storageKey.endsWith(`_${videoKey}`)) {
       continue;
@@ -330,8 +336,10 @@ export async function recoverAllVideoSettings({ force = false } = {}) {
     }
 
     return restored;
-  } catch {
-    return 0;
+  } catch (err) {
+    // Reporting 0 restored reads as "no backups found" — let callers show the real failure.
+    console.error("[YouNeeK 10,000] Video upload recovery failed.", err);
+    throw err;
   }
 }
 

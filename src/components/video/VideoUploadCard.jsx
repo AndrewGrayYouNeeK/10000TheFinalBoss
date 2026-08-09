@@ -206,7 +206,8 @@ export default function VideoUploadCard({
       clearPendingSelection();
       setPreviewOpen(false);
       toast.success(`${label} saved to this device`);
-    } catch {
+    } catch (err) {
+      console.error(`[YouNeeK 10,000] Saving video "${videoKey}" failed.`, err);
       toast.error("Could not save video — try a smaller MP4");
     } finally {
       setUploading(false);
@@ -230,7 +231,8 @@ export default function VideoUploadCard({
       setLoaded(false);
       setPreviewUrl(null);
       toast.success("Removed from this slot — Restore all uploads can bring a backup back");
-    } catch {
+    } catch (err) {
+      console.error(`[YouNeeK 10,000] Removing video "${videoKey}" failed.`, err);
       toast.error("Could not remove video");
     }
   };
@@ -252,7 +254,8 @@ export default function VideoUploadCard({
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success("Download started — keep a copy outside the browser");
-    } catch {
+    } catch (err) {
+      console.error(`[YouNeeK 10,000] Downloading video "${videoKey}" failed.`, err);
       toast.error("Could not download video");
     }
   };

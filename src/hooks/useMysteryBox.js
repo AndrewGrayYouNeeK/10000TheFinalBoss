@@ -67,7 +67,15 @@ export function useMysteryBox() {
         }
       }
 
-      const updated = updateProfile(patch);
+      let updated;
+      try {
+        updated = updateProfile(patch);
+      } catch (err) {
+        // Coins were not spent and nothing was granted — report instead of
+        // revealing a reward the player will lose on reload.
+        console.error("[YouNeeK 10,000] Could not save the mystery box result.", err);
+        return { error: "save_failed" };
+      }
       queryClient.setQueryData(["me"], updated);
       return reward;
     } finally {
