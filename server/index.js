@@ -11,24 +11,78 @@ import { normalizeOnlineVisibility } from "../src/lib/onlineVisibility.js";
 
 const MAX_PLAYERS = 2;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const MAX_ROOM_CODE_LEN = 12;
+const MAX_PLAYER_ID_LEN = 64;
+const MAX_WS_MESSAGE_BYTES = 8 * 1024;
 
-function json(data, status = 200, extraHeaders = {}) {
+/** Origins allowed to call the match API / open a match WebSocket. */
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/roll10000\.pages\.dev$/,
+  /^https:\/\/[a-z0-9-]+\.roll10000\.pages\.dev$/,
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^http:\/\/localhost(:\d+)?$/,
+  /^capacitor:\/\/localhost$/,
+  /^ionic:\/\/localhost$/,
+];
+
+/**
+ * Extra origins for custom domains, set as the `ALLOWED_ORIGINS` Worker var
+ * (comma-separated, e.g. "https://roll10000.com,https://www.roll10000.com").
+ */
+function extraAllowedOrigins(env) {
+  return String(env?.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+}
+
+function isAllowedOrigin(origin, env = null) {
+  if (!origin) return false;
+  if (ALLOWED_ORIGIN_PATTERNS.some((re) => re.test(origin))) return true;
+  return extraAllowedOrigins(env).includes(origin);
+}
+
+function json(data, status = 200, extraHeaders = {}, request = null, env = null) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      ...corsHeaders(),
+      ...corsHeaders(request, env),
       ...extraHeaders,
     },
   });
 }
 
-function corsHeaders() {
+/**
+ * CORS for the allowlisted origins only. Native app / same-origin requests send
+ * no Origin header and are unaffected.
+ */
+function corsHeaders(request, env = null) {
+  const origin = request?.headers?.get("Origin") || "";
+  if (!isAllowedOrigin(origin, env)) return { vary: "Origin" };
   return {
-    "access-control-allow-origin": "*",
+    "access-control-allow-origin": origin,
     "access-control-allow-methods": "GET,POST,OPTIONS",
     "access-control-allow-headers": "content-type",
+    vary: "Origin",
   };
+}
+
+/** Room codes only ever contain code-alphabet characters. */
+function sanitizeRoomCode(raw) {
+  const code = String(raw || "").toUpperCase().slice(0, MAX_ROOM_CODE_LEN);
+  return /^[A-Z0-9]+$/.test(code) ? code : null;
+}
+
+/** Seat tokens are opaque, but must stay short and printable to be storable. */
+function sanitizePlayerId(raw) {
+  const id = String(raw || "").slice(0, MAX_PLAYER_ID_LEN);
+  return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
+}
+
+function sanitizeSkinId(raw, fallback = "") {
+  const id = String(raw || "").slice(0, 64);
+  return /^[A-Za-z0-9_-]+$/.test(id) ? id : fallback;
 }
 
 function randomToken() {
@@ -71,7 +125,7 @@ export class MatchRoom extends DurableObject {
 
   async fetch(request) {
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders() });
+      return new Response(null, { status: 204, headers: corsHeaders(request, this.env) });
     }
 
     const url = new URL(request.url);
@@ -80,11 +134,17 @@ export class MatchRoom extends DurableObject {
     if (path.endsWith("/bootstrap") && request.method === "POST") {
       const room = await this.loadRoom();
       if (!room.code) {
-        room.code = url.searchParams.get("code") || makeRoomCode();
+        room.code = sanitizeRoomCode(url.searchParams.get("code")) || makeRoomCode();
         room.createdAt = Date.now();
         await this.saveRoom(room);
       }
-      return json({ code: room.code, status: room.status, seats: room.seats.length });
+      return json(
+        { code: room.code, status: room.status, seats: room.seats.length },
+        200,
+        {},
+        request,
+        this.env
+      );
     }
 
     if (request.headers.get("Upgrade") === "websocket") {
@@ -101,10 +161,10 @@ export class MatchRoom extends DurableObject {
           name: s.name,
           connected: this.isSeatConnected(s.playerId),
         })),
-      });
+      }, 200, {}, request, this.env);
     }
 
-    return json({ error: "Not found" }, 404);
+    return json({ error: "Not found" }, 404, {}, request, this.env);
   }
 
   isSeatConnected(playerId) {
@@ -118,9 +178,9 @@ export class MatchRoom extends DurableObject {
   async handleWebSocket(request) {
     const url = new URL(request.url);
     const name = (url.searchParams.get("name") || "Player").slice(0, 24);
-    const playerId = url.searchParams.get("playerId") || randomToken();
-    const skinId = (url.searchParams.get("skinId") || "classic_white").slice(0, 64);
-    const trueSkinId = url.searchParams.get("trueSkinId") || "";
+    const playerId = sanitizePlayerId(url.searchParams.get("playerId")) || randomToken();
+    const skinId = sanitizeSkinId(url.searchParams.get("skinId"), "classic_white");
+    const trueSkinId = sanitizeSkinId(url.searchParams.get("trueSkinId"));
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -140,10 +200,16 @@ export class MatchRoom extends DurableObject {
       suggestedName: name,
     });
 
-    return new Response(null, { status: 101, webSocket: client, headers: corsHeaders() });
+    return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(ws, message) {
+    const size = typeof message === "string" ? message.length : message.byteLength;
+    if (size > MAX_WS_MESSAGE_BYTES) {
+      this.send(ws, { type: "error", error: "Message too large" });
+      return;
+    }
+
     let msg;
     try {
       msg = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message));
@@ -232,8 +298,8 @@ export class MatchRoom extends DurableObject {
     }
 
     const name = String(msg.name || meta.name || "Player").slice(0, 24);
-    const skinId = String(msg.skinId || meta.skinId || "classic_white").slice(0, 64);
-    const trueSkinId = msg.trueSkinId || meta.trueSkinId || null;
+    const skinId = sanitizeSkinId(msg.skinId || meta.skinId, "classic_white");
+    const trueSkinId = sanitizeSkinId(msg.trueSkinId || meta.trueSkinId) || null;
     const visibility = normalizeOnlineVisibility(msg.visibility);
     const playerId = meta.playerId;
 
@@ -451,14 +517,22 @@ export class MatchRoom extends DurableObject {
  */
 export default {
   async fetch(request, env) {
+    const origin = request.headers.get("Origin") || "";
+
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders() });
+      return new Response(null, { status: 204, headers: corsHeaders(request, env) });
+    }
+
+    // Browser-initiated cross-site requests (including WebSocket upgrades, which
+    // CORS does not protect) must come from a known app origin.
+    if (origin && !isAllowedOrigin(origin, env)) {
+      return json({ error: "Origin not allowed" }, 403, {}, request, env);
     }
 
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health") {
-      return json({ ok: true, service: "roll10000-online" });
+      return json({ ok: true, service: "roll10000-online" }, 200, {}, request, env);
     }
 
     if (url.pathname === "/api/rooms" && request.method === "POST") {
@@ -471,10 +545,12 @@ export default {
         })
       );
       const data = await boot.json();
-      return json({ code: data.code || code });
+      return json({ code: data.code || code }, 200, {}, request, env);
     }
 
-    const roomMatch = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]+)(?:\/(ws|status))?$/);
+    const roomMatch = url.pathname.match(
+      new RegExp(`^/api/rooms/([A-Za-z0-9]{1,${MAX_ROOM_CODE_LEN}})(?:/(ws|status))?$`)
+    );
     if (roomMatch) {
       const code = roomMatch[1].toUpperCase();
       const id = env.MATCH_ROOM.idFromName(code);
@@ -493,7 +569,7 @@ export default {
       return stub.fetch(new Request(target.toString(), request));
     }
 
-    return json({ error: "Not found" }, 404);
+    return json({ error: "Not found" }, 404, {}, request, env);
   },
 };
 
