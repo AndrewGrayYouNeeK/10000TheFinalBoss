@@ -139,7 +139,7 @@ function RouteErrorBoundaryWithLocation({ children }) {
 }
 
 function RootRoute() {
-  // Native app: game hub. Web: marketing landing.
+  // Native: game hub. Web: Cyber Arena landing (ENTER → /play).
   if (isNativeApp()) return <Home />;
   return <Landing />;
 }
