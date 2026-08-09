@@ -79,34 +79,35 @@ function FeltLabEditor({ feltId }) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-emerald-500/35 bg-emerald-950/20 p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-black text-emerald-200">{catalog.name}</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Live tray preview — same surface as in-game dice table
-            </p>
+      {/* Sticky live tray — same pattern as Sprite Lab (below page header). */}
+      <div className="sticky z-20 self-start w-full top-[4.75rem] sm:top-20">
+        <section className="rounded-xl border border-emerald-500/35 bg-emerald-950/95 backdrop-blur-md p-3 sm:p-4 space-y-3 shadow-lg shadow-black/40">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-sm font-black text-emerald-200 truncate">{catalog.name}</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Live tray · stays visible while you tune
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="text-xs font-black uppercase tracking-wider rounded-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                {savedFlash ? "Saved ✓" : "Save felt"}
+              </button>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="text-xs font-bold uppercase tracking-wider rounded-full px-3 py-2 border border-white/20 text-slate-300 hover:bg-white/5"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              className="text-xs font-black uppercase tracking-wider rounded-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-            >
-              {savedFlash ? "Saved ✓" : "Save felt"}
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="text-xs font-bold uppercase tracking-wider rounded-full px-3 py-2 border border-white/20 text-slate-300 hover:bg-white/5"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl overflow-hidden border border-emerald-800/40 bg-slate-950/80 p-3">
+          <div className="rounded-xl border border-emerald-800/40 bg-slate-950/80 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
               Game tray
             </p>
@@ -124,20 +125,20 @@ function FeltLabEditor({ feltId }) {
               </div>
             </FeltTrayFrame>
           </div>
+        </section>
+      </div>
 
-          <div className="rounded-xl overflow-hidden border border-emerald-800/40 bg-slate-950/80 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Shop card (compact)
-            </p>
-            <div className="w-full max-w-[11.5rem] h-[5.75rem] mx-auto">
-              <FeltTrayFrame
-                felt={previewFelt}
-                compact
-                className="w-full h-full"
-                innerClassName="h-full"
-              />
-            </div>
-          </div>
+      <section className="rounded-xl overflow-hidden border border-emerald-800/40 bg-slate-950/80 p-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+          Shop card (compact)
+        </p>
+        <div className="w-full max-w-[11.5rem] h-[5.75rem] mx-auto">
+          <FeltTrayFrame
+            felt={previewFelt}
+            compact
+            className="w-full h-full"
+            innerClassName="h-full"
+          />
         </div>
       </section>
 
@@ -311,7 +312,7 @@ export default function FeltLabPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-950 via-slate-950 to-black text-white pb-10">
       <div
-        className="sticky top-0 z-20 border-b border-white/10 backdrop-blur px-3 pb-3"
+        className="sticky top-0 z-30 border-b border-white/10 backdrop-blur px-3 pb-3"
         style={{ background: "rgba(2,4,8,0.92)", ...PAGE_HEADER_SAFE_STYLE }}
       >
         <div className="max-w-3xl mx-auto flex items-center gap-2">
