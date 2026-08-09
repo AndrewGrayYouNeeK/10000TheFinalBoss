@@ -156,23 +156,12 @@ export class MatchRoom extends DurableObject {
       await this.dispatchMessage(ws, msg);
     } catch (err) {
       // A thrown handler would otherwise leave the client waiting on a socket
-      // that never answers. Log it and unstick the room.
+      // that never answers. Log it and notify the client. The lock/rollPending
+      // are owned and released by the "action" path's own try/finally, so this
+      // catch must not touch them — clearing them here would unlock a match
+      // while an unrelated message failed mid-roll.
       console.error("MatchRoom message failed", msg?.type, err);
       this.send(ws, { type: "error", error: "Server error handling that action" });
-      this.busy = false;
-      await this.clearRollPending();
-    }
-  }
-
-  async clearRollPending() {
-    try {
-      const room = await this.loadRoom();
-      if (room.rollPending) {
-        room.rollPending = false;
-        await this.saveRoom(room);
-      }
-    } catch (err) {
-      console.error("MatchRoom could not clear rollPending", err);
     }
   }
 
