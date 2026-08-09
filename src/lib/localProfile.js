@@ -150,7 +150,13 @@ export function loadProfile() {
     return { ...DEFAULT_PROFILE };
   }
 
-  const migrated = migrateProfile(parsed);
+  let migrated;
+  try {
+    migrated = migrateProfile(parsed);
+  } catch (err) {
+    backupCorruptProfile(raw, err);
+    return { ...DEFAULT_PROFILE };
+  }
   if (JSON.stringify(migrated) !== JSON.stringify(parsed)) {
     try {
       saveProfile(migrated);
