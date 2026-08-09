@@ -349,12 +349,30 @@ export class MatchRoom extends DurableObject {
       room.rollPending = true;
     }
 
-    await this.saveRoom(room);
-    await this.broadcastState(room, {
-      rollAnimMs: result.rollAnimMs || 0,
-      toast: result.toast,
-      actorIndex: meta.playerIndex,
-    });
+    try {
+      await this.saveRoom(room);
+      await this.broadcastState(room, {
+        rollAnimMs: result.rollAnimMs || 0,
+        toast: result.toast,
+        actorIndex: meta.playerIndex,
+      });
+    } catch (err) {
+      // rollPending may already be persisted above. If saveRoom/broadcastState
+      // throws before the deferred-eval finally can run, the marker would leak
+      // and brick the room ("Please wait" forever), so undo it before rethrowing.
+      if (result.deferEvaluate) {
+        try {
+          const latest = await this.loadRoom();
+          if (latest.rollPending) {
+            latest.rollPending = false;
+            await this.saveRoom(latest);
+          }
+        } catch (undoErr) {
+          console.error("MatchRoom failed to clear a stuck rollPending", undoErr);
+        }
+      }
+      throw err;
+    }
 
     if (result.deferEvaluate) {
       try {
