@@ -3,10 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { APP_STORE_URL, gameHubPath, isWebPlayEnabled } from "@/lib/webPlay";
 import "./Landing.css";
 
+// Standard die faces (opposites sum to 7): front, back, right, left, top, bottom
 const DIE_FACES = [
   ["6", "1", "4", "3", "5", "2"],
-  ["∞", "0", "7", "9", "8", "X"],
-  ["⚡", "☠", "✦", "◈", "◉", "▲"],
+  ["3", "4", "6", "1", "2", "5"],
+  ["5", "2", "1", "6", "3", "4"],
 ];
 
 const FACE_CLASS = ["front", "back", "right", "left", "top", "bottom"];
@@ -175,8 +176,8 @@ export default function Landing() {
 
       <div className="cyber-arena__main">
         <div className="cyber-arena__title-wrap">
-          <h1 className="cyber-arena__title" data-text="10,000 DICE">
-            10,000 DICE
+          <h1 className="cyber-arena__title" data-text="Rolll 10,000">
+            Rolll 10,000
           </h1>
         </div>
         <p className="cyber-arena__subtitle">// HIGH-STAKES CYBER ARENA //</p>

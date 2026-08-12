@@ -43,7 +43,23 @@ Optional: in the Cloudflare dashboard, connect GitHub repo `AndrewGrayYouNeeK/10
 
 Then (same zone) add a **Redirect Rule** from `roll10000.com/*` to `https://www.roll10000.com/$1` (301), so bare domain goes to `www`.
 
-## Scripts
+### Troubleshooting
+
+This app deploys to **Cloudflare Pages** (`roll10000`), not a standalone Worker. `npm run deploy:web` publishes to `roll10000.pages.dev`.
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `roll10000.pages.dev` works but `www.roll10000.com` returns `{"error":"Not found"}` | Custom domain points at a **Worker** or API, not Pages | Cloudflare dashboard → **Workers & Pages** → **roll10000** → **Custom domains** → ensure `www.roll10000.com` is listed and **Active**. Remove conflicting **Worker routes** on `www.roll10000.com/*` (Workers → your worker → Triggers → Routes). |
+| `roll10000.com` shows Cloudflare Access login | **Zero Trust** policy on apex | Zero Trust → **Access** → Applications → remove or bypass public access for `roll10000.com` / `www.roll10000.com`, or add a Bypass policy for everyone. |
+| Site loads but routes 404 on refresh | Missing SPA fallback | Confirm `dist/_redirects` contains `/* /index.html 200` after build. |
+
+Quick check:
+
+```bash
+curl -sI https://roll10000.pages.dev | head -3    # expect HTTP/2 200, text/html
+curl -s https://www.roll10000.com                  # should be HTML, not {"error":"Not found"}
+```
+
 
 | Command | Description |
 |---------|-------------|
