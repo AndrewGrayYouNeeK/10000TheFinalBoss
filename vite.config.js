@@ -1,11 +1,13 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import path from 'path'
+import { persistVideoUploadsPlugin } from './scripts/persistVideoUploadsPlugin.js'
 
+// persistVideoUploadsPlugin: writes uploads to public/assets + 404s missing video assets
 export default defineConfig({
   logLevel: 'info',
   base: './',
-  plugins: [react()],
+  plugins: [react(), persistVideoUploadsPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

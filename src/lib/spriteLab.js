@@ -831,6 +831,78 @@ export function persistSpriteLabTuning(skinId, payload, { locked = isSpriteTunin
     /* ignore quota errors */
   }
   writeProfileSpriteTuningEntry(skinId, { locked: !!locked, snapshot: withMeta });
+  void persistSpriteTuningToProjectDisk(skinId, withMeta, !!locked);
+}
+
+/** Dev server: mirror sprite tuning JSON into public/assets/sprite-tuning/. */
+async function persistSpriteTuningToProjectDisk(skinId, snapshot, locked) {
+  if (!import.meta.env.DEV || !snapshot || typeof snapshot !== "object") return;
+  try {
+    const body = JSON.stringify({ locked: !!locked, snapshot, savedAt: Date.now() });
+    const res = await fetch(
+      `/__api/persist-sprite-tuning?skinId=${encodeURIComponent(skinId)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }
+    );
+    if (!res.ok) {
+      console.warn(`[YouNeeK] Sprite tuning disk persist failed for ${skinId}:`, res.status);
+    }
+  } catch (err) {
+    console.warn(`[YouNeeK] Sprite tuning disk persist unavailable for ${skinId}`, err);
+  }
+}
+
+/** Pull disk-backed tuning into localStorage/profile, then push any live saves to disk. */
+export async function hydrateSpriteLabFromDisk() {
+  let restored = 0;
+  for (const skinId of SPRITE_TUNING_LOCK_SKIN_IDS) {
+    try {
+      const res = await fetch(`/assets/sprite-tuning/${encodeURIComponent(skinId)}.json`, {
+        cache: "no-cache",
+      });
+      if (!res.ok) continue;
+      const contentType = String(res.headers.get("content-type") || "").toLowerCase();
+      if (contentType.includes("text/html")) continue;
+      const parsed = await res.json();
+      const diskSnap = parsed?.snapshot && typeof parsed.snapshot === "object" ? parsed.snapshot : parsed;
+      if (!diskSnap || typeof diskSnap !== "object") continue;
+
+      const existing = loadLockedTuningSnapshot(skinId);
+      const draft = loadRawSpriteLabDraft(skinId);
+      const best = pickBestSpriteLabSnapshot(skinId, existing, draft, diskSnap);
+      if (!best) continue;
+
+      const locked =
+        typeof parsed?.locked === "boolean"
+          ? parsed.locked
+          : isSpriteTuningLocked(skinId);
+
+      writeSpriteLabSnapshotToLocalStorage(skinId, best);
+      writeProfileSpriteTuningEntry(skinId, { locked, snapshot: best });
+      try {
+        const flagKey = TUNING_LOCK_FLAG_KEYS[skinId];
+        if (flagKey) localStorage.setItem(flagKey, locked ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      restored += 1;
+    } catch {
+      /* missing or invalid */
+    }
+  }
+
+  // Seal whatever is live in the browser onto disk (dev) so the next wipe is recoverable.
+  for (const skinId of SPRITE_TUNING_LOCK_SKIN_IDS) {
+    const snap = loadLockedTuningSnapshot(skinId) || loadRawSpriteLabDraft(skinId);
+    if (snap) {
+      void persistSpriteTuningToProjectDisk(skinId, snap, isSpriteTuningLocked(skinId));
+    }
+  }
+
+  return restored;
 }
 
 export function saveSpriteLabDraft(skinId, payload) {

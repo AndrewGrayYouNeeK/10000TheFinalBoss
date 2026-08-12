@@ -21,6 +21,10 @@ import LabAccessGate from '@/components/marketing/LabAccessGate';
 recoverCorruptDiceState();
 // Restore Sprite Lab locks/snapshots from the player profile before any skin loads.
 hydrateSpriteLabPersistence();
+// Pull disk-backed sprite tuning (public/assets/sprite-tuning) and seal live saves to disk.
+import("@/lib/spriteLab")
+  .then(({ hydrateSpriteLabFromDisk }) => hydrateSpriteLabFromDisk())
+  .catch(() => {});
 // Ask the browser not to evict local saves and uploaded video backups under
 // storage pressure. Browsers that do not support this API simply skip it.
 if (typeof navigator !== "undefined") {

@@ -1,0 +1,79 @@
+{
+  "locked": true,
+  "snapshot": {
+    "regularCrop": {
+      "zoom": 1.005,
+      "offsetX": 0,
+      "offsetY": -0.005,
+      "stretch": 0.11
+    },
+    "powerCrop": {
+      "zoom": 1.045,
+      "offsetX": 0,
+      "offsetY": 0,
+      "stretch": 0
+    },
+    "regularFaces": {
+      "1": {
+        "x": -13,
+        "y": -3
+      },
+      "2": {
+        "x": 5.5,
+        "y": -2.5
+      },
+      "3": {
+        "x": 24,
+        "y": -3.5
+      },
+      "4": {
+        "x": -14,
+        "y": 11
+      },
+      "5": {
+        "x": 6.5,
+        "y": 12.5
+      },
+      "6": {
+        "x": 24,
+        "y": 11.5
+      }
+    },
+    "powerFaces": {
+      "1": {
+        "x": -3.5,
+        "y": -3.5
+      },
+      "2": {
+        "x": -2.5,
+        "y": -2
+      },
+      "3": {
+        "x": 0,
+        "y": -1.5
+      },
+      "4": {
+        "x": -1.5,
+        "y": -1.5
+      },
+      "5": {
+        "x": 0,
+        "y": -1
+      },
+      "6": {
+        "x": -1,
+        "y": -2.5
+      }
+    },
+    "faceOffsetsAreAbsolute": true,
+    "powerVideoCrop": {
+      "offsetX": 0,
+      "offsetY": 0
+    },
+    "spriteUrl": "/assets/ragnarok_regular_dice.png",
+    "powerSpriteUrl": "/assets/d21426962_XCSnTqF8nVT8rvkZYlH5g_BYlXoewC.png",
+    "seededFrom": "catalog",
+    "savedAt": 1786305697036
+  },
+  "savedAt": 1786514503419
+}

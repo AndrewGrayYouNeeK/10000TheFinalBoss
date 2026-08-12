@@ -1,0 +1,78 @@
+{
+  "locked": true,
+  "snapshot": {
+    "regularCrop": {
+      "zoom": 1.63,
+      "offsetX": -0.175,
+      "offsetY": 0.045,
+      "stretch": -0.02
+    },
+    "powerCrop": {
+      "zoom": 1,
+      "offsetX": 0,
+      "offsetY": 0,
+      "stretch": 0
+    },
+    "regularFaces": {
+      "1": {
+        "x": -17.5,
+        "y": -9
+      },
+      "2": {
+        "x": 11,
+        "y": -2.5
+      },
+      "3": {
+        "x": 39,
+        "y": -5
+      },
+      "4": {
+        "x": -16.5,
+        "y": 7.5
+      },
+      "5": {
+        "x": 11,
+        "y": 7.5
+      },
+      "6": {
+        "x": 36,
+        "y": 7.5
+      }
+    },
+    "powerFaces": {
+      "1": {
+        "x": 0,
+        "y": 0
+      },
+      "2": {
+        "x": 0,
+        "y": 0
+      },
+      "3": {
+        "x": 0,
+        "y": 0
+      },
+      "4": {
+        "x": 0,
+        "y": 0
+      },
+      "5": {
+        "x": 0,
+        "y": 0
+      },
+      "6": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "faceOffsetsAreAbsolute": true,
+    "powerVideoCrop": {
+      "offsetX": 0,
+      "offsetY": 0
+    },
+    "spriteUrl": "/assets/galaxy_dice_blackhole.png",
+    "seededFrom": "catalog",
+    "savedAt": 1786305697036
+  },
+  "savedAt": 1786514503419
+}

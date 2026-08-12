@@ -1,0 +1,78 @@
+{
+  "locked": false,
+  "snapshot": {
+    "regularCrop": {
+      "zoom": 0.93,
+      "offsetX": -0.005,
+      "offsetY": -0.015,
+      "stretch": 0.185
+    },
+    "powerCrop": {
+      "zoom": 1,
+      "offsetX": 0,
+      "offsetY": 0,
+      "stretch": 0
+    },
+    "regularFaces": {
+      "1": {
+        "x": 57,
+        "y": 31.5
+      },
+      "2": {
+        "x": 58.5,
+        "y": 31
+      },
+      "3": {
+        "x": 59,
+        "y": 30.5
+      },
+      "4": {
+        "x": 57,
+        "y": 39
+      },
+      "5": {
+        "x": 59,
+        "y": 39
+      },
+      "6": {
+        "x": 61,
+        "y": 39.5
+      }
+    },
+    "powerFaces": {
+      "1": {
+        "x": 0,
+        "y": 0
+      },
+      "2": {
+        "x": 0,
+        "y": 0
+      },
+      "3": {
+        "x": 0,
+        "y": 0
+      },
+      "4": {
+        "x": 0,
+        "y": 0
+      },
+      "5": {
+        "x": 0,
+        "y": 0
+      },
+      "6": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "faceOffsetsAreAbsolute": true,
+    "powerVideoCrop": {
+      "offsetX": 0,
+      "offsetY": 0
+    },
+    "spriteUrl": "/assets/e3c042b9e_hPLMjJ1wVsJG0mW-UisgC_GgpVeRAE.png",
+    "seededFrom": "catalog",
+    "savedAt": 1786305697036
+  },
+  "savedAt": 1786514503419
+}

@@ -1,12 +1,13 @@
 import {
   clearVideoUserCleared,
+  fetchCatalogVideoBlob,
   getLocalVideoBlob,
+  isLikelyVideoBlob,
   isVideoUserCleared,
   listAllLocalVideoKeys,
   loadProfileVideoUploadKeys,
   persistVideoDurability,
   putLocalVideoBlob,
-  VIDEO_FALLBACK_PATHS,
   VIDEO_KEYS,
   vaultVideoStorageKey,
   opfsRead,
@@ -248,26 +249,13 @@ export async function recoverVideoKeyFromSnapshots(videoKey, { force = false } =
     return true;
   }
 
-  // Recovered shark bite lives in public/assets — seed IndexedDB if this origin is empty.
-  if (videoKey === VIDEO_KEYS.BLUE_GEL_POWER && typeof fetch === "function") {
-    const fallbackPath = VIDEO_FALLBACK_PATHS[videoKey];
-    if (fallbackPath) {
-      try {
-        const res = await fetch(fallbackPath, { cache: "force-cache" });
-        if (res.ok) {
-          const raw = await res.blob();
-          if (raw?.size > 0) {
-            const catalogBlob = new Blob([raw], { type: "video/mp4" });
-            await putLocalVideoBlob(videoKey, catalogBlob);
-            clearVideoUserCleared(videoKey);
-            await persistVideoDurability(videoKey, catalogBlob);
-            return true;
-          }
-        }
-      } catch {
-        /* catalog file missing */
-      }
-    }
+  // Seed from public/assets (dev disk persist + catalog files) when browser copies are gone.
+  const catalogBlob = await fetchCatalogVideoBlob(videoKey);
+  if (catalogBlob) {
+    await putLocalVideoBlob(videoKey, catalogBlob);
+    clearVideoUserCleared(videoKey);
+    await persistVideoDurability(videoKey, catalogBlob);
+    return true;
   }
 
   const allKeys = await listAllLocalVideoKeys().catch(() => []);
@@ -306,7 +294,7 @@ export async function recoverLockedVideoSnapshots(skinId) {
 }
 
 /**
- * Recover every managed upload slot from backups, vault, OPFS, legacy keys, and snapshots.
+ * Recover every managed upload slot from backups, vault, OPFS, disk catalog, and snapshots.
  * @param {{ force?: boolean }} [opts] force=true ignores Remove tombstones (Restore button).
  */
 export async function recoverAllVideoSettings({ force = false } = {}) {
@@ -318,15 +306,34 @@ export async function recoverAllVideoSettings({ force = false } = {}) {
       ...loadSavedVideoKeys(),
       ...loadProfileVideoUploadKeys(),
     ]);
+
+    // Also pull any leftover IDB keys (including story slots not in the managed list yet).
+    const allIdbKeys = await listAllLocalVideoKeys().catch(() => []);
+    for (const storageKey of allIdbKeys) {
+      const live = liveKeyFromAuxStorageKey(storageKey);
+      if (live) keys.add(live);
+      else if (
+        !storageKey.startsWith("backup_vid_") &&
+        !storageKey.startsWith("vault_vid_") &&
+        !storageKey.startsWith("locked_vid_")
+      ) {
+        keys.add(storageKey);
+      }
+    }
+
     let restored = 0;
 
     for (const videoKey of keys) {
       const hadLive = await getLocalVideoBlob(videoKey);
       if (hadLive) {
-        // Re-seal durability for anything still live (upgrades old single-copy uploads).
         const blob = await getLocalVideoBlob(videoKey);
-        if (blob) await persistVideoDurability(videoKey, blob);
-        continue;
+        if (blob && !(await isLikelyVideoBlob(blob))) {
+          // Wipe HTML/SPA poison that got saved as a "video", then try real recovery.
+          await putLocalVideoBlob(videoKey, null);
+        } else if (blob) {
+          await persistVideoDurability(videoKey, blob);
+          continue;
+        }
       }
       if (await recoverVideoKeyFromSnapshots(videoKey, { force })) restored += 1;
     }

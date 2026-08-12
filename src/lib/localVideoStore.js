@@ -93,12 +93,47 @@ export const VIDEO_FALLBACK_PATHS = {
   [VIDEO_KEYS.MATRIX_POWER]: "/assets/matrix_power.mp4",
   [VIDEO_KEYS.DIAMOND_CUT_POWER]: "/assets/diamond_cut_power.mp4",
   [VIDEO_KEYS.BLUE_GEL_POWER]: "/assets/blue_gel_power.mp4",
+  [VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]: "/assets/blue_gel_shark_bite_intro.mp4",
   [VIDEO_KEYS.STORY_MODE]: "/assets/story_mode.mp4",
   [VIDEO_KEYS.STORY_BOSS_WIN]: "/assets/story_boss_win.mp4",
   [VIDEO_KEYS.GAMEPLAY_LOOP]: "/assets/gameplay_header_loop.mp4",
   [VIDEO_KEYS.GAMEPLAY_BILLBOARD]: "/assets/gameplay_billboard.mp4",
   [VIDEO_KEYS.CHARACTERS_LOOP]: "/assets/characters_loop.mp4",
 };
+
+/** Catalog URL for any upload slot (named fallbacks + story boss keys). */
+export function catalogPathForVideoKey(key) {
+  if (!key || isAuxiliaryVideoKey(key)) return null;
+  return VIDEO_FALLBACK_PATHS[key] ?? `/assets/${key}.mp4`;
+}
+
+const MIN_CATALOG_VIDEO_BYTES = 8_000;
+
+/** True when bytes look like MP4/MOV (ftyp box), not an HTML SPA fallback. */
+export async function isLikelyVideoBlob(blob) {
+  if (!blob || blob.size < MIN_CATALOG_VIDEO_BYTES) return false;
+  try {
+    const type = String(blob.type || "").toLowerCase();
+    if (
+      type.includes("text/html") ||
+      type.includes("text/plain") ||
+      type.includes("application/json")
+    ) {
+      return false;
+    }
+    const header = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+    // ....ftyp
+    return (
+      header.length >= 8 &&
+      header[4] === 0x66 &&
+      header[5] === 0x74 &&
+      header[6] === 0x79 &&
+      header[7] === 0x70
+    );
+  } catch {
+    return false;
+  }
+}
 
 export const VIDEO_LABELS = {
   [VIDEO_KEYS.MATRIX_POWER]: "Matrix power dice",
@@ -120,7 +155,7 @@ export const VIDEO_DESCRIPTIONS = {
   [VIDEO_KEYS.BLUE_GEL_POWER]:
     "Slot 2 — shark chomps the whole screen over the dice tray. Plays after Swim forward (if uploaded) or alone. Black background is keyed out. Upload: /shark-bite-lab, /fish-showcase, or /video-assets. Catalog fallback only when this slot is empty: public/assets/blue_gel_power.mp4.",
   [VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO]:
-    "Slot 1 — shark swims forward toward the tray. Plays once, then Chomps whole screen. Upload only (no catalog file). Same chroma settings as slot 2.",
+    "Slot 1 — shark swims forward toward the tray. Plays once, then Chomps whole screen. Upload here (saved to public/assets/blue_gel_shark_bite_intro.mp4 in dev). Same chroma settings as slot 2.",
   [VIDEO_KEYS.STORY_MODE]:
     "Looping banner on the Story hub ladder page only — not used as a boss-fight intro.",
   [VIDEO_KEYS.STORY_BOSS_WIN]:
@@ -361,7 +396,46 @@ export async function hasLocalVideo(key) {
 }
 
 /**
- * Write durable copies (backup + vault + OPFS + profile meta).
+ * Dev server: mirror upload into public/assets so it survives browser wipes.
+ * No-op in production builds.
+ */
+async function persistVideoToProjectDisk(key, blob) {
+  if (!import.meta.env.DEV || !blob || isAuxiliaryVideoKey(key)) return;
+  if (!(await isLikelyVideoBlob(blob))) return;
+  try {
+    const res = await fetch(`/__api/persist-video?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "video/mp4" },
+      body: blob,
+    });
+    if (!res.ok) {
+      console.warn(`[YouNeeK] Disk persist failed for ${key}:`, res.status);
+    }
+  } catch (err) {
+    console.warn(`[YouNeeK] Disk persist unavailable for ${key}`, err);
+  }
+}
+
+/** Fetch catalog/public asset into a Blob when a real video file exists. */
+export async function fetchCatalogVideoBlob(key) {
+  const path = catalogPathForVideoKey(key);
+  if (!path || typeof fetch !== "function") return null;
+  try {
+    const res = await fetch(path, { cache: "no-cache" });
+    if (!res.ok) return null;
+    const contentType = String(res.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("text/html")) return null;
+    const raw = await res.blob();
+    const blob = new Blob([raw], { type: raw.type || "video/mp4" });
+    if (!(await isLikelyVideoBlob(blob))) return null;
+    return blob;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write durable copies (backup + vault + OPFS + profile meta + disk in dev).
  * Does not touch the live cache/listeners for auxiliary keys.
  */
 export async function persistVideoDurability(key, blob) {
@@ -374,6 +448,7 @@ export async function persistVideoDurability(key, blob) {
     idbPut(backupVideoStorageKey(key), normalized),
     idbPut(vaultVideoStorageKey(key), normalized),
     opfsWrite(key, normalized),
+    persistVideoToProjectDisk(key, normalized),
   ]);
 
   markVideoSavedFlag(key);
@@ -418,14 +493,14 @@ export async function saveLocalVideo(key, file) {
 
 /**
  * Remove the live upload from the UI.
- * Keeps vault + OPFS so "Restore all uploads" can bring it back.
- * Pass { purgeVault: true } for a hard delete.
+ * Soft remove keeps backup + vault + OPFS so "Restore all uploads" works.
+ * Pass { purgeVault: true } for a hard delete of every copy.
  */
 export async function clearLocalVideo(key, { purgeVault = false } = {}) {
   await idbDelete(key);
-  await idbDelete(backupVideoStorageKey(key));
   markVideoUserCleared(key, true);
   if (purgeVault) {
+    await idbDelete(backupVideoStorageKey(key));
     await idbDelete(vaultVideoStorageKey(key));
     await opfsDelete(key);
     clearVideoSavedFlag(key);

@@ -840,7 +840,7 @@ export default function SpriteLab({ skinId }) {
     lockConfig.lock();
     persistTuningLockFlag(skinId, true);
     setTuningUnlocked(false);
-    toast.success(`${catalogSkin.name} locked — saved on this device (survives restart).`);
+    toast.success(`${catalogSkin.name} locked — saved on this device + disk (survives restart).`);
   };
 
   const handleUnlockTuning = () => {

@@ -44,8 +44,8 @@ export default function VideoAssets() {
       const restored = await recoverAllVideoSettings({ force: true });
       toast.success(
         restored > 0
-          ? `Restored ${restored} video${restored === 1 ? "" : "s"} from backup`
-          : "No backup copies found on this device — re-upload if still missing"
+          ? `Restored ${restored} video${restored === 1 ? "" : "s"} from backup/disk`
+          : "No backups or public/assets copies found yet — re-upload once (dev server will save them to disk)"
       );
     } catch {
       toast.error("Could not restore videos");
@@ -74,12 +74,11 @@ export default function VideoAssets() {
 
       <div className="max-w-2xl mx-auto p-4 space-y-4">
         <p className="text-xs text-slate-400 rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2">
-          Videos auto-save on this device in multiple copies (live + backup + vault + file cache).
-          Use the same browser URL every time (e.g. always{" "}
+          Uploads auto-save on this device <b>and</b> to{" "}
+          <code className="text-cyan-200">public/assets/</code> while the Vite dev server is
+          running — that disk copy is what survives browser clears. Always use{" "}
           <code className="text-cyan-200">http://localhost:5173</code>
-          — not a different port or IP). They do not sync to other devices. Tap{" "}
-          <b>Restore all uploads</b> if a slot looks empty. You can also drop files in{" "}
-          <code className="text-cyan-200">public/assets/</code> as a catalog fallback.
+          . Tap <b>Restore all uploads</b> to pull backups / disk files back into the slots.
         </p>
 
         <div className="flex flex-wrap gap-2">
