@@ -52,6 +52,10 @@ const LEGACY_VIDEO_KEY_MIGRATIONS = [
   [storyBossIntroKey("ice_witch"), storyBossIntroKey("snowman")],
   [storyBossWinKey("ice_witch"), storyBossWinKey("snowman")],
   [storyBossAvatarKey("ice_witch"), storyBossAvatarKey("snowman")],
+  // Marlin Joe dice merged into Shark Tank / Captain Chomps
+  [storyBossIntroKey("fisherman"), storyBossIntroKey("shark_tank")],
+  [storyBossWinKey("fisherman"), storyBossWinKey("shark_tank")],
+  [storyBossAvatarKey("fisherman"), storyBossAvatarKey("shark_tank")],
 ];
 
 function lockedVideoStorageKey(skinId, videoKey) {
