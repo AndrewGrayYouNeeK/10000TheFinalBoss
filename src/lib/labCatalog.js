@@ -56,7 +56,7 @@ export const LAB_HUB_SECTIONS = [
       {
         to: "/shark-tank-lab",
         title: "Shark Tank Lab",
-        description: "In-die great whites + orcas · power mode · face grid",
+        description: "Aquarium preview · story + bite video uploads · power mode",
       },
       {
         to: "/sprite-lab/shark_gel",

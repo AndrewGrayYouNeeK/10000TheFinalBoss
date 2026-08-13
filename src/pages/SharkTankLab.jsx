@@ -1,8 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import BackButton, { PAGE_HEADER_SAFE_STYLE } from "@/components/ui/BackButton";
 import Die from "@/components/game/Die";
 import DiceTray from "@/components/game/DiceTray";
+import VideoUploadCard from "@/components/video/VideoUploadCard";
+import { VIDEO_KEYS } from "@/lib/localVideoStore";
+import {
+  getStoryBossVideoDescription,
+  getStoryBossVideoLabel,
+  storyBossAvatarKey,
+  storyBossIntroKey,
+  storyBossWinKey,
+} from "@/lib/storyBossVideos";
+
+const SHARK_TANK_BOSS_ID = "shark_tank";
 
 const TRAY_DICE = [
   { id: "st-1", value: 1, held: false, used: false },
@@ -22,6 +33,12 @@ export default function SharkTankLab() {
   const [frozen, setFrozen] = useState(false);
   const [faceFocus, setFaceFocus] = useState(5);
   const [seedBump, setSeedBump] = useState(0);
+
+  useEffect(() => {
+    import("@/lib/spriteLabLockedVideos")
+      .then(({ recoverAllVideoSettings }) => recoverAllVideoSettings())
+      .catch(() => {});
+  }, []);
 
   const trayDice = useMemo(
     () =>
@@ -86,9 +103,50 @@ export default function SharkTankLab() {
 
         <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-3 py-2.5 text-xs text-rose-100/90">
           <b>Shark Tank</b> (<code className="text-rose-200">shark_gel</code>) — regular faces are the
-          angelfish aquarium; toggle <b>Power mode</b> below for sharks. Shark Bite fullscreen clips
-          tune in Shark Bite Lab. Story unlock: beat <b>Captain Chomps</b>.
+          angelfish aquarium; toggle <b>Power mode</b> below for sharks. Upload story + bite clips
+          in the sections below. Story unlock: beat <b>Captain Chomps</b>.
         </div>
+
+        <section className="rounded-2xl border border-cyan-500/30 bg-cyan-950/15 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-cyan-200">Story videos — Captain Chomps</h2>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Upload MP4s here (same slots as Sprite Lab / Video Assets). <b>Before match</b> plays
+              fullscreen at fight start · <b>After victory</b> on win · <b>Avatar loop</b> sits above
+              the table (crop / trim on that card). Old Marlin Joe uploads restore into these slots.
+            </p>
+          </div>
+          <VideoUploadCard
+            videoKey={storyBossIntroKey(SHARK_TANK_BOSS_ID)}
+            label={getStoryBossVideoLabel(SHARK_TANK_BOSS_ID, "intro")}
+            description={getStoryBossVideoDescription(SHARK_TANK_BOSS_ID, "intro")}
+          />
+          <VideoUploadCard
+            videoKey={storyBossWinKey(SHARK_TANK_BOSS_ID)}
+            label={getStoryBossVideoLabel(SHARK_TANK_BOSS_ID, "win")}
+            description={getStoryBossVideoDescription(SHARK_TANK_BOSS_ID, "win")}
+          />
+          <VideoUploadCard
+            videoKey={storyBossAvatarKey(SHARK_TANK_BOSS_ID)}
+            label={getStoryBossVideoLabel(SHARK_TANK_BOSS_ID, "avatar")}
+            description={getStoryBossVideoDescription(SHARK_TANK_BOSS_ID, "avatar")}
+          />
+        </section>
+
+        <section className="rounded-2xl border border-rose-500/35 bg-rose-950/20 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-rose-200">Shark Bite power videos</h2>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Same clips as Shark Bite Lab — swim-in, then fullscreen chomp. Tune chroma on{" "}
+              <Link to="/shark-bite-lab" className="text-rose-300 underline font-bold">
+                Shark Bite Lab
+              </Link>
+              .
+            </p>
+          </div>
+          <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_SHARK_BITE_INTRO} />
+          <VideoUploadCard videoKey={VIDEO_KEYS.BLUE_GEL_POWER} />
+        </section>
 
         <div className="rounded-xl border border-white/10 bg-slate-900/50 p-3 flex flex-wrap gap-4 items-center">
           <label className="flex items-center gap-2 text-xs font-bold text-slate-200">
