@@ -39,3 +39,6 @@ ios/DerivedData
 
 .env
 .vite
+
+# Licensed ProRes 4444 shark master — keep local, do not commit
+public/assets/powers/shark/*.mov
