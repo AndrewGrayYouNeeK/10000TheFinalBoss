@@ -1,0 +1,16 @@
+{
+  "name": "roll10000-web",
+  "main": "web-worker/index.js",
+  "compatibility_date": "2025-07-15",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "routes": [
+    { "pattern": "www.roll10000.com/*", "zone_name": "roll10000.com" },
+    { "pattern": "roll10000.com/*", "zone_name": "roll10000.com" }
+  ],
+  "observability": { "enabled": true }
+}
