@@ -39,19 +39,20 @@ function seededIndex(seed, max) {
  * Shark Tank species — mostly great whites (clear GW silhouette + age/size variety),
  * plus a killer whale so trays actually show an orca. Tiger / hammerhead stay rare.
  * All rendering is procedural SVG — no image assets. Shark Tank stays gray/silver
- * (no blue) except the black/white orca.
+ * (no blue) except the black/white orca. Bodies use volume gradients, underslung
+ * jaws, lunate tails, and species markings that read at die size.
  */
 export const SHARK_VARIANTS = [
   {
     id: "great_white",
     name: "Great White",
-    // IMG_2272 charcoal dorsum / silver mid / crisp white belly
-    top: "#2c3138",
-    body: "#3a414c",
-    belly: "#f8fafc",
-    fin: "#1e232b",
-    highlight: "#7a8494",
-    gill: "#12161c",
+    // Steely slate dorsum, warm white belly, soft mid-tone seam
+    top: "#3e4752",
+    body: "#5a6570",
+    belly: "#f3f1ea",
+    fin: "#2c333c",
+    highlight: "#9aa5b0",
+    gill: "#1c2228",
     eye: "#0a0a0a",
     pupil: "#111827",
     hammerhead: false,
@@ -62,12 +63,12 @@ export const SHARK_VARIANTS = [
   {
     id: "great_white_juvenile",
     name: "Young Great White",
-    top: "#3d4654",
-    body: "#4e5868",
-    belly: "#f8fafc",
-    fin: "#2c3542",
-    highlight: "#96a0ae",
-    gill: "#1c2430",
+    top: "#4f5a66",
+    body: "#6a7580",
+    belly: "#f6f4ee",
+    fin: "#3a4450",
+    highlight: "#b0b8c0",
+    gill: "#2a3340",
     eye: "#0a0a0a",
     pupil: "#1e293b",
     hammerhead: false,
@@ -78,12 +79,12 @@ export const SHARK_VARIANTS = [
   {
     id: "great_white_bull",
     name: "Bull Great White",
-    top: "#22262e",
-    body: "#2e343e",
-    belly: "#f1f5f9",
-    fin: "#151920",
-    highlight: "#6e7684",
-    gill: "#0c0f14",
+    top: "#2c333c",
+    body: "#434c56",
+    belly: "#efece4",
+    fin: "#1c2128",
+    highlight: "#7e8791",
+    gill: "#10141a",
     eye: "#050505",
     pupil: "#020617",
     hammerhead: false,
@@ -94,16 +95,16 @@ export const SHARK_VARIANTS = [
   {
     id: "orca",
     name: "Killer Whale",
-    top: "#0a0a0a",
-    body: "#111111",
-    belly: "#f8fafc",
-    fin: "#050505",
-    highlight: "#e5e7eb",
+    top: "#070708",
+    body: "#101114",
+    belly: "#f4f5f6",
+    fin: "#050506",
+    highlight: "#3a3d44",
     gill: "#1f2937",
-    eye: "#0f172a",
-    pupil: "#020617",
-    eyePatch: "#f8fafc",
-    saddle: "#9ca3af",
+    eye: "#050505",
+    pupil: "#f8fafc",
+    eyePatch: "#f7f8fa",
+    saddle: "#8a919a",
     hammerhead: false,
     orca: true,
     greatWhite: false,
@@ -111,12 +112,12 @@ export const SHARK_VARIANTS = [
   {
     id: "tiger",
     name: "Tiger Shark",
-    top: "#3f3f46",
-    body: "#52525b",
-    belly: "#e4e4e7",
-    fin: "#27272a",
-    highlight: "#a1a1aa",
-    gill: "#18181b",
+    top: "#4a453c",
+    body: "#5e584c",
+    belly: "#ece8df",
+    fin: "#322e28",
+    highlight: "#9a9286",
+    gill: "#1c1915",
     eye: "#0f172a",
     pupil: "#09090b",
     hammerhead: false,
@@ -127,12 +128,12 @@ export const SHARK_VARIANTS = [
   {
     id: "hammerhead",
     name: "Hammerhead",
-    top: "#52525b",
-    body: "#71717a",
-    belly: "#e4e4e7",
-    fin: "#3f3f46",
-    highlight: "#a1a1aa",
-    gill: "#27272a",
+    top: "#5a5348",
+    body: "#6d6558",
+    belly: "#e8e4d9",
+    fin: "#3f3b34",
+    highlight: "#a39a8c",
+    gill: "#2a261f",
     eye: "#0f172a",
     pupil: "#18181b",
     hammerhead: true,
@@ -161,31 +162,33 @@ const ORCA_FLUKE_DURATION = 0.92;
 const ORCA_PEDUNCLE_DURATION = 0.92;
 
 /**
- * Great white — full redraw from IMG_2272 only (head drawn facing right).
- * Fusiform charcoal/white body, conical snout, 5 gills, tall falcate dorsal,
- * sickle pectorals aft+down (near dark + far white/dark-tip), pelvic/anal/2nd dorsal,
- * narrow peduncle + lateral keel, near-symmetric lunate caudal, jagged mottled seam.
+ * Great white — fusiform slate/white body, conical snout over an underslung jaw,
+ * five gills, tall falcate dorsal, sickle pectorals aft+down, pelvic/anal/2nd dorsal,
+ * narrow keeled peduncle, near-symmetric lunate caudal, wavy mottled countershade seam.
  */
-function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 }) {
-  const jawOpen = chomping ? 1 : 0;
+function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0, ids }) {
   const eyeColor = scary ? "#dc2626" : v.eye;
-  const pupilColor = scary ? "#fecaca" : v.pupil;
   const age = v.age || "adult";
-  // Age variety on top of the same IMG_2272 silhouette.
-  const dorsalTipY = age === "juvenile" ? -3.8 : age === "bull" ? -10.8 : -9.2;
-  const snoutTipX = age === "juvenile" ? 98.0 : age === "bull" ? 101.0 : 99.8;
-  const midY = age === "bull" ? 24.5 : 24;
-  const bellyDeep = age === "bull" ? 10.6 : 9.8;
+  const dorsalTipY = age === "juvenile" ? -1.2 : age === "bull" ? -8.4 : -6.6;
+  const snoutTipX = age === "juvenile" ? 99.2 : age === "bull" ? 102.4 : 101.2;
+  const midY = age === "bull" ? 24.4 : 24;
+  const bellyDeep = age === "bull" ? 11.2 : 10.2;
   const chompStart = safeAnimDuration(chompDelay, 0);
+  const dorsum = ids?.dorsum || v.top;
+  const belly = ids?.belly || v.belly;
+  const sheen = ids?.sheen;
+  const finFill = ids?.fin || v.fin;
+  const caudalFill = ids?.caudal || v.fin;
+  const seam = ids?.seam;
 
-  const mouthClosedUpper = `M 82.5 ${midY + 2.6} Q 91 ${midY + 4.0} 97.4 ${midY + 1.4}`;
-  const mouthClosedLower = `M 82.5 ${midY + 4.0} Q 91.2 ${midY + 6.4} 96.8 ${midY + 3.6}`;
-  const mouthOpenUpper = `M 82.5 ${midY + 2.0} Q 91 ${midY + 3.2} 97.4 ${midY + 0.8}`;
-  const mouthOpenLower = `M 82.5 ${midY + 5.0} Q 91.5 ${midY + 12.8} 97.2 ${midY + 7.4}`;
+  const mouthClosedUpper = `M 84.0 ${midY + 3.4} Q 90.6 ${midY + 4.6} 95.4 ${midY + 3.0}`;
+  const mouthClosedLower = `M 84.0 ${midY + 4.6} Q 90.8 ${midY + 6.4} 95.0 ${midY + 4.6}`;
+  const mouthOpenUpper = `M 84.0 ${midY + 2.8} Q 90.6 ${midY + 3.8} 95.6 ${midY + 2.4}`;
+  const mouthOpenLower = `M 84.0 ${midY + 5.8} Q 91.2 ${midY + 13.4} 96.0 ${midY + 8.2}`;
 
   return (
     <>
-      {/* Lunate caudal — near-equal crescent; upper lobe slightly longer (IMG_2272) */}
+      {/* Lunate caudal — nearly symmetrical crescent, upper lobe only slightly longer */}
       <motion.g
         animate={frozen ? { rotate: 0 } : { rotate: [-6.5, 7.5, -6.5] }}
         transition={
@@ -196,252 +199,266 @@ function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
         style={{ originX: "78%", originY: "50%" }}
       >
         <path
-          d={`M 34.5 ${midY - 3.6}
-             C 28.5 ${midY - 5.8}, 22.5 ${midY - 10.5}, 17.5 ${midY - 16.2}
-             L 15.2 ${midY - 17.8}
-             C 16.2 ${midY - 16.6}, 17.2 ${midY - 15.0}, 17.8 ${midY - 13.6}
-             C 22.2 ${midY - 8.4}, 27.2 ${midY - 4.0}, 31.5 ${midY - 1.5}
-             L 33.0 ${midY + 0.05}
-             L 33.4 ${midY}
-             L 33.0 ${midY - 0.05}
-             L 31.5 ${midY + 1.6}
-             C 26.8 ${midY + 4.8}, 21.5 ${midY + 9.8}, 17.2 ${midY + 15.0}
-             L 15.4 ${midY + 16.4}
-             C 20.2 ${midY + 10.6}, 26.2 ${midY + 5.4}, 34.5 ${midY + 3.6}
-             C 37.0 ${midY + 1.7}, 37.0 ${midY - 1.7}, 34.5 ${midY - 3.6} Z`}
-          fill={v.fin}
-          stroke="rgba(2,6,23,0.35)"
-          strokeWidth="0.5"
+          d={`M 36.2 ${midY - 3.4}
+             C 30.0 ${midY - 7.4}, 24.2 ${midY - 11.6}, 19.2 ${midY - 14.0}
+             C 17.6 ${midY - 14.8}, 16.6 ${midY - 13.6}, 17.6 ${midY - 12.6}
+             C 22.0 ${midY - 8.8}, 26.2 ${midY - 5.2}, 29.6 ${midY - 2.0}
+             C 30.4 ${midY - 1.2}, 30.6 ${midY - 0.4}, 30.4 ${midY}
+             C 30.6 ${midY + 0.4}, 30.4 ${midY + 1.2}, 29.6 ${midY + 2.0}
+             C 26.0 ${midY + 5.4}, 21.8 ${midY + 9.2}, 17.8 ${midY + 12.6}
+             C 16.8 ${midY + 13.6}, 17.8 ${midY + 14.8}, 19.4 ${midY + 13.8}
+             C 24.2 ${midY + 11.0}, 30.0 ${midY + 6.8}, 36.2 ${midY + 3.4}
+             C 38.2 ${midY + 1.6}, 38.2 ${midY - 1.6}, 36.2 ${midY - 3.4} Z`}
+          fill={caudalFill}
+          stroke="rgba(2,6,23,0.4)"
+          strokeWidth="0.45"
           strokeLinejoin="round"
         />
-        {/* Soft trailing fork */}
         <path
-          d={`M 31.6 ${midY - 1.2} C 26.8 ${midY - 3.8}, 22.5 ${midY - 7.8}, 19.0 ${midY - 12.0}
-             L 20.4 ${midY - 11.0}
-             C 24.0 ${midY - 6.4}, 27.8 ${midY - 2.8}, 31.8 ${midY - 0.2}
-             L 32.0 ${midY + 0.25}
-             C 28.0 ${midY + 3.0}, 24.0 ${midY + 7.0}, 20.2 ${midY + 11.2}
-             L 18.8 ${midY + 12.0}
-             C 22.6 ${midY + 7.4}, 27.0 ${midY + 3.4}, 31.6 ${midY + 1.2} Z`}
+          d={`M 29.2 ${midY - 1.8} C 25.4 ${midY - 4.6}, 22.0 ${midY - 8.0}, 19.2 ${midY - 11.0}
+             L 20.4 ${midY - 10.2}
+             C 23.4 ${midY - 6.8}, 26.6 ${midY - 3.4}, 29.6 ${midY - 0.4}
+             L 29.6 ${midY + 0.4}
+             C 26.6 ${midY + 3.4}, 23.2 ${midY + 7.0}, 20.2 ${midY + 10.4}
+             L 19.0 ${midY + 11.2}
+             C 22.0 ${midY + 7.8}, 25.4 ${midY + 4.4}, 29.2 ${midY + 1.8} Z`}
           fill={v.highlight}
-          opacity="0.18"
+          opacity="0.16"
         />
-        {/* Peduncle join + lateral keel */}
         <path
-          d={`M 39.8 ${midY - 3.5} L 34.0 ${midY - 1.8} L 33.4 ${midY} L 34.0 ${midY + 1.8} L 39.8 ${midY + 3.3} Z`}
+          d={`M 40.2 ${midY - 3.4} C 37.8 ${midY - 2.2}, 35.4 ${midY - 1.2}, 33.6 ${midY}
+             C 35.4 ${midY + 1.2}, 37.8 ${midY + 2.2}, 40.2 ${midY + 3.2} Z`}
           fill={v.body}
-          opacity="0.98"
         />
-        <ellipse cx="36.0" cy={midY} rx="3.6" ry="1.15" fill={v.body} opacity="0.9" />
-        <ellipse cx="36.0" cy={midY} rx="4.4" ry="0.5" fill={v.fin} opacity="0.38" />
+        <ellipse cx="36.4" cy={midY} rx="3.4" ry="1.05" fill={v.body} opacity="0.95" />
+        <ellipse cx="36.4" cy={midY} rx="4.2" ry="0.42" fill={v.fin} opacity="0.4" />
       </motion.g>
 
-      {/* Fusiform hull — thickest under dorsal, conical snout, long taper to peduncle */}
+      {/* Fusiform hull — conical snout, thickest under the dorsal, long taper to peduncle */}
       <path
-        d={`M ${snoutTipX} ${midY - 2.8}
-           C 95.5 ${midY - 8.6}, 87.5 ${midY - 11.8}, 75.5 ${midY - 12.0}
-           C 63.5 ${midY - 12.2}, 53.5 ${midY - 11.2}, 45.5 ${midY - 9.8}
-           C 39.5 ${midY - 8.6}, 36.5 ${midY - 6.0}, 34.8 ${midY - 3.5}
+        d={`M ${snoutTipX} ${midY - 1.6}
+           C 98.8 ${midY - 6.2}, 94.2 ${midY - 10.2}, 86.4 ${midY - 11.6}
+           C 76.0 ${midY - 13.0}, 64.0 ${midY - 13.0}, 52.5 ${midY - 11.6}
+           C 43.5 ${midY - 10.4}, 38.2 ${midY - 7.6}, 35.2 ${midY - 3.8}
            L 33.8 ${midY}
-           L 34.8 ${midY + 3.5}
-           C 36.8 ${midY + 6.6}, 40.2 ${midY + 9.2}, 46.5 ${midY + bellyDeep}
-           C 58 ${midY + bellyDeep + 0.5}, 70.5 ${midY + bellyDeep + 0.2}, 82.5 ${midY + 8.8}
-           C 91.5 ${midY + 7.0}, 96.8 ${midY + 3.8}, ${snoutTipX} ${midY - 0.3}
-           C ${snoutTipX + 0.55} ${midY - 1.2}, ${snoutTipX + 0.5} ${midY - 2.1}, ${snoutTipX} ${midY - 2.8} Z`}
+           L 35.2 ${midY + 3.8}
+           C 38.0 ${midY + 7.6}, 43.2 ${midY + 10.6}, 52.8 ${midY + bellyDeep}
+           C 64.0 ${midY + bellyDeep + 0.6}, 76.5 ${midY + bellyDeep + 0.2}, 86.0 ${midY + 8.4}
+           C 92.2 ${midY + 6.8}, 97.2 ${midY + 3.4}, ${snoutTipX} ${midY + 0.4}
+           C ${snoutTipX + 0.45} ${midY - 0.4}, ${snoutTipX + 0.4} ${midY - 1.1}, ${snoutTipX} ${midY - 1.6} Z`}
         fill={v.body}
       />
 
-      {/* Charcoal dorsum */}
+      {/* Slate dorsum with vertical volume */}
       <path
-        d={`M 97.0 ${midY - 3.0}
-           C 90.5 ${midY - 10.0}, 77.5 ${midY - 12.2}, 61.5 ${midY - 11.4}
-           C 49.5 ${midY - 10.8}, 39.5 ${midY - 8.8}, 35.2 ${midY - 4.4}
-           L 34.2 ${midY - 0.3}
-           C 48 ${midY + 1.2}, 66 ${midY + 1.6}, 82 ${midY}
-           C 91 ${midY - 0.8}, 95.2 ${midY - 2.0}, 97.0 ${midY - 3.0} Z`}
-        fill={v.top}
-        opacity="0.94"
+        d={`M 98.6 ${midY - 2.4}
+           C 92.4 ${midY - 8.8}, 80.0 ${midY - 12.6}, 64.0 ${midY - 12.6}
+           C 50.0 ${midY - 12.6}, 40.0 ${midY - 9.6}, 35.0 ${midY - 4.6}
+           L 34.0 ${midY - 0.2}
+           C 48 ${midY + 1.8}, 66 ${midY + 2.2}, 82 ${midY + 0.6}
+           C 90.5 ${midY - 0.4}, 95.4 ${midY - 1.4}, 98.6 ${midY - 2.4} Z`}
+        fill={dorsum}
+        opacity="0.96"
       />
 
-      {/*
-        White belly — IMG_2272 jagged/mottled gray↔white seam:
-        under snout → above eye → drips between gills → irregular flank zigzags →
-        deep peduncle dip rising into caudal base.
-      */}
+      {/* Soft mid-tone seam so the countershade is not a hard cartoon edge */}
+      {seam ? (
+        <path
+          d={`M 97.2 ${midY + 0.2}
+             C 90 ${midY + 1.6}, 78 ${midY + 3.4}, 66 ${midY + 3.8}
+             C 54 ${midY + 4.0}, 44 ${midY + 3.2}, 35.4 ${midY + 1.6}
+             C 46 ${midY + 5.4}, 62 ${midY + 6.2}, 78 ${midY + 4.6}
+             C 88 ${midY + 3.6}, 94 ${midY + 2.0}, 97.2 ${midY + 0.2} Z`}
+          fill={`url(#${seam})`}
+          opacity="0.7"
+        />
+      ) : null}
+
+      {/* White belly — irregular wavy (not zigzag) mottled seam, underslung under the snout */}
       <path
-        d={`M 97.6 ${midY + 0.2}
-           L 95.4 ${midY - 2.0}
-           L 93.2 ${midY + 1.0}
-           L 90.8 ${midY - 2.6}
-           L 88.4 ${midY + 1.4}
-           L 85.8 ${midY - 1.0}
-           L 83.0 ${midY + 2.8}
-           L 80.0 ${midY - 0.6}
-           L 77.0 ${midY + 3.6}
-           L 73.8 ${midY} 
-           L 70.6 ${midY + 4.0}
-           L 67.2 ${midY - 0.4}
-           L 63.8 ${midY + 3.4}
-           L 60.4 ${midY + 0.2}
-           L 57.0 ${midY + 3.8}
-           L 53.6 ${midY} 
-           L 50.2 ${midY + 3.0}
-           L 46.8 ${midY - 0.8}
-           L 43.4 ${midY + 3.6}
-           L 40.2 ${midY + 0.4}
-           L 37.4 ${midY + 4.0}
-           L 35.0 ${midY + 1.4}
-           L 33.6 ${midY + 4.4}
-           C 37.0 ${midY + 8.6}, 49.5 ${midY + 10.6}, 64 ${midY + 10.4}
-           C 78.5 ${midY + 10.2}, 90.5 ${midY + 7.6}, 96.8 ${midY + 3.6}
-           C 98.5 ${midY + 2.2}, 98.2 ${midY + 1.0}, 97.6 ${midY + 0.2} Z`}
-        fill={v.belly}
-        opacity="0.99"
+        d={`M 98.8 ${midY + 0.6}
+           C 96.6 ${midY - 0.4}, 94.8 ${midY + 1.2}, 93.2 ${midY + 0.2}
+           C 91.2 ${midY - 1.0}, 89.6 ${midY + 1.8}, 87.6 ${midY + 1.0}
+           C 85.4 ${midY + 0.2}, 83.6 ${midY + 2.6}, 81.2 ${midY + 2.0}
+           C 78.6 ${midY + 1.2}, 76.4 ${midY + 3.4}, 73.6 ${midY + 2.8}
+           C 70.6 ${midY + 2.0}, 68.2 ${midY + 4.0}, 65.0 ${midY + 3.4}
+           C 61.8 ${midY + 2.6}, 59.2 ${midY + 4.4}, 56.0 ${midY + 3.6}
+           C 52.6 ${midY + 2.6}, 49.8 ${midY + 4.2}, 46.6 ${midY + 3.2}
+           C 43.4 ${midY + 2.2}, 40.6 ${midY + 4.0}, 37.6 ${midY + 2.8}
+           C 36.2 ${midY + 2.2}, 35.0 ${midY + 3.2}, 34.2 ${midY + 4.2}
+           C 37.6 ${midY + 8.8}, 50.0 ${midY + 11.4}, 64.5 ${midY + 11.2}
+           C 78.8 ${midY + 11.0}, 90.6 ${midY + 7.6}, 97.6 ${midY + 3.2}
+           C 99.4 ${midY + 2.0}, 99.6 ${midY + 1.2}, 98.8 ${midY + 0.6} Z`}
+        fill={belly}
+        opacity="0.98"
       />
-      {/* Mottled freckles / charcoal drips along the jagged seam */}
+      {/* A few irregular blotches along the seam — mottled, not saw teeth */}
       {[
-        [94.2, midY - 0.8],
-        [90.8, midY + 0.6],
-        [86.8, midY - 0.6],
-        [82.2, midY + 1.6],
-        [77.4, midY + 0.2],
-        [72.6, midY + 2.2],
-        [67.6, midY + 0.4],
-        [62.4, midY + 2.6],
-        [57.2, midY + 0.8],
-        [52.0, midY + 2.4],
-        [47.0, midY + 0.6],
-        [42.4, midY + 2.8],
-        [38.6, midY + 1.2],
-        [35.4, midY + 3.0],
-      ].map(([x, y], i) => (
+        [92.4, midY + 0.4, 1.5, 0.7],
+        [85.8, midY + 1.5, 1.7, 0.8],
+        [77.6, midY + 2.2, 1.6, 0.7],
+        [68.8, midY + 3.0, 1.8, 0.85],
+        [59.4, midY + 2.8, 1.5, 0.7],
+        [50.2, midY + 2.6, 1.4, 0.65],
+        [42.0, midY + 2.4, 1.2, 0.6],
+        [36.6, midY + 3.0, 1.0, 0.55],
+      ].map(([x, y, rx, ry], i) => (
         <ellipse
-          key={`gw-speckle-${i}`}
+          key={`gw-blotch-${i}`}
           cx={x}
           cy={y}
-          rx={0.7 + (i % 4) * 0.22}
-          ry={0.42 + (i % 3) * 0.15}
+          rx={rx}
+          ry={ry}
           fill={v.top}
-          opacity={0.38 + (i % 3) * 0.1}
+          opacity={0.22 + (i % 3) * 0.07}
         />
       ))}
 
-      {/* Tall falcate first dorsal — convex leading edge, free rear tip / slight notch */}
+      {sheen ? (
+        <path
+          d={`M 90 ${midY - 6.2}
+             C 80 ${midY - 11.0}, 66 ${midY - 11.6}, 50 ${midY - 10.0}
+             C 58 ${midY - 7.4}, 74 ${midY - 6.6}, 88 ${midY - 4.4} Z`}
+          fill={`url(#${sheen})`}
+          opacity="0.55"
+        />
+      ) : null}
+
+      {v.stripes
+        ? [
+            [44, 2.2, 1.7],
+            [51, -1.6, 2.1],
+            [58, 2.0, 1.6],
+            [65, -1.2, 2.0],
+            [72, 1.8, 1.5],
+            [79, -0.8, 1.8],
+            [86, 1.2, 1.3],
+          ].map(([x, amp, w], i) => (
+            <path
+              key={`stripe-${x}`}
+              d={`M ${x} ${midY - 9.0 + (i % 2) * 0.6} Q ${x + amp} ${midY - 1} ${x - 0.4} ${midY + 4.2}`}
+              stroke="#2a2318"
+              strokeWidth={w}
+              opacity="0.38"
+              fill="none"
+              strokeLinecap="round"
+            />
+          ))
+        : null}
+
+      {/* Tall falcate first dorsal — convex leading edge, slightly concave trailing */}
       <path
-        d={`M 48.5 ${midY - 10.4}
-           C 50.2 ${midY - 15.8}, 52.6 ${dorsalTipY - 0.5}, 55.0 ${dorsalTipY}
-           C 56.6 ${dorsalTipY + 1.4}, 58.6 ${midY - 7.2}, 61.4 ${midY - 9.4}
-           C 62.0 ${midY - 9.0}, 61.8 ${midY - 8.4}, 60.8 ${midY - 8.6}
-           C 58.4 ${midY - 9.8}, 53.6 ${midY - 10.6}, 48.5 ${midY - 10.4} Z`}
-        fill={v.fin}
-        stroke="rgba(2,6,23,0.32)"
-        strokeWidth="0.5"
+        d={`M 51.0 ${midY - 11.0}
+           C 52.4 ${midY - 17.6}, 54.2 ${dorsalTipY - 1.2}, 56.6 ${dorsalTipY}
+           C 58.2 ${dorsalTipY + 0.8}, 59.4 ${midY - 9.0}, 62.4 ${midY - 9.8}
+           C 63.0 ${midY - 9.4}, 62.6 ${midY - 8.8}, 61.6 ${midY - 8.8}
+           C 59.0 ${midY - 10.4}, 55.2 ${midY - 11.2}, 51.0 ${midY - 11.0} Z`}
+        fill={finFill}
+        stroke="rgba(2,6,23,0.35)"
+        strokeWidth="0.45"
         strokeLinejoin="round"
       />
       <path
-        d={`M 50.5 ${midY - 10.2} L 55.0 ${dorsalTipY + 2.6} L 59.0 ${midY - 9.0} Z`}
+        d={`M 52.8 ${midY - 11.0} L 56.6 ${dorsalTipY + 3.2} L 59.8 ${midY - 9.6} Z`}
         fill={v.highlight}
-        opacity="0.15"
+        opacity="0.18"
       />
 
-      {/* Far-side pectoral (under belly) — pale with dark tip, as in IMG_2272 */}
+      {/* Far-side pectoral — pale underside, dark tip, aft and down */}
       <path
-        d={`M 66 ${midY + 7.2}
-           C 62 ${midY + 11.5}, 56.5 ${midY + 15.0}, 51.5 ${midY + 16.2}
-           C 50.2 ${midY + 16.4}, 49.6 ${midY + 15.4}, 50.4 ${midY + 14.6}
-           C 54.5 ${midY + 11.5}, 59.5 ${midY + 8.2}, 64 ${midY + 6.4}
-           C 65 ${midY + 6.2}, 65.6 ${midY + 6.6}, 66 ${midY + 7.2} Z`}
+        d={`M 67.5 ${midY + 7.0}
+           C 63.0 ${midY + 11.4}, 57.0 ${midY + 15.0}, 51.6 ${midY + 16.0}
+           C 50.2 ${midY + 16.2}, 49.6 ${midY + 15.2}, 50.4 ${midY + 14.4}
+           C 54.6 ${midY + 11.6}, 60.0 ${midY + 8.0}, 65.4 ${midY + 6.2}
+           C 66.6 ${midY + 6.0}, 67.2 ${midY + 6.4}, 67.5 ${midY + 7.0} Z`}
         fill={v.belly}
-        opacity="0.92"
+        opacity="0.9"
       />
       <path
-        d={`M 53.5 ${midY + 14.8} C 52.2 ${midY + 15.6}, 51.0 ${midY + 16.0}, 50.4 ${midY + 15.0}
-           C 51.8 ${midY + 14.2}, 52.8 ${midY + 14.2}, 53.5 ${midY + 14.8} Z`}
+        d={`M 54.0 ${midY + 14.6} C 52.4 ${midY + 15.6}, 51.0 ${midY + 16.0}, 50.4 ${midY + 14.8}
+           C 51.8 ${midY + 14.0}, 53.2 ${midY + 14.2}, 54.0 ${midY + 14.6} Z`}
         fill={v.fin}
-        opacity="0.85"
+        opacity="0.82"
       />
 
-      {/*
-        Near-side sickle pectoral — root just aft of 5th gill, sweeps AFT and DOWN
-        (toward tail / lower x). Dark upper surface.
-      */}
+      {/* Near-side sickle pectoral — root just aft of the 5th gill, sweeps aft and down */}
       <path
-        d={`M 68.5 ${midY + 5.0}
-           C 63.2 ${midY + 11.2}, 55.8 ${midY + 18.0}, 48.0 ${midY + 20.2}
-           C 46.2 ${midY + 20.5}, 45.2 ${midY + 19.2}, 46.0 ${midY + 18.0}
-           C 50.8 ${midY + 12.8}, 57.2 ${midY + 7.0}, 63.8 ${midY + 4.0}
-           C 65.6 ${midY + 3.4}, 67.4 ${midY + 3.8}, 68.5 ${midY + 5.0} Z`}
-        fill={v.fin}
+        d={`M 69.0 ${midY + 5.2}
+           C 63.4 ${midY + 11.6}, 55.4 ${midY + 18.4}, 47.2 ${midY + 20.0}
+           C 45.4 ${midY + 20.2}, 44.6 ${midY + 18.8}, 45.6 ${midY + 17.6}
+           C 51.0 ${midY + 12.6}, 58.0 ${midY + 7.0}, 64.6 ${midY + 4.2}
+           C 66.4 ${midY + 3.6}, 68.0 ${midY + 4.0}, 69.0 ${midY + 5.2} Z`}
+        fill={finFill}
         opacity="0.98"
       />
       <path
-        d={`M 67.6 ${midY + 5.2}
-           C 62.2 ${midY + 10.6}, 55.5 ${midY + 16.0}, 49.2 ${midY + 18.4}
-           L 63.0 ${midY + 4.4} Z`}
+        d={`M 67.8 ${midY + 5.4}
+           C 62.2 ${midY + 10.6}, 55.2 ${midY + 16.0}, 48.6 ${midY + 18.2}
+           L 63.6 ${midY + 4.6} Z`}
         fill={v.belly}
-        opacity="0.28"
+        opacity="0.22"
       />
 
-      {/* Pelvic — mostly white with dark leading edge (~⅔ body length) */}
+      {/* Pelvic — modest, mostly white, dark leading edge */}
       <path
-        d={`M 49.5 ${midY + 9.0} C 46.8 ${midY + 13.8}, 43.2 ${midY + 15.6}, 40.5 ${midY + 11.4} L 47.0 ${midY + 7.8} Z`}
+        d={`M 49.8 ${midY + 9.4} C 47.4 ${midY + 13.6}, 44.2 ${midY + 14.8}, 42.0 ${midY + 11.2} L 47.6 ${midY + 8.2} Z`}
         fill={v.belly}
-        opacity="0.97"
+        opacity="0.96"
       />
-      <path d={`M 49.5 ${midY + 9.0} L 47.0 ${midY + 7.8} L 45.2 ${midY + 12.4} Z`} fill={v.fin} opacity="0.88" />
+      <path d={`M 49.8 ${midY + 9.4} L 47.6 ${midY + 8.2} L 45.8 ${midY + 12.0} Z`} fill={v.fin} opacity="0.82" />
 
-      {/* Anal fin — small, under second dorsal */}
-      <path d={`M 40.0 ${midY + 7.8} L 37.6 ${midY + 12.0} L 35.8 ${midY + 8.0} Z`} fill={v.belly} opacity="0.9" />
-      <path d={`M 40.0 ${midY + 7.8} L 38.2 ${midY + 7.4} L 37.2 ${midY + 11.0} Z`} fill={v.fin} opacity="0.75" />
+      {/* Anal + tiny second dorsal, opposite each other ahead of the peduncle */}
+      <path d={`M 40.4 ${midY + 7.6} L 38.2 ${midY + 11.2} L 36.6 ${midY + 7.8} Z`} fill={v.belly} opacity="0.9" />
+      <path d={`M 40.4 ${midY + 7.6} L 38.8 ${midY + 7.2} L 37.8 ${midY + 10.4} Z`} fill={v.fin} opacity="0.7" />
+      <path d={`M 41.2 ${midY - 7.0} L 43.2 ${midY - 10.8} L 45.4 ${midY - 6.6} Z`} fill={v.fin} opacity="0.92" />
 
-      {/* Second dorsal — tiny, just ahead of peduncle */}
-      <path d={`M 41.0 ${midY - 7.4} L 43.0 ${midY - 11.6} L 45.2 ${midY - 7.0} Z`} fill={v.fin} opacity="0.92" />
-
-      {/* Five gill slits — slightly curved, just ahead of pectoral root */}
-      {[81.8, 78.4, 75.0, 71.6, 68.2].map((x, i) => (
+      {/* Five slightly curved gill slits just ahead of the pectoral root */}
+      {[81.0, 77.6, 74.2, 70.8, 67.4].map((x, i) => (
         <path
           key={`gw-gill-${x}`}
-          d={`M ${x} ${midY - 5.8 - i * 0.12} Q ${x - 1.8} ${midY} ${x + 0.2} ${midY + 5.4 - i * 0.1}`}
+          d={`M ${x} ${midY - 5.4 - i * 0.1} Q ${x - 1.7} ${midY + 0.2} ${x + 0.15} ${midY + 5.2 - i * 0.12}`}
           stroke={v.gill}
-          strokeWidth="1.2"
-          opacity="0.62"
+          strokeWidth="1.05"
+          opacity={0.7 - i * 0.04}
           fill="none"
           strokeLinecap="round"
         />
       ))}
 
-      {/* Conical snout — charcoal top, white lower jaw */}
+      {/* Conical snout — charcoal cap, white underslung jaw, not a smiling face at the tip */}
       <path
-        d={`M 90.5 ${midY - 6.6}
-            C 94.8 ${midY - 8.6}, 98.4 ${midY - 5.4}, ${snoutTipX} ${midY - 2.6}
-            C ${snoutTipX + 0.4} ${midY - 1.5}, ${snoutTipX + 0.25} ${midY - 0.4}, ${snoutTipX - 0.5} ${midY + 0.15}
-            C 96.2 ${midY + 2.6}, 92.5 ${midY + 3.4}, 89.5 ${midY + 2.9}
+        d={`M 91.0 ${midY - 6.8}
+            C 95.6 ${midY - 8.2}, 99.2 ${midY - 5.4}, ${snoutTipX} ${midY - 1.6}
+            C ${snoutTipX + 0.35} ${midY - 0.6}, ${snoutTipX + 0.2} ${midY + 0.3}, ${snoutTipX - 0.6} ${midY + 0.7}
+            C 96.8 ${midY + 2.8}, 93.0 ${midY + 3.6}, 89.8 ${midY + 3.0}
             Z`}
         fill={v.body}
       />
       <path
-        d={`M 90.8 ${midY - 6.2} C 95.0 ${midY - 8.0}, 98.2 ${midY - 4.8}, ${snoutTipX - 0.9} ${midY - 2.8}
-            C 95.8 ${midY - 5.0}, 92.8 ${midY - 5.6}, 90.8 ${midY - 5.6} Z`}
+        d={`M 91.2 ${midY - 6.4} C 95.6 ${midY - 7.8}, 99.0 ${midY - 4.6}, ${snoutTipX - 0.7} ${midY - 1.8}
+            C 96.0 ${midY - 4.8}, 93.0 ${midY - 5.8}, 91.2 ${midY - 5.6} Z`}
         fill={v.top}
-        opacity="0.88"
+        opacity="0.9"
       />
       <path
-        d={`M 90.0 ${midY + 1.9} C 94.2 ${midY + 2.8}, 97.4 ${midY + 1.0}, ${snoutTipX - 1.9} ${midY - 0.15}
-            C 95.2 ${midY + 2.4}, 92.0 ${midY + 2.8}, 90.0 ${midY + 2.8} Z`}
+        d={`M 90.0 ${midY + 2.2} C 94.0 ${midY + 3.0}, 97.4 ${midY + 1.4}, ${snoutTipX - 1.6} ${midY + 0.5}
+            C 95.6 ${midY + 2.4}, 92.2 ${midY + 3.0}, 90.0 ${midY + 2.8} Z`}
         fill={v.belly}
         opacity="0.97"
       />
+      {/* Nostril */}
+      <ellipse cx={snoutTipX - 6.4} cy={midY - 1.4} rx="0.7" ry="0.35" fill={v.gill} opacity="0.7" />
 
-      {/* Small solid-black eye — just above mouth corner */}
-      <circle cx="88.8" cy={midY - 3.9} r="1.4" fill={eyeColor} />
-      <circle cx="89.05" cy={midY - 4.1} r="0.35" fill={pupilColor} opacity="0.8" />
+      {/* Round black eye with a tiny wet highlight — sits above the mouth corner */}
+      <circle cx="88.2" cy={midY - 3.6} r="1.55" fill={eyeColor} />
+      <circle cx="88.65" cy={midY - 4.05} r="0.38" fill="#f8fafc" opacity="0.75" />
 
-      {/* Slightly open mouth cavity + triangular teeth */}
+      {/* Underslung mouth cavity + triangular teeth */}
       <path
         d={
           jawOpen
-            ? `M 82.5 ${midY + 2.4} Q 91 ${midY + 3.8} 97.6 ${midY + 1.6} Q 94 ${midY + 12.2} 87.5 ${midY + 12.8} Q 83 ${midY + 9.6} 82.5 ${midY + 5.2} Z`
-            : `M 82.5 ${midY + 2.4} Q 91 ${midY + 4.0} 97.6 ${midY + 1.8} Q 93.5 ${midY + 6.6} 87.5 ${midY + 6.2} Q 83.5 ${midY + 4.4} 82.5 ${midY + 3.4} Z`
+            ? `M 83.8 ${midY + 3.2} Q 90.8 ${midY + 4.4} 96.0 ${midY + 2.8} Q 93.0 ${midY + 13.0} 87.0 ${midY + 13.4} Q 83.4 ${midY + 10.0} 83.8 ${midY + 5.6} Z`
+            : `M 83.8 ${midY + 3.2} Q 90.8 ${midY + 4.8} 96.0 ${midY + 3.0} Q 93.0 ${midY + 6.8} 87.2 ${midY + 6.4} Q 84.2 ${midY + 4.6} 83.8 ${midY + 3.8} Z`
         }
         fill="#0f172a"
         opacity="0.92"
@@ -449,7 +466,7 @@ function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
       <motion.path
         d={jawOpen ? mouthOpenUpper : mouthClosedUpper}
         stroke="#1e293b"
-        strokeWidth="1.4"
+        strokeWidth="1.3"
         fill="none"
         strokeLinecap="round"
         animate={
@@ -466,7 +483,7 @@ function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
       <motion.path
         d={jawOpen ? mouthOpenLower : mouthClosedLower}
         stroke="#334155"
-        strokeWidth="1.3"
+        strokeWidth="1.2"
         fill="none"
         strokeLinecap="round"
         animate={
@@ -494,10 +511,10 @@ function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
               : { duration: 0.2 }
           }
         >
-          {[84.2, 86.8, 89.4, 92.0, 94.6].map((x) => (
+          {[85.0, 87.4, 89.8, 92.2, 94.4].map((x) => (
             <path
               key={`gw-tooth-${x}`}
-              d={`M ${x} ${midY + 3.0} L ${x + 0.55} ${midY + 5.1} L ${x + 1.1} ${midY + 3.0} Z`}
+              d={`M ${x} ${midY + 3.6} L ${x + 0.5} ${midY + 5.8} L ${x + 1.0} ${midY + 3.6} Z`}
               fill="#f8fafc"
               opacity="0.95"
             />
@@ -508,249 +525,28 @@ function GreatWhiteBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
   );
 }
 
-/** Tiger / generic — same IMG_2272 GW architecture + optional flank stripes. */
-function StandardSharkBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 }) {
-  const jawOpen = chomping ? 1 : 0;
-  const eyeColor = scary ? "#dc2626" : v.eye;
-  const pupilColor = scary ? "#fecaca" : v.pupil;
-  const midY = 24;
-  const chompStart = safeAnimDuration(chompDelay, 0);
-  const mouthClosedUpper = "M 82.5 26.6 Q 91 28.0 97.4 25.4";
-  const mouthClosedLower = "M 82.5 28.0 Q 91.2 30.4 96.8 27.6";
-  const mouthOpenUpper = "M 82.5 26.0 Q 91 27.2 97.4 24.8";
-  const mouthOpenLower = "M 82.5 29.0 Q 91.5 36.8 97.2 31.4";
-
-  return (
-    <>
-      <motion.g
-        animate={frozen ? { rotate: 0 } : { rotate: [-7, 8, -7] }}
-        transition={
-          frozen
-            ? FROZEN_TRANSITION
-            : { duration: TAIL_SWAY_DURATION, repeat: Infinity, ease: TAIL_SWAY_EASE }
-        }
-        style={{ originX: "78%", originY: "50%" }}
-      >
-        <path
-          d={`M 34.5 ${midY - 3.6}
-             C 28.5 ${midY - 5.8}, 22.5 ${midY - 10.5}, 17.5 ${midY - 16.2}
-             L 15.2 ${midY - 17.8}
-             C 16.2 ${midY - 16.6}, 17.2 ${midY - 15.0}, 17.8 ${midY - 13.6}
-             C 22.2 ${midY - 8.4}, 27.2 ${midY - 4.0}, 31.5 ${midY - 1.5}
-             L 33.0 ${midY + 0.05}
-             L 33.4 ${midY}
-             L 33.0 ${midY - 0.05}
-             L 31.5 ${midY + 1.6}
-             C 26.8 ${midY + 4.8}, 21.5 ${midY + 9.8}, 17.2 ${midY + 15.0}
-             L 15.4 ${midY + 16.4}
-             C 20.2 ${midY + 10.6}, 26.2 ${midY + 5.4}, 34.5 ${midY + 3.6}
-             C 37.0 ${midY + 1.7}, 37.0 ${midY - 1.7}, 34.5 ${midY - 3.6} Z`}
-          fill={v.fin}
-          stroke="rgba(2,6,23,0.35)"
-          strokeWidth="0.55"
-          strokeLinejoin="round"
-        />
-        <path
-          d={`M 39.8 ${midY - 3.5} L 34.0 ${midY - 1.8} L 33.4 ${midY} L 34.0 ${midY + 1.8} L 39.8 ${midY + 3.3} Z`}
-          fill={v.body}
-          opacity="0.95"
-        />
-        <ellipse cx="36.0" cy={midY} rx="3.6" ry="1.15" fill={v.body} opacity="0.85" />
-      </motion.g>
-
-      <path
-        d={`M 99.8 ${midY - 2.8}
-           C 95.5 ${midY - 8.6}, 87.5 ${midY - 11.8}, 75.5 ${midY - 12.0}
-           C 63.5 ${midY - 12.2}, 53.5 ${midY - 11.2}, 45.5 ${midY - 9.8}
-           C 39.5 ${midY - 8.6}, 36.5 ${midY - 6.0}, 34.8 ${midY - 3.5}
-           L 33.8 ${midY}
-           L 34.8 ${midY + 3.5}
-           C 36.8 ${midY + 6.6}, 40.2 ${midY + 9.2}, 46.5 ${midY + 9.8}
-           C 58 ${midY + 10.3}, 70.5 ${midY + 10.0}, 82.5 ${midY + 8.8}
-           C 91.5 ${midY + 7.0}, 96.8 ${midY + 3.8}, 99.8 ${midY - 0.3}
-           C 100.35 ${midY - 1.2}, 100.3 ${midY - 2.1}, 99.8 ${midY - 2.8} Z`}
-        fill={v.body}
-      />
-      <path
-        d={`M 97.0 ${midY - 3.0}
-           C 90.5 ${midY - 10.0}, 77.5 ${midY - 12.2}, 61.5 ${midY - 11.4}
-           C 49.5 ${midY - 10.8}, 39.5 ${midY - 8.8}, 35.2 ${midY - 4.4}
-           L 34.2 ${midY - 0.3}
-           C 48 ${midY + 1.2}, 66 ${midY + 1.6}, 82 ${midY}
-           C 91 ${midY - 0.8}, 95.2 ${midY - 2.0}, 97.0 ${midY - 3.0} Z`}
-        fill={v.top}
-        opacity="0.8"
-      />
-      <path
-        d={`M 97.6 ${midY + 0.2}
-           L 95.4 ${midY - 2.0} L 93.2 ${midY + 1.0} L 90.8 ${midY - 2.6}
-           L 88.4 ${midY + 1.4} L 85.8 ${midY - 1.0} L 83.0 ${midY + 2.8}
-           L 80.0 ${midY - 0.6} L 77.0 ${midY + 3.6} L 73.8 ${midY}
-           L 70.6 ${midY + 4.0} L 67.2 ${midY - 0.4} L 63.8 ${midY + 3.4}
-           L 60.4 ${midY + 0.2} L 57.0 ${midY + 3.8} L 53.6 ${midY}
-           L 50.2 ${midY + 3.0} L 46.8 ${midY - 0.8} L 43.4 ${midY + 3.6}
-           L 40.2 ${midY + 0.4} L 37.4 ${midY + 4.0} L 35.0 ${midY + 1.4} L 33.6 ${midY + 4.4}
-           C 37.0 ${midY + 8.6}, 49.5 ${midY + 10.6}, 64 ${midY + 10.4}
-           C 78.5 ${midY + 10.2}, 90.5 ${midY + 7.6}, 96.8 ${midY + 3.6}
-           C 98.5 ${midY + 2.2}, 98.2 ${midY + 1.0}, 97.6 ${midY + 0.2} Z`}
-        fill={v.belly}
-        opacity="0.95"
-      />
-
-      {v.stripes
-        ? [42, 52, 62, 72, 82].map((x, i) => (
-            <path
-              key={`stripe-${x}`}
-              d={`M ${x} ${midY - 7.5 + (i % 2)} Q ${x + 2.5} ${midY} ${x} ${midY + 7.5 - (i % 2)}`}
-              stroke="#1e293b"
-              strokeWidth="2.1"
-              opacity="0.4"
-              fill="none"
-              strokeLinecap="round"
-            />
-          ))
-        : null}
-
-      <path
-        d={`M 48.5 ${midY - 10.4}
-           C 50.2 ${midY - 15.8}, 52.6 -9.7, 55.0 -9.2
-           C 56.6 -7.8, 58.6 ${midY - 7.2}, 61.4 ${midY - 9.4}
-           C 62.0 ${midY - 9.0}, 61.8 ${midY - 8.4}, 60.8 ${midY - 8.6}
-           C 58.4 ${midY - 9.8}, 53.6 ${midY - 10.6}, 48.5 ${midY - 10.4} Z`}
-        fill={v.fin}
-        stroke="rgba(2,6,23,0.3)"
-        strokeWidth="0.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d={`M 68.5 ${midY + 5.0}
-           C 63.2 ${midY + 11.2}, 55.8 ${midY + 18.0}, 48.0 ${midY + 20.2}
-           C 46.2 ${midY + 20.5}, 45.2 ${midY + 19.2}, 46.0 ${midY + 18.0}
-           C 50.8 ${midY + 12.8}, 57.2 ${midY + 7.0}, 63.8 ${midY + 4.0}
-           C 65.6 ${midY + 3.4}, 67.4 ${midY + 3.8}, 68.5 ${midY + 5.0} Z`}
-        fill={v.fin}
-        opacity="0.95"
-      />
-      <path
-        d={`M 49.5 ${midY + 9.0} C 46.8 ${midY + 13.8}, 43.2 ${midY + 15.6}, 40.5 ${midY + 11.4} L 47.0 ${midY + 7.8} Z`}
-        fill={v.belly}
-        opacity="0.92"
-      />
-      <path d={`M 49.5 ${midY + 9.0} L 47.0 ${midY + 7.8} L 45.2 ${midY + 12.4} Z`} fill={v.fin} opacity="0.86" />
-      <path d={`M 40.0 ${midY + 7.8} L 37.6 ${midY + 12.0} L 35.8 ${midY + 8.0} Z`} fill={v.fin} opacity="0.85" />
-      <path d={`M 41.0 ${midY - 7.4} L 43.0 ${midY - 11.6} L 45.2 ${midY - 7.0} Z`} fill={v.fin} opacity="0.88" />
-
-      {[81.8, 78.4, 75.0, 71.6, 68.2].map((x, i) => (
-        <path
-          key={`std-gill-${x}`}
-          d={`M ${x} ${midY - 5.8 - i * 0.12} Q ${x - 1.8} ${midY} ${x + 0.2} ${midY + 5.4 - i * 0.1}`}
-          stroke={v.gill}
-          strokeWidth="1.2"
-          opacity="0.55"
-          fill="none"
-          strokeLinecap="round"
-        />
-      ))}
-
-      <path
-        d="M 90.5 17.4 C 94.8 15.4 98.4 18.6 99.8 21.4 C 100.2 22.5 100.05 23.6 99.3 24.15 C 96.2 26.6 92.5 27.4 89.5 26.9 Z"
-        fill={v.body}
-      />
-      <path d="M 90.8 17.8 C 95.0 16.0 98.2 19.2 98.9 21.2 C 95.8 19.0 92.8 18.4 90.8 18.4 Z" fill={v.top} opacity="0.65" />
-      <path d="M 90.0 25.9 C 94.2 26.8 97.4 25.0 97.9 23.85 C 95.2 26.4 92.0 26.8 90.0 26.8 Z" fill={v.belly} opacity="0.9" />
-
-      <circle cx="88.8" cy="20.1" r="1.4" fill={eyeColor} />
-      <circle cx="89.05" cy="19.9" r="0.35" fill={pupilColor} opacity="0.8" />
-
-      <path
-        d={
-          jawOpen
-            ? "M 82.5 26.4 Q 91 27.8 97.6 25.6 Q 94 36.2 87.5 36.8 Q 83 33.6 82.5 29.2 Z"
-            : "M 82.5 26.4 Q 91 28.0 97.6 25.8 Q 93.5 30.6 87.5 30.2 Q 83.5 28.4 82.5 27.4 Z"
-        }
-        fill="#0f172a"
-        opacity="0.9"
-      />
-      <motion.path
-        d={jawOpen ? mouthOpenUpper : mouthClosedUpper}
-        stroke="#1e293b"
-        strokeWidth="1.4"
-        fill="none"
-        strokeLinecap="round"
-        animate={
-          chomping
-            ? { d: [mouthClosedUpper, mouthOpenUpper, mouthClosedUpper] }
-            : undefined
-        }
-        transition={
-          chomping
-            ? { duration: 0.42, repeat: 2, ease: "easeInOut", delay: chompStart }
-            : undefined
-        }
-      />
-      <motion.path
-        d={jawOpen ? mouthOpenLower : mouthClosedLower}
-        stroke="#334155"
-        strokeWidth="1.3"
-        fill="none"
-        strokeLinecap="round"
-        animate={
-          chomping
-            ? { d: [mouthClosedLower, mouthOpenLower, mouthClosedLower] }
-            : undefined
-        }
-        transition={
-          chomping
-            ? { duration: 0.42, repeat: 2, ease: "easeInOut", delay: chompStart }
-            : undefined
-        }
-      />
-      {(showTeeth || chomping) && (
-        <motion.g
-          initial={{ opacity: showTeeth ? 0.55 : 0 }}
-          animate={
-            chomping
-              ? { opacity: [0.35, 0.9, 0.72, 0.25] }
-              : { opacity: showTeeth ? 0.75 : 0 }
-          }
-          transition={
-            chomping
-              ? { duration: 1.05, delay: Math.max(0, chompStart - 0.18) }
-              : { duration: 0.2 }
-          }
-        >
-          {[84.2, 86.8, 89.4, 92.0, 94.6].map((x) => (
-            <path
-              key={`std-tooth-${x}`}
-              d={`M ${x} 27.0 L ${x + 0.55} 29.1 L ${x + 1.1} 27.0 Z`}
-              fill="#f8fafc"
-              opacity="0.92"
-            />
-          ))}
-        </motion.g>
-      )}
-    </>
-  );
+/** Tiger / generic — same improved great-white architecture + optional flank stripes. */
+function StandardSharkBody(props) {
+  return <GreatWhiteBody {...props} />;
 }
 
 /**
- * Killer whale — full redraw from IMG_2273 (all three side-profile poses).
- * Tall upright triangular dorsal (concave trailing edge), blunt rounded head,
- * bright white eye patch + grey saddle swoop, white chin→flank belly lobe,
- * large rounded paddle pectorals, muscular peduncle into side-view fluke crescent.
- * Animation cycles tip-down / neutral / tip-up to match the three reference poses.
+ * Killer whale — jet black with crisp white eye patch (black eye at the front of
+ * the patch), grey saddle behind a tall upright dorsal, white chin-to-flank lobe,
+ * large paddle pectorals that sweep aft and down, and a side-view fluke beat.
  */
-function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
+function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0, ids }) {
   const eyePatch = v.eyePatch || "#f8fafc";
   const saddle = v.saddle || "#9ca3af";
   const chompStart = safeAnimDuration(chompDelay, 0);
   const shadowMode = v.id?.startsWith("shadow");
   const midY = 26;
-  /** Spine pivot under dorsal — whole rear third waves from here. */
   const waveX = 50;
-  /** Peduncle–fluke hinge. */
   const pedX = 26;
   const pedLocalX = pedX - waveX;
+  const sheen = ids?.orcaSheen;
+  const saddleFill = ids?.orcaSaddle || saddle;
+  const finFill = ids?.fin || v.fin;
 
   const pedTransition = frozen
     ? FROZEN_TRANSITION
@@ -759,43 +555,56 @@ function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
     ? FROZEN_TRANSITION
     : { duration: ORCA_FLUKE_DURATION, repeat: Infinity, ease: TAIL_SWAY_EASE };
 
+  const mouthClosed = `M 88 ${midY + 4.0} Q 93.4 ${midY + 5.2} 97.2 ${midY + 3.4}`;
+  const mouthOpen = `M 88 ${midY + 5.4} Q 94.2 ${midY + 11.6} 98.0 ${midY + 5.6}`;
+
   return (
     <>
-      {/* Forward hull (head → under dorsal) */}
+      {/* Forward hull (rounded melon through the dorsal) — one continuous body, not a pasted ellipse */}
       <path
-        d={`M 93 ${midY - 1.5}
-           C 88 ${midY - 11.5}, 74 ${midY - 14.0}, 58 ${midY - 12.8}
-           C 54 ${midY - 12.4}, ${waveX + 1} ${midY - 12.0}, ${waveX} ${midY - 11.4}
-           L ${waveX} ${midY + 11.4}
-           C ${waveX + 1} ${midY + 12.0}, 54 ${midY + 12.6}, 58 ${midY + 12.8}
-           C 72 ${midY + 14.0}, 84 ${midY + 10.5}, 91 ${midY + 5.0}
-           C 94.5 ${midY + 2.2}, 95 ${midY}, 93 ${midY - 1.5} Z`}
+        d={`M 96.4 ${midY - 0.2}
+           C 94.0 ${midY - 8.6}, 86.4 ${midY - 13.2}, 74.0 ${midY - 13.6}
+           C 64.0 ${midY - 13.8}, 56.0 ${midY - 13.0}, ${waveX} ${midY - 11.6}
+           L ${waveX} ${midY + 11.8}
+           C 56.0 ${midY + 13.4}, 66.0 ${midY + 14.6}, 76.0 ${midY + 13.6}
+           C 86.0 ${midY + 12.4}, 93.0 ${midY + 7.8}, 96.2 ${midY + 3.6}
+           C 97.6 ${midY + 2.0}, 97.6 ${midY + 0.8}, 96.4 ${midY - 0.2} Z`}
         fill={v.body}
       />
       <path
-        d={`M 91 ${midY - 2.5}
-           C 83 ${midY - 11.5}, 68 ${midY - 13.5}, ${waveX + 2} ${midY - 11.6}
-           L ${waveX} ${midY - 0.2}
-           C 58 ${midY + 2.0}, 76 ${midY + 1.4}, 87 ${midY + 0.4}
-           C 91 ${midY - 1.0}, 91 ${midY - 2.5}, 91 ${midY - 2.5} Z`}
+        d={`M 94.6 ${midY - 2.2}
+           C 88.0 ${midY - 10.8}, 74.0 ${midY - 13.8}, ${waveX + 1} ${midY - 11.4}
+           L ${waveX} ${midY + 0.2}
+           C 60 ${midY + 2.0}, 78 ${midY + 1.2}, 90 ${midY - 0.2}
+           C 93.2 ${midY - 0.8}, 94.6 ${midY - 2.2}, 94.6 ${midY - 2.2} Z`}
         fill={v.top}
-        opacity="0.92"
+        opacity="0.88"
       />
-      {/* White belly lobe — chin through flank, tapers before peduncle (IMG_2273) */}
+      {sheen ? (
+        <path
+          d={`M 90 ${midY - 6.5}
+             C 80 ${midY - 12.0}, 66 ${midY - 12.6}, 54 ${midY - 10.6}
+             C 64 ${midY - 7.8}, 78 ${midY - 6.8}, 90 ${midY - 4.2} Z`}
+          fill={`url(#${sheen})`}
+          opacity="0.7"
+        />
+      ) : null}
+
+      {/* White chin + belly lobe — rises on the flank behind the eye patch, then tapers */}
       <path
-        d={`M 90 ${midY + 1.5}
-           C 86 ${midY + 8.5}, 74 ${midY + 13.5}, 62 ${midY + 13.2}
-           C 56 ${midY + 13.0}, ${waveX + 2} ${midY + 11.0}, ${waveX} ${midY + 9.6}
-           C 56 ${midY + 4.5}, 70 ${midY + 2.8}, 84 ${midY + 1.8}
-           C 87 ${midY + 1.5}, 90 ${midY + 1.5}, 90 ${midY + 1.5} Z`}
+        d={`M 95.2 ${midY + 2.4}
+           C 93.4 ${midY + 6.8}, 88.0 ${midY + 11.6}, 80.0 ${midY + 13.4}
+           C 70.0 ${midY + 15.2}, 60.0 ${midY + 14.4}, ${waveX + 1} ${midY + 11.4}
+           C 58.0 ${midY + 8.0}, 64.0 ${midY + 5.6}, 70.5 ${midY + 5.0}
+           C 78.0 ${midY + 4.4}, 84.5 ${midY + 5.4}, 90.0 ${midY + 4.4}
+           C 92.4 ${midY + 3.8}, 94.2 ${midY + 3.0}, 95.2 ${midY + 2.4} Z`}
         fill={v.belly}
         opacity={shadowMode ? 0.2 : 0.98}
       />
 
       {/*
-        Rear third + fluke — IMG_2273 poses:
-          rotate+ → tip down (top), ~0 (mid), rotate− → tip up (bottom).
-        Peduncle stays muscular; fluke is a side-view crescent (not top-down notch).
+        Rear third + fluke — vertical whale propulsion.
+        Peduncle stays muscular; fluke is a thinner side-view crescent (not a club).
       */}
       <g transform={`translate(${waveX}, ${midY})`}>
         <motion.g
@@ -804,32 +613,32 @@ function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
           style={{ transformOrigin: "0px 0px", transformBox: "fill-box" }}
         >
           <path
-            d={`M 2 -11.4
-               C -3 -10.6, -8 -9.0, -13 -6.8
-               C -17 -4.8, -20.5 -3.2, ${pedLocalX} -3.4
-               L ${pedLocalX} 3.4
-               C -20.5 3.2, -17 5.0, -13 7.0
-               C -8 9.2, -3 10.8, 2 11.4
+            d={`M 2 -11.2
+               C -4 -10.2, -10 -8.2, -16 -5.2
+               C -20 -3.4, -22.8 -1.8, ${pedLocalX} -1.7
+               L ${pedLocalX} 1.7
+               C -22.8 1.8, -20 3.6, -16 5.6
+               C -10 8.2, -4 10.4, 2 11.4
                Z`}
             fill={v.body}
           />
           <path
-            d={`M 2 -11.2
-               C -5 -10.0, -12 -7.2, ${pedLocalX + 0.4} -2.8
+            d={`M 2 -11.0
+               C -6 -9.6, -14 -6.6, ${pedLocalX + 0.3} -2.2
                L ${pedLocalX} 0.2
-               C -10 1.6, -3 2.2, 2 1.4
+               C -10 1.4, -3 2.0, 2 1.2
                Z`}
             fill={v.top}
             opacity="0.9"
           />
           <path
-            d={`M 2 9.4
-               C -4 8.6, -11 6.0, ${pedLocalX + 0.5} 2.4
-               L ${pedLocalX + 0.2} 0.3
-               C -8 3.0, -2 4.6, 2 5.0
+            d={`M 2 9.8
+               C -5 8.6, -13 5.4, ${pedLocalX + 0.4} 2.0
+               L ${pedLocalX + 0.2} 0.2
+               C -8 3.0, -2 4.6, 2 5.2
                Z`}
             fill={v.belly}
-            opacity={shadowMode ? 0.16 : 0.94}
+            opacity={shadowMode ? 0.16 : 0.88}
           />
 
           <g transform={`translate(${pedLocalX}, 0)`}>
@@ -838,7 +647,6 @@ function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
                 frozen
                   ? { rotate: 0, scaleY: 1 }
                   : {
-                      // Tip-down (TOP) → flat (MID) → tip-up (BOT) → flat → tip-down
                       rotate: [22, -2, -26, -2, 22],
                       scaleY: [1.08, 1.0, 1.22, 1.0, 1.08],
                     }
@@ -853,126 +661,111 @@ function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
               }
               style={{ transformOrigin: "0px 0px", transformBox: "fill-box" }}
             >
-              {/* Side-profile fluke crescent — root matches peduncle wrist */}
               <path
-                d={`M 1.6 -3.5
-                   C -3.0 -5.0, -9.0 -6.4, -14.5 -5.6
-                   C -18.5 -4.8, -22.0 -2.8, -24.2 -0.5
-                   C -25.0 0.3, -25.0 1.2, -24.0 1.9
-                   C -21.5 3.6, -16.8 4.8, -12.0 5.0
-                   C -7.0 5.4, -2.2 4.4, 1.4 3.2
-                   C 2.8 1.6, 2.8 -1.8, 1.6 -3.5 Z`}
-                fill={v.fin}
+                d={`M 0.8 -1.25
+                   C -6.0 -1.9, -14.5 -2.4, -22.8 -1.8
+                   C -25.6 -1.4, -27.2 -0.5, -27.4 0
+                   C -27.2 0.5, -25.6 1.4, -22.8 1.8
+                   C -14.5 2.4, -6.0 1.9, 0.8 1.25
+                   C 1.4 0.6, 1.4 -0.6, 0.8 -1.25 Z`}
+                fill={finFill}
                 stroke="rgba(248,250,252,0.18)"
-                strokeWidth="0.5"
+                strokeWidth="0.4"
                 strokeLinejoin="round"
               />
               <path
-                d={`M 1.2 -2.8 C -1.8 -3.4, -5.0 -3.0, -7.8 -2.0 L -7.4 2.0 C -4.2 2.8, -0.8 2.4, 1.0 1.7 Z`}
+                d={`M 0.6 -0.9 C -2.4 -1.1, -6.0 -1.0, -9.2 -0.6 L -9.0 0.6 C -5.8 1.0, -2.2 0.9, 0.6 0.7 Z`}
                 fill={v.body}
-                opacity="0.92"
+                opacity="0.9"
               />
             </motion.g>
           </g>
         </motion.g>
       </g>
 
-      {/* Grey saddle swoop immediately behind dorsal (IMG_2273 comma shape) */}
+      {/* Grey saddle — comma / chevron immediately behind the dorsal */}
       <path
-        d={`M 46 ${midY - 11.0}
-           C 42 ${midY - 11.8}, 37 ${midY - 10.6}, 34.5 ${midY - 8.2}
-           C 36.5 ${midY - 9.8}, 41 ${midY - 9.2}, 44 ${midY - 7.6}
-           C 48 ${midY - 6.4}, 52.5 ${midY - 7.0}, 55 ${midY - 9.0}
-           C 53 ${midY - 10.8}, 49.5 ${midY - 11.4}, 46 ${midY - 11.0} Z`}
-        fill={saddle}
-        opacity={shadowMode ? 0.18 : 0.94}
+        d={`M 48.5 ${midY - 11.4}
+           C 44.0 ${midY - 12.2}, 38.5 ${midY - 10.6}, 35.6 ${midY - 7.6}
+           C 38.2 ${midY - 9.6}, 43.0 ${midY - 9.0}, 46.6 ${midY - 7.0}
+           C 50.4 ${midY - 5.6}, 55.0 ${midY - 6.4}, 57.6 ${midY - 8.8}
+           C 55.4 ${midY - 11.0}, 51.8 ${midY - 11.8}, 48.5 ${midY - 11.4} Z`}
+        fill={saddleFill}
+        opacity={shadowMode ? 0.18 : 0.96}
       />
 
-      {/*
-        Tall upright triangular dorsal — IMG_2273 wild profile:
-        slightly rounded tip, gently concave trailing edge. NOT flopped/captive.
-      */}
+      {/* Tall upright triangular dorsal — slightly raked, concave trailing edge, wild (not flopped) */}
       <path
-        d={`M 52 ${midY - 11.2}
-           C 53.2 ${midY - 18.5}, 54.8 ${midY - 26.5}, 56.2 ${midY - 29.5}
-           C 56.8 ${midY - 30.2}, 57.6 ${midY - 29.6}, 57.8 ${midY - 28.6}
-           C 58.6 ${midY - 22.0}, 59.5 ${midY - 15.5}, 60.8 ${midY - 10.8}
-           C 60.2 ${midY - 10.4}, 58.5 ${midY - 10.6}, 56.5 ${midY - 10.9}
-           C 54.8 ${midY - 11.1}, 53.2 ${midY - 11.2}, 52 ${midY - 11.2} Z`}
-        fill={v.fin}
-        stroke="rgba(2,6,23,0.35)"
-        strokeWidth="0.55"
+        d={`M 53.0 ${midY - 11.4}
+           C 54.0 ${midY - 19.0}, 55.2 ${midY - 26.8}, 56.6 ${midY - 30.4}
+           C 57.2 ${midY - 31.2}, 58.2 ${midY - 30.6}, 58.4 ${midY - 29.6}
+           C 59.4 ${midY - 22.4}, 60.6 ${midY - 15.6}, 62.2 ${midY - 10.8}
+           C 61.4 ${midY - 10.4}, 59.2 ${midY - 10.6}, 56.8 ${midY - 11.0}
+           C 55.0 ${midY - 11.2}, 53.8 ${midY - 11.4}, 53.0 ${midY - 11.4} Z`}
+        fill={finFill}
+        stroke="rgba(2,6,23,0.4)"
+        strokeWidth="0.5"
         strokeLinejoin="round"
       />
       <path
-        d={`M 53.2 ${midY - 11.4}
-           L 56.2 ${midY - 27.5}
-           L 58.8 ${midY - 11.2} Z`}
+        d={`M 54.2 ${midY - 11.6} L 56.6 ${midY - 28.0} L 59.6 ${midY - 11.2} Z`}
         fill={v.highlight}
-        opacity="0.1"
+        opacity="0.22"
       />
 
-      {/* Large rounded paddle pectorals (IMG_2273) */}
+      {/* Far-side paddle, aft and down, mostly tucked */}
       <path
-        d={`M 68 ${midY + 6.5}
-           C 72 ${midY + 14.5}, 80 ${midY + 18.5}, 88 ${midY + 14.0}
-           C 90 ${midY + 12.5}, 89 ${midY + 10.0}, 86 ${midY + 9.0}
-           C 80 ${midY + 7.0}, 74 ${midY + 5.5}, 70 ${midY + 4.8}
-           C 68.5 ${midY + 4.6}, 67.5 ${midY + 5.4}, 68 ${midY + 6.5} Z`}
-        fill={v.fin}
-        opacity="0.97"
-      />
-      <path
-        d={`M 67 ${midY - 5.5}
-           C 71 ${midY - 13.0}, 79 ${midY - 16.5}, 86 ${midY - 12.0}
-           C 88 ${midY - 10.5}, 87 ${midY - 8.2}, 84 ${midY - 7.4}
-           C 78 ${midY - 5.6}, 72 ${midY - 4.4}, 69 ${midY - 4.0}
-           C 67.6 ${midY - 3.8}, 66.6 ${midY - 4.5}, 67 ${midY - 5.5} Z`}
+        d={`M 71.0 ${midY + 6.8}
+           C 67.0 ${midY + 12.0}, 60.0 ${midY + 16.5}, 54.0 ${midY + 16.2}
+           C 52.6 ${midY + 16.0}, 52.4 ${midY + 14.6}, 53.8 ${midY + 14.0}
+           C 59.0 ${midY + 12.0}, 65.0 ${midY + 8.2}, 69.4 ${midY + 5.8}
+           C 70.4 ${midY + 5.4}, 71.4 ${midY + 6.0}, 71.0 ${midY + 6.8} Z`}
         fill={v.fin}
         opacity="0.55"
       />
 
-      {/* Rounded melon / blunt head */}
-      <ellipse cx="84" cy={midY} rx="14" ry="11.5" fill={v.body} />
-      <ellipse cx="86" cy={midY - 2.8} rx="10.5" ry="7.8" fill={v.top} opacity="0.78" />
-      <ellipse
-        cx="86"
-        cy={midY + 5.8}
-        rx="9.5"
-        ry="5.0"
-        fill={v.belly}
-        opacity={shadowMode ? 0.18 : 0.96}
+      {/* Near-side paddle pectoral — large, rounded, sweeps AFT and down (toward the tail) */}
+      <path
+        d={`M 72.4 ${midY + 7.0}
+           C 69.0 ${midY + 14.0}, 61.0 ${midY + 20.6}, 52.0 ${midY + 21.0}
+           C 49.6 ${midY + 21.0}, 48.8 ${midY + 18.8}, 50.8 ${midY + 17.6}
+           C 57.0 ${midY + 14.2}, 64.0 ${midY + 9.2}, 69.4 ${midY + 5.6}
+           C 70.8 ${midY + 4.8}, 72.6 ${midY + 5.4}, 72.4 ${midY + 7.0} Z`}
+        fill={finFill}
+        opacity="0.98"
+      />
+      <path
+        d={`M 71.0 ${midY + 7.2} C 67.0 ${midY + 13.0}, 60.4 ${midY + 18.2}, 53.6 ${midY + 19.2} L 68.4 ${midY + 6.0} Z`}
+        fill={v.highlight}
+        opacity="0.16"
       />
 
-      {/* White eye patch — elongated oval, tilted slightly aft-up (IMG_2273) */}
-      <ellipse
-        cx="75"
-        cy={midY - 5.2}
-        rx="6.8"
-        ry="3.6"
+      {/* Soft blowhole on the melon */}
+      <ellipse cx="88.4" cy={midY - 8.6} rx="1.3" ry="0.55" fill="#000" opacity="0.45" />
+
+      {/* White eye patch — elongated, rear-pointed, front-rounded; eye inset inside the patch */}
+      <path
+        d={`M 87.6 ${midY - 2.0}
+           C 86.4 ${midY - 4.8}, 83.0 ${midY - 7.0}, 78.4 ${midY - 7.6}
+           C 74.8 ${midY - 8.0}, 72.2 ${midY - 6.6}, 71.6 ${midY - 4.8}
+           C 71.2 ${midY - 3.4}, 73.4 ${midY - 2.2}, 77.0 ${midY - 1.6}
+           C 81.0 ${midY - 0.8}, 85.2 ${midY - 0.6}, 87.6 ${midY - 2.0} Z`}
         fill={eyePatch}
         opacity={shadowMode ? 0.22 : 1}
-        transform={`rotate(-18 75 ${midY - 5.2})`}
       />
-      {/* Tiny eye mark just ahead of the patch — almost invisible on black */}
-      <circle cx="70.5" cy={midY - 3.2} r="0.55" fill="#f8fafc" opacity={shadowMode ? 0.12 : 0.55} />
+      <circle cx="84.4" cy={midY - 3.15} r="1.05" fill={v.eye || "#050505"} />
+      <circle cx="84.75" cy={midY - 3.5} r="0.28" fill="#f8fafc" opacity={shadowMode ? 0.2 : 0.8} />
 
       {/* Soft mouth line */}
       <motion.path
-        d={`M 87 ${midY + 4.2} Q 93 ${midY + 5.8} 97.5 ${midY + 3.2}`}
-        stroke={shadowMode ? "#050505" : "#1e293b"}
-        strokeWidth="1.6"
+        d={mouthClosed}
+        stroke={shadowMode ? "#050505" : "#111827"}
+        strokeWidth="1.15"
         fill="none"
         strokeLinecap="round"
         animate={
           chomping
-            ? {
-                d: [
-                  `M 87 ${midY + 4.2} Q 93 ${midY + 5.8} 97.5 ${midY + 3.2}`,
-                  `M 87 ${midY + 5.8} Q 94 ${midY + 11.5} 98.5 ${midY + 5.2}`,
-                  `M 87 ${midY + 4.2} Q 93 ${midY + 5.8} 97.5 ${midY + 3.2}`,
-                ],
-              }
+            ? { d: [mouthClosed, mouthOpen, mouthClosed] }
             : undefined
         }
         transition={
@@ -990,10 +783,10 @@ function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
               : { duration: 0.2 }
           }
         >
-          {[89, 92, 95].map((x) => (
+          {[90.0, 92.8, 95.4].map((x) => (
             <path
               key={`ot-${x}`}
-              d={`M ${x} ${midY + 4.6} L ${x + 1} ${midY + 7.6} L ${x + 2} ${midY + 4.6} Z`}
+              d={`M ${x} ${midY + 4.4} L ${x + 0.85} ${midY + 7.2} L ${x + 1.7} ${midY + 4.4} Z`}
               fill="#f8fafc"
             />
           ))}
@@ -1003,15 +796,24 @@ function OrcaBody({ v, chomping, showTeeth, frozen, chompDelay = 0 }) {
   );
 }
 
-function HammerheadBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 }) {
+function HammerheadBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0, ids }) {
   const eyeColor = scary ? "#dc2626" : v.eye;
-  const pupilColor = scary ? "#fecaca" : v.pupil;
   const jawOpen = chomping ? 1 : 0;
   const chompStart = safeAnimDuration(chompDelay, 0);
+  const dorsum = ids?.dorsum || v.top;
+  const belly = ids?.belly || v.belly;
+  const finFill = ids?.fin || v.fin;
+  const caudalFill = ids?.caudal || v.fin;
+  const sheen = ids?.sheen;
+  const midY = 24;
+
+  const mouthClosedUpper = "M 82 25.2 Q 88 26.2 93.2 25.4";
+  const mouthClosedLower = "M 82 26.2 Q 88 27.4 93.0 26.4";
+  const mouthOpenUpper = "M 82 24.8 Q 88 25.6 93.2 25.0";
+  const mouthOpenLower = "M 82 27.4 Q 88 33.6 93.4 28.2";
 
   return (
     <>
-      {/* SMALL caudal translated aft with long dorsal→tail body (join ~x=0). */}
       <motion.g
         animate={frozen ? { rotate: 0 } : { rotate: [-8, 9, -8] }}
         transition={
@@ -1022,103 +824,147 @@ function HammerheadBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
         style={{ originX: "78%", originY: "50%" }}
       >
         <path
-          d="M 0 18
-             C -3.5 16.8, -9 12.5, -14 8.5
-             L -16 7.5
-             C -11 13, -7 17, -4.5 19.8
-             L -3.5 21.8
-             L -3.2 24
-             L -3.5 26.2
-             L -4.5 28.2
-             C -7 31.2, -11 35.5, -15 40
-             L -13 41
-             C -8 36, -3.5 31.5, 0 30.5
-             C 2.2 27.5, 2.2 21, 0 18 Z"
-          fill={v.fin}
+          d={`M 3.2 ${midY - 4.4}
+             C -2.0 ${midY - 8.0}, -8.0 ${midY - 12.4}, -13.2 ${midY - 14.8}
+             C -14.8 ${midY - 15.6}, -15.8 ${midY - 14.2}, -14.6 ${midY - 13.2}
+             C -10.0 ${midY - 9.2}, -5.4 ${midY - 5.2}, -2.0 ${midY - 2.0}
+             C -1.2 ${midY - 1.2}, -1.0 ${midY - 0.4}, -1.2 ${midY}
+             C -1.0 ${midY + 0.4}, -1.2 ${midY + 1.2}, -2.0 ${midY + 2.0}
+             C -5.4 ${midY + 5.4}, -10.0 ${midY + 9.4}, -14.4 ${midY + 13.2}
+             C -15.6 ${midY + 14.2}, -14.6 ${midY + 15.6}, -13.0 ${midY + 14.6}
+             C -8.0 ${midY + 12.0}, -2.0 ${midY + 7.4}, 3.2 ${midY + 4.4}
+             C 5.2 ${midY + 2.0}, 5.2 ${midY - 2.0}, 3.2 ${midY - 4.4} Z`}
+          fill={caudalFill}
           stroke="rgba(2,6,23,0.35)"
-          strokeWidth="0.55"
+          strokeWidth="0.5"
           strokeLinejoin="round"
         />
-        <path d="M 3 19 L -2.5 21 L -3 24 L -2.5 27 L 3 29 Z" fill={v.body} opacity="0.92" />
+        <path d={`M 6 ${midY - 4.6} L -1.5 ${midY - 1.6} L -2 ${midY} L -1.5 ${midY + 1.6} L 6 ${midY + 4.4} Z`} fill={v.body} opacity="0.92" />
       </motion.g>
 
-      <ellipse cx="58" cy="24" rx="26" ry="9" fill={v.body} />
-      <ellipse cx="62" cy="22" rx="20" ry="6.5" fill={v.top} opacity="0.5" />
-      {/* Long mid-aft body — dorsal (~x=58) to peduncle (~x=2) */}
+      {/* Long fusiform body from cephalofoil back to the peduncle */}
       <path
-        d="M 64 16
-           C 44 14.5, 24 15.2, 6 18
-           C 2 19, 1 21.5, 1 24
-           C 1 26.5, 2 29, 6 30
-           C 24 32.5, 44 33, 64 31
-           C 68 28, 68 19, 64 16 Z"
+        d={`M 78 ${midY - 8.4}
+           C 58 ${midY - 11.0}, 32 ${midY - 10.4}, 8 ${midY - 6.4}
+           C 3 ${midY - 5.2}, 1.2 ${midY - 2.4}, 1 ${midY}
+           C 1.2 ${midY + 2.4}, 3 ${midY + 5.2}, 8 ${midY + 6.4}
+           C 32 ${midY + 10.6}, 58 ${midY + 11.0}, 78 ${midY + 8.2}
+           C 82 ${midY + 4.8}, 82 ${midY - 4.8}, 78 ${midY - 8.4} Z`}
         fill={v.body}
       />
-      <ellipse cx="48" cy="28" rx="22" ry="5.5" fill={v.belly} opacity="0.78" />
       <path
-        d="M 78 26.5 Q 50 34 18 32 Q 6 30 1 27 Q 4 25 14 26 Q 40 29 62 27.5 Q 72 26.8 78 26.5 Z"
-        fill={v.belly}
-        opacity="0.8"
+        d={`M 76 ${midY - 7.8}
+           C 58 ${midY - 10.8}, 32 ${midY - 10.0}, 8 ${midY - 6.0}
+           L 2 ${midY - 0.2}
+           C 24 ${midY + 2.0}, 54 ${midY + 2.2}, 76 ${midY - 1.0} Z`}
+        fill={dorsum}
+        opacity="0.88"
       />
+      <path
+        d={`M 78 ${midY + 1.2}
+           C 60 ${midY + 3.6}, 36 ${midY + 4.8}, 12 ${midY + 3.0}
+           C 8 ${midY + 4.8}, 10 ${midY + 7.0}, 16 ${midY + 8.0}
+           C 40 ${midY + 11.0}, 64 ${midY + 10.2}, 78 ${midY + 7.0}
+           C 81 ${midY + 5.0}, 80 ${midY + 2.4}, 78 ${midY + 1.2} Z`}
+        fill={belly}
+        opacity="0.95"
+      />
+      {sheen ? (
+        <path
+          d={`M 70 ${midY - 6.4} C 50 ${midY - 9.4}, 28 ${midY - 8.6}, 12 ${midY - 5.2}
+             C 28 ${midY - 3.6}, 52 ${midY - 3.0}, 70 ${midY - 3.8} Z`}
+          fill={`url(#${sheen})`}
+          opacity="0.5"
+        />
+      ) : null}
 
-      <path d="M 52 14.5 L 60 3 L 68 15.5 Z" fill={v.fin} />
-      <path d="M 66 28.5 Q 74 36.5 82 31.5 L 74 25.5 Z" fill={v.fin} opacity="0.9" />
-      <path d="M 66 19.5 Q 74 11.5 82 15.5 L 74 21.5 Z" fill={v.fin} opacity="0.75" />
-      <path d="M 16 30 Q 10 36 6 31.5 L 14 28 Z" fill={v.fin} opacity="0.78" />
+      <path
+        d={`M 50 ${midY - 9.6}
+           C 52.2 ${midY - 16.4}, 55.4 ${midY - 20.8}, 58.2 ${midY - 21.6}
+           C 60.4 ${midY - 20.2}, 62.2 ${midY - 14.0}, 64.4 ${midY - 9.0}
+           C 63.4 ${midY - 8.6}, 60.0 ${midY - 9.0}, 56.6 ${midY - 9.4}
+           C 54.0 ${midY - 9.6}, 51.6 ${midY - 9.6}, 50 ${midY - 9.6} Z`}
+        fill={finFill}
+      />
+      {/* Near pectoral aft+down; no upward far-side fin */}
+      <path
+        d={`M 66 ${midY + 5.6}
+           C 60 ${midY + 12.6}, 52 ${midY + 16.0}, 45 ${midY + 15.2}
+           C 43.6 ${midY + 15.0}, 43.6 ${midY + 13.4}, 45.2 ${midY + 13.0}
+           C 52 ${midY + 11.0}, 58 ${midY + 7.2}, 63.4 ${midY + 4.8}
+           C 64.8 ${midY + 4.4}, 66.4 ${midY + 4.8}, 66 ${midY + 5.6} Z`}
+        fill={finFill}
+        opacity="0.9"
+      />
+      <path d={`M 22 ${midY + 7.0} C 16 ${midY + 12.2}, 10 ${midY + 11.0}, 8 ${midY + 7.6} L 18 ${midY + 5.4} Z`} fill={finFill} opacity="0.8" />
+      <path d={`M 20 ${midY - 6.4} L 23 ${midY - 9.8} L 26 ${midY - 6.0} Z`} fill={finFill} opacity="0.85" />
 
-      {[58, 54, 50].map((x) => (
+      {[62, 57, 52, 47, 42].map((x, i) => (
         <path
           key={`hgill-${x}`}
-          d={`M ${x} 19 Q ${x - 2} 24 ${x} 29`}
+          d={`M ${x} ${midY - 5.2 - i * 0.08} Q ${x - 1.6} ${midY} ${x} ${midY + 5.0}`}
           stroke={v.gill}
-          strokeWidth="1"
-          opacity="0.5"
+          strokeWidth="1.05"
+          opacity={0.58 - i * 0.03}
           fill="none"
+          strokeLinecap="round"
         />
       ))}
 
+      {/* Cephalofoil — wide curved hammer, eyes at the wing tips, shallow central notch (no sword beak) */}
       <path
-        d="M 70 24 L 80 8 L 90 12 L 96 24 L 90 36 L 80 40 L 70 24 Z"
+        d={`M 74 ${midY}
+           C 76 ${midY - 10.5}, 82 ${midY - 17.6}, 90 ${midY - 18.4}
+           C 94 ${midY - 18.8}, 96.4 ${midY - 17.0}, 95.6 ${midY - 14.6}
+           C 94.2 ${midY - 8.0}, 93.4 ${midY - 3.2}, 93.0 ${midY}
+           C 93.4 ${midY + 3.2}, 94.2 ${midY + 8.0}, 95.6 ${midY + 14.6}
+           C 96.4 ${midY + 17.0}, 94 ${midY + 18.8}, 90 ${midY + 18.4}
+           C 82 ${midY + 17.6}, 76 ${midY + 10.5}, 74 ${midY} Z`}
         fill={v.body}
-        stroke="rgba(2,6,23,0.35)"
-        strokeWidth="0.7"
+        stroke="rgba(2,6,23,0.32)"
+        strokeWidth="0.55"
         strokeLinejoin="round"
       />
-      <path d="M 74 24 L 82 14 L 92 18 L 94 24 L 92 30 L 82 34 L 74 24 Z" fill={v.top} opacity="0.45" />
-      <path d="M 78 24 L 86 20 L 92 24 L 86 28 Z" fill={v.belly} opacity="0.55" />
+      <path
+        d={`M 76 ${midY}
+           C 78 ${midY - 9.0}, 83.5 ${midY - 15.4}, 90 ${midY - 16.2}
+           C 88 ${midY - 8.0}, 87.2 ${midY - 3.0}, 87 ${midY}
+           C 87.2 ${midY + 3.0}, 88 ${midY + 8.0}, 90 ${midY + 16.2}
+           C 83.5 ${midY + 15.4}, 78 ${midY + 9.0}, 76 ${midY} Z`}
+        fill={dorsum}
+        opacity="0.55"
+      />
+      {/* Shallow anterior notch, not a protruding snout */}
+      <path
+        d={`M 92.8 ${midY - 2.4} C 95.4 ${midY - 1.0}, 95.4 ${midY + 1.0}, 92.8 ${midY + 2.4} C 94.8 ${midY + 0.8}, 94.8 ${midY - 0.8}, 92.8 ${midY - 2.4} Z`}
+        fill={v.body}
+      />
+      <path d={`M 86 ${midY + 2} C 88 ${midY + 5}, 90 ${midY + 5.6}, 92 ${midY + 3.2} L 88 ${midY + 1.6} Z`} fill={v.belly} opacity="0.7" />
 
-      <circle cx="82" cy="12" r="2.2" fill="white" />
-      <circle cx="82.4" cy="12" r="1.2" fill={eyeColor} />
-      <circle cx="82.7" cy="11.7" r="0.45" fill={pupilColor} />
-      <circle cx="82" cy="36" r="2.2" fill="white" />
-      <circle cx="82.4" cy="36" r="1.2" fill={eyeColor} />
-      <circle cx="82.7" cy="35.7" r="0.45" fill={pupilColor} />
+      {/* Dark eyes at the ends of the wings — no cartoon white sclera */}
+      <circle cx="90.2" cy="8.2" r="1.7" fill={eyeColor} />
+      <circle cx="90.55" cy="7.8" r="0.4" fill="#f8fafc" opacity="0.7" />
+      <circle cx="90.2" cy="39.8" r="1.7" fill={eyeColor} />
+      <circle cx="90.55" cy="39.4" r="0.4" fill="#f8fafc" opacity="0.7" />
 
-      {/* Underslung mouth under cephalofoil */}
       <path
         d={
           jawOpen
-            ? "M 90 24 Q 100 26 106 24 Q 102 32 96 32 Q 91 28 90 26 Z"
-            : "M 90 23.5 Q 100 25.2 106 24 Q 101 27.5 96 27 Q 91 25.5 90 24.5 Z"
+            ? "M 81.5 25.0 Q 88 26.0 93.4 25.2 Q 91 32.4 86 32.6 Q 81.8 29.0 81.5 26.6 Z"
+            : "M 81.5 24.8 Q 88 26.0 93.4 25.2 Q 90 27.4 86 27.0 Q 82.2 25.8 81.5 25.2 Z"
         }
         fill="#0f172a"
         opacity="0.82"
       />
       <motion.path
-        d={jawOpen ? "M 90 23.5 Q 100 24.5 106 23.5" : "M 90 23.2 Q 100 24.8 106 23.8"}
+        d={jawOpen ? mouthOpenUpper : mouthClosedUpper}
         stroke="#1e293b"
-        strokeWidth="1.6"
+        strokeWidth="1.3"
         fill="none"
         strokeLinecap="round"
         animate={
           chomping
-            ? {
-                d: [
-                  "M 90 23.2 Q 100 24.8 106 23.8",
-                  "M 90 23.5 Q 100 24.5 106 23.5",
-                  "M 90 23.2 Q 100 24.8 106 23.8",
-                ],
-              }
+            ? { d: [mouthClosedUpper, mouthOpenUpper, mouthClosedUpper] }
             : undefined
         }
         transition={
@@ -1128,20 +974,14 @@ function HammerheadBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
         }
       />
       <motion.path
-        d={jawOpen ? "M 90 26 Q 100 34 106 28" : "M 90 24.8 Q 100 27 105.5 25"}
+        d={jawOpen ? mouthOpenLower : mouthClosedLower}
         stroke="#334155"
-        strokeWidth="1.4"
+        strokeWidth="1.2"
         fill="none"
         strokeLinecap="round"
         animate={
           chomping
-            ? {
-                d: [
-                  "M 90 24.8 Q 100 27 105.5 25",
-                  "M 90 26 Q 100 34 106 28",
-                  "M 90 24.8 Q 100 27 105.5 25",
-                ],
-              }
+            ? { d: [mouthClosedLower, mouthOpenLower, mouthClosedLower] }
             : undefined
         }
         transition={
@@ -1159,10 +999,10 @@ function HammerheadBody({ v, chomping, showTeeth, scary, frozen, chompDelay = 0 
               : { duration: 0.2 }
           }
         >
-          {[94, 97.5, 101].map((x) => (
+          {[84, 87, 90].map((x) => (
             <path
               key={`ht-${x}`}
-              d={`M ${x} 24.4 L ${x + 0.7} 26.2 L ${x + 1.4} 24.4 Z`}
+              d={`M ${x} 25.2 L ${x + 0.7} 27.2 L ${x + 1.4} 25.2 Z`}
               fill="#f8fafc"
               opacity="0.88"
             />
@@ -1185,7 +1025,7 @@ export function SharkCreature({
 }) {
   const v = variant || SHARK_VARIANTS[0];
   const viewBox = v.hammerhead
-    ? "-22 -6 138 54"
+    ? "-22 -4 128 56"
     : v.orca
       ? // Clear tall upright dorsal tip (~y=-4) + fluke beat aft of peduncle
         "-16 -24 126 72"
@@ -1196,6 +1036,31 @@ export function SharkCreature({
     ? "drop-shadow(0 3px 7px rgba(0,0,0,0.55))"
     : "drop-shadow(0 2px 6px rgba(0,0,0,0.45))";
 
+  // Unique gradient ids per instance so several creatures can share a die.
+  const uid = React.useId().replace(/:/g, "");
+  const ids = {
+    dorsum: `sk-dorsum-${uid}`,
+    belly: `sk-belly-${uid}`,
+    sheen: `sk-sheen-${uid}`,
+    fin: `sk-fin-${uid}`,
+    caudal: `sk-caudal-${uid}`,
+    seam: `sk-seam-${uid}`,
+    orcaSheen: `sk-orca-sheen-${uid}`,
+    orcaSaddle: `sk-orca-saddle-${uid}`,
+  };
+  const idRefs = Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, `url(#${id})`]));
+  // Body components take fill strings for fills and raw ids for paint servers they wrap.
+  const paint = {
+    dorsum: idRefs.dorsum,
+    belly: idRefs.belly,
+    fin: idRefs.fin,
+    caudal: idRefs.caudal,
+    sheen: ids.sheen,
+    seam: ids.seam,
+    orcaSheen: ids.orcaSheen,
+    orcaSaddle: idRefs.orcaSaddle,
+  };
+
   const bodyProps = {
     v,
     chomping,
@@ -1203,15 +1068,51 @@ export function SharkCreature({
     scary,
     frozen,
     chompDelay,
+    ids: paint,
   };
 
   return (
     <svg viewBox={viewBox} width={size} height={size} style={{ filter: shadow, overflow: "visible" }}>
       <defs>
-        <linearGradient id={`shark-body-${v.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor={v.top} />
-          <stop offset="55%" stopColor={v.body} />
-          <stop offset="100%" stopColor={v.belly} stopOpacity="0.9" />
+        {/* Rounded-body light: brighter along the back ridge, darker toward the seam */}
+        <linearGradient id={ids.dorsum} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={v.highlight} stopOpacity="0.95" />
+          <stop offset="22%" stopColor={v.top} />
+          <stop offset="78%" stopColor={v.top} />
+          <stop offset="100%" stopColor={v.body} />
+        </linearGradient>
+        <linearGradient id={ids.belly} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={v.belly} />
+          <stop offset="70%" stopColor={v.belly} />
+          <stop offset="100%" stopColor="#b9bec6" />
+        </linearGradient>
+        <linearGradient id={ids.sheen} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="45%" stopColor="#ffffff" stopOpacity="0.32" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={ids.fin} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={v.fin} />
+          <stop offset="100%" stopColor={v.top} />
+        </linearGradient>
+        <linearGradient id={ids.caudal} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={v.fin} />
+          <stop offset="100%" stopColor={v.top} />
+        </linearGradient>
+        <linearGradient id={ids.seam} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={v.body} stopOpacity="0" />
+          <stop offset="50%" stopColor={v.highlight} stopOpacity="0.55" />
+          <stop offset="100%" stopColor={v.belly} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={ids.orcaSheen} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#9aa3ad" stopOpacity="0" />
+          <stop offset="50%" stopColor="#9aa3ad" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#9aa3ad" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={ids.orcaSaddle} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={v.saddle || "#8a919a"} stopOpacity="0.15" />
+          <stop offset="55%" stopColor={v.saddle || "#8a919a"} />
+          <stop offset="100%" stopColor={v.saddle || "#8a919a"} stopOpacity="0.55" />
         </linearGradient>
       </defs>
       {v.hammerhead ? (
