@@ -8,6 +8,7 @@ import { isNativeApp } from '@/lib/platform';
 import { hydrateSpriteLabPersistence } from '@/lib/spriteLab';
 import { recoverCorruptDiceState } from '@/lib/skinRecovery';
 import PageNotFound from './lib/PageNotFound';
+import SiteFooter from '@/components/SiteFooter';
 import Home from '@/pages/Home';
 import Story from '@/pages/Story';
 import StoryGame from '@/pages/StoryGame';
@@ -129,12 +130,32 @@ function RouteErrorBoundaryWithLocation({ children }) {
   );
 }
 
+function isImmersiveGamePath(pathname) {
+  if (pathname === "/game") return true;
+  // Story boss fights only — not the ladder at /story.
+  if (/^\/story\/[^/]+\/?$/.test(pathname)) return true;
+  return false;
+}
+
+function AppShell({ children }) {
+  const { pathname } = useLocation();
+  const immersive = isImmersiveGamePath(pathname);
+
+  return (
+    <div className={immersive ? "site-shell site-shell--immersive" : "site-shell"}>
+      <div className="site-shell-main">{children}</div>
+      <SiteFooter compact={immersive} />
+    </div>
+  );
+}
+
 function App() {
   const Router = isNativeApp() ? HashRouter : BrowserRouter;
 
   return (
     <QueryClientProvider client={queryClientInstance}>
       <Router>
+        <AppShell>
         <Suspense fallback={<PageLoader />}>
           <RouteErrorBoundaryWithLocation>
           <Routes>
@@ -169,6 +190,7 @@ function App() {
           </Routes>
           </RouteErrorBoundaryWithLocation>
         </Suspense>
+        </AppShell>
       </Router>
       <Toaster />
       <SonnerToaster position="top-center" richColors />

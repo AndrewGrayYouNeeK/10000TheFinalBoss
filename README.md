@@ -117,3 +117,5 @@ ios/              Capacitor iOS project (generated after npm run ios:sync)
 ```
 
 **Sacred files (game rules — do not change casually):** `src/lib/gameLogic.js`, `scoring.js`, `powers.js`, `aiOpponent.js`
+
+YouNeeK™ · © 2026 Andrew Gray

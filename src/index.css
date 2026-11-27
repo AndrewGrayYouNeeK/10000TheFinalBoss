@@ -207,3 +207,41 @@
   border: 2px solid #ff00ea;
   box-shadow: 0 0 18px #00ffff, 0 0 36px #ff00ea, inset 0 0 0 1px rgba(255,255,255,0.08);
 }
+
+/* Site-wide copyright footer shell.
+   Regular pages: sticky footer in normal document flow.
+   Immersive game views: the play area fills the leftover viewport so the
+   footer sits under the tray/controls instead of covering them. */
+.site-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #020408;
+}
+.site-shell-main {
+  flex: 1 1 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.site-shell-main > * {
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: unset;
+}
+.site-shell--immersive {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+.site-shell--immersive .site-shell-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.site-shell--immersive .site-shell-main > * {
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  height: 100%;
+  max-height: 100%;
+}
